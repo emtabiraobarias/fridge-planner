@@ -1,0 +1,114 @@
+# Meal Recommender Agent
+# Suggests meals based on fridge/pantry inventory, prioritising ingredients expiring soonest.
+# Provider: Anthropic Claude Sonnet 4.6
+# Note: holodeck serve requires Node.js at runtime when using the Anthropic provider.
+
+name: meal-recommender
+description: AI-powered meal recommendation agent that suggests meals to minimise food waste
+
+model:
+  provider: anthropic
+  name: claude-sonnet-4-6
+  temperature: 0.5
+  max_tokens: 2048
+
+instructions:
+  file: instructions/system-prompt.md
+
+tools:
+  - type: vectorstore
+    name: recipe_search
+    description: Search recipe database to find meals that match available ingredients
+    source: data/recipes.json
+    database: chromadb
+    top_k: 5
+    chunk_size: 512
+    chunk_overlap: 64
+    min_similarity_score: 0.65
+    id_field: id
+    vector_field:
+      - name
+      - ingredients
+      - description
+    meta_fields:
+      - name
+      - cuisine
+      - prep_time_minutes
+      - ingredients
+
+evaluations:
+  model:
+    provider: anthropic
+    name: claude-sonnet-4-6
+    temperature: 0.0
+  metrics:
+    - type: rag
+      metric_type: faithfulness
+      threshold: 0.8
+
+    - type: rag
+      metric_type: answer_relevancy
+      threshold: 0.75
+
+    - type: geval
+      name: ExpiryPrioritisation
+      criteria: |
+        Evaluate whether the meal suggestions prioritise ingredients with the
+        earliest expiration dates. A good response should:
+        1. Recommend meals that use ingredients expiring within 1-3 days first
+        2. Clearly indicate which expiring ingredients are used in each meal
+        3. Not suggest meals that ignore all soon-to-expire items
+      evaluation_params:
+        - input
+        - actual_output
+      threshold: 0.8
+
+    - type: geval
+      name: Practicality
+      criteria: |
+        Evaluate whether the suggestions are practical and achievable with the
+        given ingredients. A practical response should:
+        1. Only suggest meals where most key ingredients are available
+        2. Clearly note any missing ingredients needed
+        3. Provide 3-5 distinct meal options, not variations of the same dish
+      evaluation_params:
+        - input
+        - actual_output
+      threshold: 0.75
+
+test_cases:
+  - name: Prioritise expiring chicken
+    input: |
+      Suggest 3-5 meals I can make with these ingredients.
+      Prioritise ingredients expiring soonest to minimise food waste.
+
+      - 2 lbs chicken breast (expires: 2026-03-30)
+      - 1 cup rice (expires: 2026-06-01)
+      - 500g broccoli (expires: 2026-04-02)
+      - 2 cloves garlic (expires: 2026-05-01)
+    ground_truth: Should suggest meals using chicken breast first since it expires soonest
+    expected_tools:
+      - recipe_search
+
+  - name: Mixed pantry and perishables
+    input: |
+      Suggest 3-5 meals I can make with these ingredients.
+      Prioritise ingredients expiring soonest to minimise food waste.
+
+      - 3 eggs (expires: 2026-03-31)
+      - 200g spinach (expires: 2026-03-30)
+      - 1 can tomatoes (expires: 2027-01-01)
+      - 100g feta cheese (expires: 2026-04-05)
+    ground_truth: Should suggest meals using spinach and eggs as priority ingredients
+    expected_tools:
+      - recipe_search
+
+  - name: Single ingredient
+    input: |
+      Suggest 3-5 meals I can make with these ingredients.
+      Prioritise ingredients expiring soonest to minimise food waste.
+
+      - 500g ground beef (expires: 2026-03-29)
+    ground_truth: Should suggest meals centred around ground beef
+    expected_tools:
+      - recipe_search

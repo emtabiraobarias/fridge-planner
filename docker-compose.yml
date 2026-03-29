@@ -1,0 +1,95 @@
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: fridge-planner
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chromadb:
+    image: chromadb/chroma:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chromadb_data:/chroma/.chroma/index
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  holodeck:
+    image: holodeck-ai:latest
+    build:
+      context: agents/meal-recommender
+      dockerfile: ../../docker/holodeck.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      HOLODECK_PORT: 8001
+      HOLODECK_PROTOCOL: rest
+    volumes:
+      - ./agents/meal-recommender:/app
+    command: >
+      holodeck serve /app/agent.yaml
+        --host 0.0.0.0
+        --port 8001
+        --protocol rest
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: packages/server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      MONGODB_URI: mongodb://mongodb:27017/fridge-planner
+      HOLODECK_URL: http://holodeck:8001
+      AUTH_ISSUER: ${AUTH_ISSUER}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE}
+      AUTH_JWKS_URI: ${AUTH_JWKS_URI}
+      LOG_LEVEL: info
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      holodeck:
+        condition: service_healthy
+
+  client:
+    build:
+      context: packages/client
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+
+volumes:
+  mongodb_data:
+  chromadb_data:

@@ -1,0 +1,202 @@
+[
+  {
+    "id": "r001",
+    "name": "Chicken Fried Rice",
+    "cuisine": "Asian",
+    "prep_time_minutes": 25,
+    "description": "Quick one-pan fried rice with chicken, vegetables and egg",
+    "ingredients": ["chicken breast", "rice", "egg", "soy sauce", "garlic", "green onion", "sesame oil", "frozen peas"]
+  },
+  {
+    "id": "r002",
+    "name": "Chicken and Broccoli Stir-fry",
+    "cuisine": "Asian",
+    "prep_time_minutes": 20,
+    "description": "Classic stir-fry with tender chicken and crisp broccoli in a savoury sauce",
+    "ingredients": ["chicken breast", "broccoli", "garlic", "soy sauce", "oyster sauce", "cornstarch", "sesame oil"]
+  },
+  {
+    "id": "r003",
+    "name": "Spinach and Feta Omelette",
+    "cuisine": "Mediterranean",
+    "prep_time_minutes": 10,
+    "description": "Fluffy omelette filled with wilted spinach and crumbled feta cheese",
+    "ingredients": ["egg", "spinach", "feta cheese", "butter", "salt", "pepper"]
+  },
+  {
+    "id": "r004",
+    "name": "Ground Beef Tacos",
+    "cuisine": "Mexican",
+    "prep_time_minutes": 20,
+    "description": "Seasoned ground beef in corn tortillas with classic toppings",
+    "ingredients": ["ground beef", "taco seasoning", "corn tortillas", "onion", "garlic", "tomatoes", "lettuce", "cheddar cheese"]
+  },
+  {
+    "id": "r005",
+    "name": "Tomato and Egg Shakshuka",
+    "cuisine": "Middle Eastern",
+    "prep_time_minutes": 25,
+    "description": "Eggs poached in a spiced tomato sauce, perfect for any meal",
+    "ingredients": ["egg", "canned tomatoes", "onion", "garlic", "cumin", "paprika", "olive oil", "feta cheese"]
+  },
+  {
+    "id": "r006",
+    "name": "Beef and Vegetable Stew",
+    "cuisine": "Western",
+    "prep_time_minutes": 60,
+    "description": "Hearty slow-cooked stew with ground beef and root vegetables",
+    "ingredients": ["ground beef", "carrot", "potato", "onion", "garlic", "beef stock", "tomato paste", "thyme"]
+  },
+  {
+    "id": "r007",
+    "name": "Garlic Butter Chicken with Rice",
+    "cuisine": "Western",
+    "prep_time_minutes": 30,
+    "description": "Pan-seared chicken breast in garlic butter served over steamed rice",
+    "ingredients": ["chicken breast", "rice", "garlic", "butter", "lemon", "parsley", "salt", "pepper"]
+  },
+  {
+    "id": "r008",
+    "name": "Spinach and Chickpea Curry",
+    "cuisine": "Indian",
+    "prep_time_minutes": 30,
+    "description": "Warming vegetarian curry with spinach and chickpeas in a spiced tomato sauce",
+    "ingredients": ["spinach", "chickpeas", "canned tomatoes", "onion", "garlic", "ginger", "garam masala", "cumin", "coconut milk"]
+  },
+  {
+    "id": "r009",
+    "name": "Greek Salad with Feta",
+    "cuisine": "Mediterranean",
+    "prep_time_minutes": 10,
+    "description": "Fresh crisp salad with tomatoes, cucumber, olives and creamy feta",
+    "ingredients": ["feta cheese", "tomatoes", "cucumber", "red onion", "olives", "olive oil", "oregano"]
+  },
+  {
+    "id": "r010",
+    "name": "Pasta Bolognese",
+    "cuisine": "Italian",
+    "prep_time_minutes": 40,
+    "description": "Classic Italian meat sauce with ground beef over pasta",
+    "ingredients": ["ground beef", "pasta", "canned tomatoes", "onion", "garlic", "carrot", "celery", "olive oil", "parmesan"]
+  },
+  {
+    "id": "r011",
+    "name": "Scrambled Eggs on Toast",
+    "cuisine": "Western",
+    "prep_time_minutes": 10,
+    "description": "Creamy soft scrambled eggs served on toasted bread",
+    "ingredients": ["egg", "butter", "bread", "salt", "pepper", "chives"]
+  },
+  {
+    "id": "r012",
+    "name": "Chicken Caesar Salad",
+    "cuisine": "Western",
+    "prep_time_minutes": 20,
+    "description": "Grilled chicken over romaine lettuce with Caesar dressing and croutons",
+    "ingredients": ["chicken breast", "romaine lettuce", "parmesan", "croutons", "caesar dressing", "lemon", "garlic"]
+  },
+  {
+    "id": "r013",
+    "name": "Beef Stir-fry with Vegetables",
+    "cuisine": "Asian",
+    "prep_time_minutes": 20,
+    "description": "Quick high-heat stir-fry with sliced beef and seasonal vegetables",
+    "ingredients": ["ground beef", "broccoli", "carrot", "soy sauce", "oyster sauce", "garlic", "ginger", "sesame oil"]
+  },
+  {
+    "id": "r014",
+    "name": "Frittata with Spinach and Cheese",
+    "cuisine": "Italian",
+    "prep_time_minutes": 25,
+    "description": "Baked Italian egg dish packed with spinach and melted cheese",
+    "ingredients": ["egg", "spinach", "feta cheese", "onion", "olive oil", "salt", "pepper"]
+  },
+  {
+    "id": "r015",
+    "name": "Chicken Soup",
+    "cuisine": "Western",
+    "prep_time_minutes": 45,
+    "description": "Comforting homemade chicken soup with vegetables and noodles",
+    "ingredients": ["chicken breast", "carrot", "celery", "onion", "garlic", "chicken stock", "noodles", "parsley"]
+  },
+  {
+    "id": "r016",
+    "name": "Rice and Beans",
+    "cuisine": "Latin American",
+    "prep_time_minutes": 30,
+    "description": "Simple and nutritious rice cooked with seasoned black beans",
+    "ingredients": ["rice", "black beans", "onion", "garlic", "cumin", "oregano", "olive oil", "canned tomatoes"]
+  },
+  {
+    "id": "r017",
+    "name": "Broccoli and Cheese Soup",
+    "cuisine": "Western",
+    "prep_time_minutes": 30,
+    "description": "Creamy blended soup with broccoli and sharp cheddar",
+    "ingredients": ["broccoli", "cheddar cheese", "onion", "garlic", "chicken stock", "butter", "flour", "cream"]
+  },
+  {
+    "id": "r018",
+    "name": "Stuffed Bell Peppers",
+    "cuisine": "Mediterranean",
+    "prep_time_minutes": 45,
+    "description": "Bell peppers stuffed with seasoned ground beef and rice",
+    "ingredients": ["ground beef", "rice", "bell pepper", "canned tomatoes", "onion", "garlic", "mozzarella", "italian seasoning"]
+  },
+  {
+    "id": "r019",
+    "name": "Egg Fried Rice",
+    "cuisine": "Asian",
+    "prep_time_minutes": 15,
+    "description": "Simple vegetarian fried rice with egg and soy sauce",
+    "ingredients": ["rice", "egg", "soy sauce", "garlic", "green onion", "sesame oil", "frozen peas"]
+  },
+  {
+    "id": "r020",
+    "name": "Garlic Shrimp Pasta",
+    "cuisine": "Italian",
+    "prep_time_minutes": 20,
+    "description": "Linguine tossed with garlicky butter shrimp and fresh parsley",
+    "ingredients": ["shrimp", "pasta", "garlic", "butter", "white wine", "lemon", "parsley", "red chilli flakes"]
+  },
+  {
+    "id": "r021",
+    "name": "Chicken Tikka Masala",
+    "cuisine": "Indian",
+    "prep_time_minutes": 40,
+    "description": "Tender chicken in a rich creamy tomato and spice sauce",
+    "ingredients": ["chicken breast", "canned tomatoes", "cream", "onion", "garlic", "ginger", "garam masala", "cumin", "coriander", "yoghurt"]
+  },
+  {
+    "id": "r022",
+    "name": "Avocado Toast with Egg",
+    "cuisine": "Western",
+    "prep_time_minutes": 10,
+    "description": "Smashed avocado on toast topped with a poached or fried egg",
+    "ingredients": ["egg", "avocado", "bread", "lemon", "red chilli flakes", "salt", "pepper"]
+  },
+  {
+    "id": "r023",
+    "name": "Mushroom Risotto",
+    "cuisine": "Italian",
+    "prep_time_minutes": 40,
+    "description": "Creamy Arborio rice with sautéed mushrooms and parmesan",
+    "ingredients": ["arborio rice", "mushroom", "onion", "garlic", "white wine", "chicken stock", "parmesan", "butter"]
+  },
+  {
+    "id": "r024",
+    "name": "Beef Burger",
+    "cuisine": "Western",
+    "prep_time_minutes": 20,
+    "description": "Juicy homemade beef patty in a bun with classic burger toppings",
+    "ingredients": ["ground beef", "burger bun", "lettuce", "tomatoes", "onion", "cheddar cheese", "ketchup", "mustard"]
+  },
+  {
+    "id": "r025",
+    "name": "Lemon Herb Baked Chicken",
+    "cuisine": "Western",
+    "prep_time_minutes": 45,
+    "description": "Oven-baked chicken breast with lemon, garlic and fresh herbs",
+    "ingredients": ["chicken breast", "lemon", "garlic", "olive oil", "rosemary", "thyme", "salt", "pepper"]
+  }
+]
