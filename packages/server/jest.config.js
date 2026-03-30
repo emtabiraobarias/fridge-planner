@@ -16,6 +16,8 @@ export default {
     // Route stubs — excluded until implemented in Phase 1
     '!src/api/v1/inventory.ts',
     '!src/api/v1/recommendations.ts',
+    // Mongoose models — pre-hooks require DB; covered by integration tests
+    '!src/models/*.ts',
   ],
   coverageThreshold: {
     global: {

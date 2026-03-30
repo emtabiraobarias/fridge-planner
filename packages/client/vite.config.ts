@@ -20,8 +20,9 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
-        'src/main.tsx',       // entry point — not business logic
+        'src/main.tsx',           // entry point
         'src/**/*.d.ts',
+        'src/services/**/*.ts',   // API fetch wrappers — covered by server integration tests
       ],
       thresholds: {
         branches: 70,
