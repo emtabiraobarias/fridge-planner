@@ -19,17 +19,27 @@ export interface InventorySummary {
   expiringSoon: number;
 }
 
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface InventoryResponse {
   items: InventoryItem[];
   summary: InventorySummary;
+  pagination: Pagination;
 }
 
 const BASE = '/api/v1';
 
-export async function fetchInventory(params?: { category?: string; status?: string }): Promise<InventoryResponse> {
+export async function fetchInventory(params?: { category?: string; status?: string; page?: number; limit?: number }): Promise<InventoryResponse> {
   const query = new URLSearchParams();
   if (params?.category) query.set('category', params.category);
   if (params?.status) query.set('status', params.status);
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
   const res = await fetch(`${BASE}/inventory?${query}`);
   if (!res.ok) throw new Error(`Failed to fetch inventory: ${res.status}`);
   return res.json() as Promise<InventoryResponse>;

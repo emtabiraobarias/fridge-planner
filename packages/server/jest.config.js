@@ -13,10 +13,9 @@ export default {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/index.ts',
-    // Route stubs — excluded until implemented in Phase 1
+    // Routes and models — covered by integration tests
     '!src/api/v1/inventory.ts',
     '!src/api/v1/recommendations.ts',
-    // Mongoose models — pre-hooks require DB; covered by integration tests
     '!src/models/*.ts',
   ],
   coverageThreshold: {

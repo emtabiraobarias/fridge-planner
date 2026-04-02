@@ -1,22 +1,43 @@
-import { useState } from 'react';
-import { fetchRecommendations } from '../../services/inventory';
+import { useState, useEffect } from 'react';
+import { fetchRecommendations as fetchRecommendationsService } from '../../services/inventory';
+import { DietaryPreferences } from './DietaryPreferences';
+
+const STORAGE_KEY = 'fridge-planner:dietary-preferences';
+
+function loadPreferences(): string[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) as string[] : [];
+  } catch {
+    return [];
+  }
+}
 
 interface Props {
-  fetchRecommendations?: () => Promise<string>;
+  fetchRecommendations?: (preferences: string[]) => Promise<string>;
 }
 
 type State = 'idle' | 'loading' | 'success' | 'error';
 
-export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchRecommendations }: Props): React.JSX.Element {
+export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchRecommendationsService }: Props): React.JSX.Element {
   const [state, setState] = useState<State>('idle');
   const [content, setContent] = useState('');
   const [error, setError] = useState('');
+  const [preferences, setPreferences] = useState<string[]>(loadPreferences);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    } catch {
+      // localStorage may be unavailable
+    }
+  }, [preferences]);
 
   async function handleFetch(): Promise<void> {
     setState('loading');
     setError('');
     try {
-      const result = await fetchFn();
+      const result = await fetchFn(preferences);
       setContent(result);
       setState('success');
     } catch {
@@ -28,6 +49,8 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
   return (
     <section aria-label="Meal recommendations" className="rounded-xl border border-gray-200 bg-white p-4">
       <h2 className="text-lg font-semibold text-gray-900 mb-3">AI Meal Recommendations</h2>
+
+      <DietaryPreferences selected={preferences} onChange={setPreferences} />
 
       <button
         onClick={() => { void handleFetch(); }}

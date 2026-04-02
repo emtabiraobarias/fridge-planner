@@ -24,17 +24,24 @@ const updateSchema = createSchema.partial();
 inventoryRouter.get('/', async (req, res, next) => {
   try {
     const { category, status } = req.query as Record<string, string | undefined>;
+    const page = Math.max(1, parseInt(req.query['page'] as string, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query['limit'] as string, 10) || 50));
     const filter: Record<string, unknown> = {};
     if (category) filter['category'] = category;
     if (status) filter['expirationStatus'] = status;
 
-    const items = await InventoryItem.find(filter).sort({ expiresAt: 1, name: 1 });
+    const [items, total, expired, expiringSoon] = await Promise.all([
+      InventoryItem.find(filter).sort({ expiresAt: 1, name: 1 }).skip((page - 1) * limit).limit(limit),
+      InventoryItem.countDocuments(filter),
+      InventoryItem.countDocuments({ ...filter, expirationStatus: 'expired' }),
+      InventoryItem.countDocuments({ ...filter, expirationStatus: 'expiring-soon' }),
+    ]);
 
-    const total = items.length;
-    const expired = items.filter((i) => i.expirationStatus === 'expired').length;
-    const expiringSoon = items.filter((i) => i.expirationStatus === 'expiring-soon').length;
-
-    res.json({ items, summary: { total, expired, expiringSoon } });
+    res.json({
+      items,
+      summary: { total, expired, expiringSoon },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     next(err);
   }
@@ -51,7 +58,7 @@ inventoryRouter.post('/', async (req, res, next) => {
     const data = parsed.data;
     const item = new InventoryItem({
       ...data,
-      userId: 'anonymous', // replaced with auth userId in CR-001 implementation
+      userId: req.userId,
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
     });
     await item.save();

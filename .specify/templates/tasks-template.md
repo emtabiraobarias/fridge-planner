@@ -50,7 +50,12 @@ description: "Task list template for feature implementation"
 
 - [ ] T001 Create project structure per implementation plan
 - [ ] T002 Initialize [language] project with [framework] dependencies
-- [ ] T003 [P] Configure linting and formatting tools
+- [ ] T003 [P] Configure linting and formatting tools (ESLint/Pylint, Prettier/Black)
+- [ ] T004 [P] Setup pre-commit hooks for code quality enforcement
+- [ ] T005 [P] Configure Docker for dev/prod parity
+- [ ] T006 [P] Setup environment variable management (.env for local, vault for prod)
+- [ ] T007 [P] Initialize Git workflow with feature branch strategy
+- [ ] T008 [P] Configure dependency lock files (package-lock.json, poetry.lock)
 
 ---
 
@@ -62,12 +67,25 @@ description: "Task list template for feature implementation"
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T004 Setup database schema and migrations framework
-- [ ] T005 [P] Implement authentication/authorization framework
-- [ ] T006 [P] Setup API routing and middleware structure
-- [ ] T007 Create base models/entities that all stories depend on
-- [ ] T008 Configure error handling and logging infrastructure
-- [ ] T009 Setup environment configuration management
+- [ ] T009 Setup database schema and migrations framework
+- [ ] T010 [P] Implement OAuth 2.0/OIDC authentication framework
+- [ ] T011 [P] Configure JWT token validation middleware
+- [ ] T012 [P] Setup API routing and versioning structure (/api/v1/...)
+- [ ] T013 [P] Implement RBAC authorization framework
+- [ ] T014 [P] Configure rate limiting per client (100 req/min default)
+- [ ] T015 Create base models/entities that all stories depend on
+- [ ] T016 [P] Configure structured JSON logging to stdout/stderr
+- [ ] T017 [P] Setup error handling middleware (RFC 7807 error responses)
+- [ ] T018 [P] Configure security headers (CSP, X-Frame-Options, HSTS)
+- [ ] T019 [P] Setup HTTPS enforcement and CORS policies
+- [ ] T020 [P] Implement health check endpoints (/health, /ready)
+- [ ] T021 [P] Configure database connection pooling and indexes
+- [ ] T022 [P] Setup Redis caching infrastructure
+- [ ] T023 [P] Configure environment variable validation at startup
+- [ ] T024 [P] Setup OpenAPI 3.0 documentation generation
+- [ ] T025 [P] Configure CI/CD pipeline with test gates (80% backend, 70% frontend coverage)
+- [ ] T026 [P] Setup graceful shutdown handler (SIGTERM)
+- [ ] T027 [P] Implement API key authentication for LLM agent integration
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -154,7 +172,12 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
 - [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
-- [ ] TXXX Security hardening
+- [ ] TXXX Security hardening and penetration testing
+- [ ] TXXX [P] Load testing validation (1000+ concurrent users)
+- [ ] TXXX [P] Accessibility audit (WCAG 2.1 AA compliance)
+- [ ] TXXX [P] PWA configuration (service workers, offline support)
+- [ ] TXXX [P] CDN setup for static assets
+- [ ] TXXX [P] API documentation completion (OpenAPI 3.0)
 - [ ] TXXX Run quickstart.md validation
 
 ---

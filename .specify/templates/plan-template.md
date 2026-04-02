@@ -31,7 +31,62 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+This feature MUST comply with all constitutional principles:
+
+**Twelve-Factor App Compliance**:
+- [ ] **Codebase**: Single repository, feature branch created
+- [ ] **Dependencies**: All dependencies explicitly declared in package manifests
+- [ ] **Config**: Environment variables defined for all environment-specific values
+- [ ] **Backing Services**: Services accessed via config URLs (database, cache, external APIs)
+- [ ] **Build/Release/Run**: Separation maintained with immutable releases
+- [ ] **Processes**: Stateless design with no in-memory session state
+- [ ] **Port Binding**: Self-contained service with configurable port binding
+- [ ] **Concurrency**: Horizontally scalable with process-based architecture
+- [ ] **Disposability**: Fast startup (<10s), graceful shutdown (SIGTERM handling)
+- [ ] **Dev/Prod Parity**: Same backing services in dev and prod (Docker containers)
+- [ ] **Logs**: Structured JSON logs to stdout/stderr
+- [ ] **Admin Processes**: Admin tasks via CLI commands in same environment
+
+**Security Requirements**:
+- [ ] OAuth 2.0/OIDC authentication for all API endpoints
+- [ ] JWT token validation with signature verification
+- [ ] RBAC implementation with granular permissions
+- [ ] API key support for LLM agent integration with rate limiting
+- [ ] HTTPS enforcement (TLS 1.3 minimum)
+- [ ] Security headers configured (CSP, X-Frame-Options, etc.)
+
+**Testing Standards**:
+- [ ] TDD approach: Tests written before implementation
+- [ ] Minimum 80% backend coverage, 70% frontend coverage
+- [ ] Unit tests for business logic included
+- [ ] Integration tests for API contracts included
+- [ ] E2E tests for critical user journeys included
+- [ ] CI/CD pipeline configured to block failing tests
+
+**Performance Requirements**:
+- [ ] API p95 latency target: <200ms
+- [ ] Frontend TTI target: <3s on 3G
+- [ ] Responsive design: 320px (mobile) to 1920px (desktop)
+- [ ] PWA support with offline capabilities
+- [ ] WCAG 2.1 AA accessibility compliance
+- [ ] Database indexes and connection pooling configured
+- [ ] Caching strategy defined (Redis/CDN)
+- [ ] Load testing planned for 1000+ concurrent users
+
+**API-First Architecture**:
+- [ ] OpenAPI 3.0 specification documented
+- [ ] API versioning in URL path (/api/v1/...)
+- [ ] Standard error responses (RFC 7807)
+- [ ] Rate limiting per client (100 req/min default)
+- [ ] Pagination for list endpoints
+- [ ] CORS policy configured
+
+**Code Quality**:
+- [ ] Linters configured (ESLint/Pylint)
+- [ ] Formatters configured (Prettier/Black)
+- [ ] Pre-commit hooks enabled
+- [ ] Code review process defined
+- [ ] Cyclomatic complexity limits enforced (<10)
 
 ## Project Structure
 
