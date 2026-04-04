@@ -35,11 +35,19 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` and set at minimum:
+Edit `.env` and set one of the following for the AI agent:
 
+**Option A — Claude Code OAuth token (no API key needed):**
+```
+CLAUDE_CODE_OAUTH_TOKEN=<auto-set inside a Claude Code session>
+```
+Inside a Claude Code session `CLAUDE_CODE_OAUTH_TOKEN` is already present in the environment — just export it before starting Docker services. Outside Claude Code, run `claude setup-token` to generate one.
+
+**Option B — Direct Anthropic API key:**
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ```
+Requires changing `auth_provider` in `agents/meal-recommender/agent.yaml` back to `api_key` (or removing the field, as `api_key` is the default).
 
 All other values have sensible defaults for local development.
 
@@ -119,8 +127,9 @@ cp .env.example .env
 Set the required production values:
 
 ```bash
-# Required
-ANTHROPIC_API_KEY=sk-ant-...
+# Required — choose one auth method for the holodeck AI agent:
+CLAUDE_CODE_OAUTH_TOKEN=   # preferred: no API key needed (see local dev notes)
+# ANTHROPIC_API_KEY=sk-ant-...  # alternative: direct API key
 
 # Optional — override defaults
 NODE_ENV=production
@@ -235,7 +244,8 @@ fridge-planner/
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `ANTHROPIC_API_KEY` | — | Yes (for AI) | Anthropic API key for Claude |
+| `CLAUDE_CODE_OAUTH_TOKEN` | — | Yes (for AI, preferred) | Claude Code OAuth token — auto-set inside Claude Code sessions; use `claude setup-token` outside |
+| `ANTHROPIC_API_KEY` | — | Yes (for AI, fallback) | Direct Anthropic API key; requires `auth_provider: api_key` in `agent.yaml` |
 | `OPENAI_API_KEY` | — | No | Fallback LLM provider |
 | `OLLAMA_HOST` | — | No | Ollama base URL for local embeddings. Set in `.env.local` — not committed |
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | No | MongoDB connection string |
