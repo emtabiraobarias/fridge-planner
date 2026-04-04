@@ -3,12 +3,22 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import type { Application } from 'express';
+import type { MealRecommendation } from '../../src/types/meal-recommendation.js';
+
+const mockMeal: MealRecommendation = {
+  mealName: 'Chicken Stir-fry',
+  suggestedMealType: 'dinner',
+  prepTimeMinutes: 20,
+  cuisine: 'Asian',
+  description: 'Quick stir-fry using chicken before it expires.',
+  usesIngredients: ['chicken breast'],
+  expiringIngredients: ['chicken breast'],
+  missingIngredients: [],
+};
 
 // Must mock before dynamic import of app (ESM mock hoisting requirement)
 jest.unstable_mockModule('../../src/services/meal-recommender.js', () => ({
-  getMealRecommendations: jest.fn<() => Promise<string>>().mockResolvedValue(
-    '**Chicken Stir-fry** (~20 min)\nUses: chicken breast ⚠️ expiring\nMissing: Nothing major!',
-  ),
+  getMealRecommendations: jest.fn<() => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]),
 }));
 
 // Dynamic imports AFTER mock registration
@@ -47,11 +57,12 @@ async function seedItem(overrides: Record<string, unknown> = {}): Promise<void> 
 }
 
 describe('POST /api/v1/recommendations', () => {
-  it('calls holodeck with non-expired inventory items and returns recommendations', async () => {
+  it('calls holodeck with non-expired inventory items and returns meal array', async () => {
     await seedItem();
     const res = await request(app).post('/api/v1/recommendations').send({});
     expect(res.status).toBe(200);
-    expect(res.body.recommendations).toContain('Chicken Stir-fry');
+    expect(Array.isArray(res.body.recommendations)).toBe(true);
+    expect(res.body.recommendations[0]).toMatchObject({ mealName: 'Chicken Stir-fry' });
     expect(mockGetRecommendations).toHaveBeenCalledTimes(1);
   });
 
@@ -82,10 +93,10 @@ describe('POST /api/v1/recommendations', () => {
     );
   });
 
-  it('returns a prompt to add items when inventory is empty (no holodeck call)', async () => {
+  it('returns empty array when inventory is empty (no holodeck call)', async () => {
     const res = await request(app).post('/api/v1/recommendations').send({});
     expect(res.status).toBe(200);
     expect(mockGetRecommendations).not.toHaveBeenCalled();
-    expect(res.body.recommendations).toMatch(/add.*ingredient/i);
+    expect(res.body.recommendations).toEqual([]);
   });
 });

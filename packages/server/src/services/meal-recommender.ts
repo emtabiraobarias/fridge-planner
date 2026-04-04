@@ -1,3 +1,5 @@
+import type { MealRecommendation } from '../types/meal-recommendation.js';
+
 export interface IngredientInput {
   name: string;
   quantity: number;
@@ -7,14 +9,16 @@ export interface IngredientInput {
 
 interface HolodeckResponse {
   content: string;
+  session_id: string;
   tool_calls: { name: string; status: string }[];
+  tokens_used: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
   execution_time_ms: number;
 }
 
 export async function getMealRecommendations(
   ingredients: IngredientInput[],
   dietaryPreferences: string[] = [],
-): Promise<string> {
+): Promise<MealRecommendation[]> {
   const holodeckUrl = process.env['HOLODECK_URL'];
   if (!holodeckUrl) {
     throw new Error('HOLODECK_URL environment variable is not set');
@@ -36,7 +40,7 @@ export async function getMealRecommendations(
     ),
   ].join('\n');
 
-  const res = await fetch(`${holodeckUrl}/chat/sync`, {
+  const res = await fetch(`${holodeckUrl}/agent/meal-recommender/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
@@ -47,5 +51,17 @@ export async function getMealRecommendations(
   }
 
   const data = (await res.json()) as HolodeckResponse;
-  return data.content;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(data.content);
+  } catch {
+    throw new Error(`Holodeck returned non-JSON response: ${data.content.slice(0, 200)}`);
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error('Holodeck response was not a JSON array');
+  }
+
+  return parsed as MealRecommendation[];
 }

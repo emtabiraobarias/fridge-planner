@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { fetchRecommendations as fetchRecommendationsService } from '../../services/inventory';
+import type { MealRecommendation } from '../../types/meal-recommendation';
 import { DietaryPreferences } from './DietaryPreferences';
+import { MealCard } from './MealCard';
 
 const STORAGE_KEY = 'fridge-planner:dietary-preferences';
 
@@ -14,14 +16,14 @@ function loadPreferences(): string[] {
 }
 
 interface Props {
-  fetchRecommendations?: (preferences: string[]) => Promise<string>;
+  fetchRecommendations?: (preferences: string[]) => Promise<MealRecommendation[]>;
 }
 
 type State = 'idle' | 'loading' | 'success' | 'error';
 
 export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchRecommendationsService }: Props): React.JSX.Element {
   const [state, setState] = useState<State>('idle');
-  const [content, setContent] = useState('');
+  const [meals, setMeals] = useState<MealRecommendation[]>([]);
   const [error, setError] = useState('');
   const [preferences, setPreferences] = useState<string[]>(loadPreferences);
 
@@ -38,7 +40,7 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
     setError('');
     try {
       const result = await fetchFn(preferences);
-      setContent(result);
+      setMeals(result);
       setState('success');
     } catch {
       setError('Could not load recommendations. Please try again.');
@@ -70,10 +72,18 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
         </p>
       )}
 
-      {state === 'success' && (
-        <div className="mt-4 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
-          {content}
-        </div>
+      {state === 'success' && meals.length === 0 && (
+        <p className="mt-4 text-sm text-gray-500">
+          No suggestions returned — try adding more ingredients.
+        </p>
+      )}
+
+      {state === 'success' && meals.length > 0 && (
+        <ul className="mt-4 space-y-3">
+          {meals.map((meal, i) => (
+            <MealCard key={i} meal={meal} />
+          ))}
+        </ul>
       )}
     </section>
   );

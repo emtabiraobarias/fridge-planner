@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { InventoryItem } from '../../models/inventory-item.js';
 import { getMealRecommendations } from '../../services/meal-recommender.js';
+import type { MealRecommendation } from '../../types/meal-recommendation.js';
 import { problemJson } from '../../lib/errors.js';
 
 export const recommendationsRouter = Router();
@@ -25,10 +26,7 @@ recommendationsRouter.post('/', async (req, res, next) => {
     });
 
     if (activeItems.length === 0) {
-      res.json({
-        recommendations:
-          'Your inventory is empty. Add some ingredients to get personalised meal recommendations!',
-      });
+      res.json({ recommendations: [] as MealRecommendation[] });
       return;
     }
 

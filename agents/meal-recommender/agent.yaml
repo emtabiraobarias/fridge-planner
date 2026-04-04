@@ -10,31 +10,10 @@ model:
   provider: anthropic
   name: claude-sonnet-4-6
   temperature: 0.5
-  max_tokens: 2048
+  max_tokens: 3000
 
 instructions:
   file: instructions/system-prompt.md
-
-tools:
-  - type: vectorstore
-    name: recipe_search
-    description: Search recipe database to find meals that match available ingredients
-    source: data/recipes.json
-    database: chromadb
-    top_k: 5
-    chunk_size: 512
-    chunk_overlap: 64
-    min_similarity_score: 0.65
-    id_field: id
-    vector_field:
-      - name
-      - ingredients
-      - description
-    meta_fields:
-      - name
-      - cuisine
-      - prep_time_minutes
-      - ingredients
 
 evaluations:
   model:
@@ -42,14 +21,6 @@ evaluations:
     name: claude-sonnet-4-6
     temperature: 0.0
   metrics:
-    - type: rag
-      metric_type: faithfulness
-      threshold: 0.8
-
-    - type: rag
-      metric_type: answer_relevancy
-      threshold: 0.75
-
     - type: geval
       name: ExpiryPrioritisation
       criteria: |
@@ -86,9 +57,11 @@ test_cases:
       - 1 cup rice (expires: 2026-06-01)
       - 500g broccoli (expires: 2026-04-02)
       - 2 cloves garlic (expires: 2026-05-01)
-    ground_truth: Should suggest meals using chicken breast first since it expires soonest
-    expected_tools:
-      - recipe_search
+    ground_truth: |
+      Should return a JSON array of 3-5 meal objects. At least one meal must include
+      "chicken breast" in usesIngredients and expiringIngredients, since it expires
+      soonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,
+      cuisine, description, usesIngredients, expiringIngredients, and missingIngredients.
 
   - name: Mixed pantry and perishables
     input: |
@@ -99,9 +72,9 @@ test_cases:
       - 200g spinach (expires: 2026-03-30)
       - 1 can tomatoes (expires: 2027-01-01)
       - 100g feta cheese (expires: 2026-04-05)
-    ground_truth: Should suggest meals using spinach and eggs as priority ingredients
-    expected_tools:
-      - recipe_search
+    ground_truth: |
+      Should return a JSON array where spinach and eggs appear in expiringIngredients
+      of the prioritised meals. Response must be valid JSON with no prose or markdown.
 
   - name: Single ingredient
     input: |
@@ -109,6 +82,7 @@ test_cases:
       Prioritise ingredients expiring soonest to minimise food waste.
 
       - 500g ground beef (expires: 2026-03-29)
-    ground_truth: Should suggest meals centred around ground beef
-    expected_tools:
-      - recipe_search
+    ground_truth: |
+      Should return a JSON array of meals centred around ground beef, with
+      "ground beef" in usesIngredients and expiringIngredients. missingIngredients
+      may list common pantry staples assumed absent.

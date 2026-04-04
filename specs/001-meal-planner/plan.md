@@ -2,14 +2,14 @@
 
 **Branch**: `001-meal-planner` | **Date**: 2026-03-29 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-meal-planner/spec.md`
-**Last Updated**: 2026-03-30
+**Last Updated**: 2026-04-04
 
 ## Status
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Phase 0 — Scaffolding | **Complete** | Monorepo, Docker, ESLint, Prettier, pre-commit hooks |
-| Phase 1 — P1: Inventory + AI Recommendations | **Complete** | Full backend CRUD, recommendations, middleware, frontend components wired together |
+| Phase 1 — P1: Inventory + AI Recommendations | **Complete** | Full backend CRUD, recommendations, middleware, frontend components wired together; corrected holodeck endpoint, structured JSON response, meal card UI |
 | Phase 2 — P2: Weekly Meal Planning Calendar | Not started | |
 | Phase 3 — P3: Smart Grocery List | Not started | |
 
@@ -52,11 +52,11 @@ The AI meal recommendation feature is implemented as a **holodeck-agents sidecar
 - Uses holodeck's built-in evaluation framework for recommendation quality
 
 ```
-┌──────────────────────┐    POST /chat/sync     ┌───────────────────────────┐
-│  Express API         │ ─────────────────────► │  holodeck serve           │
-│  packages/server     │ ◄───────────────────── │  agents/meal-recommender  │
-│  :3000               │  { content: "..." }    │  :8001 (REST protocol)    │
-└──────────────────────┘                        └───────────────────────────┘
+┌──────────────────────┐  POST /agent/meal-recommender/chat  ┌───────────────────────────┐
+│  Express API         │ ──────────────────────────────────► │  holodeck serve           │
+│  packages/server     │ ◄────────────────────────────────── │  agents/meal-recommender  │
+│  :3000               │  { message: "[{...}]", ... }        │  :8001 (REST protocol)    │
+└──────────────────────┘                                     └───────────────────────────┘
                                                          │
                                                          ▼
                                                   ChromaDB (recipes)
@@ -128,34 +128,28 @@ holodeck-ai serve /app/agent.yaml --host 0.0.0.0 --protocol rest
 
 ```typescript
 // packages/server/src/services/meal-recommender.ts
-interface Ingredient {
-  name: string;
-  quantity: number;
-  unit: string;
-  expiresAt: string; // ISO 8601 date
+import type { MealRecommendation } from '../types/meal-recommendation.js';
+
+interface HolodeckResponse {
+  message: string;          // JSON-serialised MealRecommendation[]
+  session_id: string;
+  tokens_used: { input: number; output: number };
+  execution_time_ms: number;
 }
 
 export async function getMealRecommendations(
-  ingredients: Ingredient[]
-): Promise<string> {
-  const message = [
-    'Suggest 3-5 meals I can make with these ingredients.',
-    'Prioritise ingredients expiring soonest.',
-    '',
-    ...ingredients.map(
-      i => `- ${i.quantity} ${i.unit} ${i.name} (expires: ${i.expiresAt})`
-    ),
-  ].join('\n');
-
-  const res = await fetch(`${process.env.HOLODECK_URL}/chat/sync`, {
+  ingredients: IngredientInput[],
+  dietaryPreferences: string[] = [],
+): Promise<MealRecommendation[]> {
+  const res = await fetch(`${process.env.HOLODECK_URL}/agent/meal-recommender/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
   });
 
   if (!res.ok) throw new Error(`Holodeck error: ${res.status}`);
-  const data = await res.json();
-  return data.content;
+  const data = (await res.json()) as HolodeckResponse;
+  return JSON.parse(data.message) as MealRecommendation[];
 }
 ```
 
@@ -251,7 +245,9 @@ fridge-planner/
 - [x] Inventory CRUD API (`/api/v1/inventory`) with Zod validation, pagination, filtering
 - [x] Expiration tracking — midnight cutoff logic (yellow = expiring-soon, red = expired)
 - [x] holodeck agent (`agents/meal-recommender/`) with seed recipe dataset (25 recipes)
-- [x] Recommendations endpoint (`POST /api/v1/recommendations`) — calls holodeck sidecar
+- [x] Recommendations endpoint (`POST /api/v1/recommendations`) — calls holodeck sidecar at `POST /agent/meal-recommender/chat`
+- [x] Structured `MealRecommendation[]` JSON response (aligned with Phase 2 MealPlan schema)
+- [x] `MealRecommendation` type shared between server (`src/types/`) and client (`src/types/`)
 - [x] Auth middleware stub (dev: `X-User-Id` header, full OAuth deferred — see Deferred section)
 - [x] Backend middleware: CORS, helmet, rate limiting (100/min default, 10/min recommendations), global error handler, graceful shutdown
 - [x] 31 backend tests passing, >80% coverage
@@ -259,11 +255,12 @@ fridge-planner/
 **Frontend**:
 - [x] Inventory list view with expiration colour coding
 - [x] Add/edit ingredient form with validation
-- [x] AI recommendation panel (calls recommendations endpoint)
+- [x] AI recommendation panel with structured `MealRecommendation[]` state
+- [x] Meal card UI with cuisine badge, prep time, expiring/missing ingredient pills
 - [x] Dietary preference settings with localStorage persistence
 - [x] Inventory context provider with shared state management
 - [x] App.tsx integration with responsive two-column layout
-- [x] 24 frontend tests passing, >70% coverage
+- [x] Frontend tests passing (RecommendationsPanel + MealCard), >70% coverage
 
 ### Phase 2 — P2: Weekly Meal Planning Calendar
 
