@@ -36,7 +36,7 @@ export async function getMealRecommendations(
     ),
   ].join('\n');
 
-  const res = await fetch(`${holodeckUrl}/chat/sync`, {
+  const res = await fetch(`${holodeckUrl}/agent/meal-recommender/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
