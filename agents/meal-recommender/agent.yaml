@@ -9,6 +9,7 @@ description: AI-powered meal recommendation agent that suggests meals to minimis
 model:
   provider: anthropic
   name: claude-sonnet-4-6
+  auth_provider: oauth_token
   temperature: 0.5
   max_tokens: 2048
 
