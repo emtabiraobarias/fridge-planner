@@ -5,3 +5,4 @@ coverage/
 *.local
 .DS_Store
 packages/client/node_modules/.vite/
+.claude/settings.local.json
