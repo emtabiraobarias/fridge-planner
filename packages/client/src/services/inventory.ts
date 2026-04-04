@@ -1,3 +1,4 @@
+export type { MealRecommendation } from '../types/meal-recommendation';
 export type ExpirationStatus = 'expired' | 'expiring-soon' | 'normal' | 'none';
 export type Category = 'Produce' | 'Dairy' | 'Meat' | 'Seafood' | 'Grains' | 'Pantry' | 'Condiments' | 'Frozen' | 'Other';
 export type Location = 'fridge' | 'freezer' | 'pantry';
@@ -70,13 +71,13 @@ export async function deleteItem(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to delete item: ${res.status}`);
 }
 
-export async function fetchRecommendations(dietaryPreferences: string[] = []): Promise<string> {
+export async function fetchRecommendations(dietaryPreferences: string[] = []): Promise<MealRecommendation[]> {
   const res = await fetch(`${BASE}/recommendations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ dietaryPreferences }),
   });
   if (!res.ok) throw new Error(`Failed to fetch recommendations: ${res.status}`);
-  const data = await res.json() as { recommendations: string };
+  const data = await res.json() as { recommendations: MealRecommendation[] };
   return data.recommendations;
 }

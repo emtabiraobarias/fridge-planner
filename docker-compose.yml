@@ -22,7 +22,7 @@ services:
     volumes:
       - chromadb_data:/chroma/.chroma/index
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8000'"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8000"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,10 +35,12 @@ services:
     restart: unless-stopped
     ports:
       - "8001:8001"
+    env_file:
+      - path: .env
+        required: true
+      - path: .env.local
+        required: false
     environment:
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
       HOLODECK_PORT: 8001

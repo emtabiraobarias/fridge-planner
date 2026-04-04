@@ -51,6 +51,13 @@ Requires changing `auth_provider` in `agents/meal-recommender/agent.yaml` back t
 
 All other values have sensible defaults for local development.
 
+**Local overrides (never committed):** Create `.env.local` for machine-specific values such as a local Ollama host. `.env.local` is covered by `.gitignore` (`*.local`):
+
+```bash
+# .env.local — not committed
+OLLAMA_HOST=
+```
+
 ### 3. Start MongoDB
 
 ```bash
@@ -72,6 +79,17 @@ docker compose up chromadb holodeck -d
 ```
 
 > **Note:** The holodeck sidecar requires `ANTHROPIC_API_KEY` set in `.env`. If skipped, the app still works for inventory management — recommendation requests will return an error.
+
+> **Ollama embeddings:** The vector store uses `nomic-embed-text` and `mxbai-embed-large` (Ollama). Set `OLLAMA_HOST` in `.env.local` to point to your Ollama instance before starting the holodeck container:
+> ```bash
+> echo "OLLAMA_HOST=http://<host>:11434/" >> .env.local
+> docker compose up chromadb holodeck -d
+> ```
+
+> **Restarting holodeck after agent changes:** The holodeck container mounts `agents/meal-recommender/` at runtime. After updating `agent.yaml` or `instructions/system-prompt.md`, restart the container to pick up the changes:
+> ```bash
+> docker compose restart holodeck
+> ```
 
 ### 5. Start the dev servers
 
@@ -179,8 +197,9 @@ fridge-planner/
 │   │   ├── src/
 │   │   │   ├── components/
 │   │   │   │   ├── inventory/      # InventoryForm, InventoryList
-│   │   │   │   └── recommendations/ # RecommendationsPanel, DietaryPreferences
+│   │   │   │   └── recommendations/ # RecommendationsPanel, MealCard, DietaryPreferences
 │   │   │   ├── context/            # InventoryContext (shared state)
+│   │   │   ├── types/              # MealRecommendation interface
 │   │   │   └── services/           # API client (fetch wrappers)
 │   │   ├── tests/
 │   │   ├── Dockerfile
@@ -189,8 +208,9 @@ fridge-planner/
 │       ├── src/
 │       │   ├── api/v1/             # inventory, recommendations routes
 │       │   ├── middleware/         # auth, error-handler, rate-limiter
-│       │   ├── models/            # Mongoose schemas
-│       │   ├── services/          # holodeck HTTP client
+│       │   ├── models/             # Mongoose schemas
+│       │   ├── services/           # holodeck HTTP client
+│       │   ├── types/              # MealRecommendation interface
 │       │   └── lib/               # expiration logic, error helpers
 │       ├── tests/
 │       └── Dockerfile
@@ -227,6 +247,7 @@ fridge-planner/
 | `CLAUDE_CODE_OAUTH_TOKEN` | — | Yes (for AI, preferred) | Claude Code OAuth token — auto-set inside Claude Code sessions; use `claude setup-token` outside |
 | `ANTHROPIC_API_KEY` | — | Yes (for AI, fallback) | Direct Anthropic API key; requires `auth_provider: api_key` in `agent.yaml` |
 | `OPENAI_API_KEY` | — | No | Fallback LLM provider |
+| `OLLAMA_HOST` | — | No | Ollama base URL for local embeddings. Set in `.env.local` — not committed |
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | No | MongoDB connection string |
 | `HOLODECK_URL` | `http://localhost:8001` | No | Holodeck agent sidecar URL |
 | `PORT` | `3001` | No | Express server port |
