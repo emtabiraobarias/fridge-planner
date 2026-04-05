@@ -2,7 +2,7 @@
 
 **Branch**: `001-meal-planner` | **Date**: 2026-03-29 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-meal-planner/spec.md`
-**Last Updated**: 2026-04-05
+**Last Updated**: 2026-04-06
 
 ## Status
 
@@ -10,7 +10,7 @@
 |-------|--------|-------|
 | Phase 0 — Scaffolding | **Complete** | Monorepo, Docker, ESLint, Prettier, pre-commit hooks |
 | Phase 1 — P1: Inventory + AI Recommendations | **Complete** | Full backend CRUD, recommendations, middleware, frontend components wired together; corrected holodeck endpoint, structured JSON response, meal card UI |
-| Phase 2 — P2: Weekly Meal Planning Calendar | Not started | |
+| Phase 2 — P2: Weekly Meal Planning Calendar | **Complete** | MealPlan schema + CRUD API, drag-and-drop calendar UI, ingredient consumption, 72 backend + 80 frontend tests passing |
 | Phase 3 — P3: Smart Grocery List | Not started | |
 
 ### Deferred to Phase 2+

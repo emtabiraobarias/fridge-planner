@@ -5,6 +5,7 @@ import pino from 'pino';
 import pinoHttp from 'pino-http';
 
 import { inventoryRouter } from './api/v1/inventory.js';
+import { mealPlansRouter } from './api/v1/meal-plans.js';
 import { recommendationsRouter } from './api/v1/recommendations.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { defaultLimiter, recommendationsLimiter } from './middleware/rate-limiter.js';
@@ -27,6 +28,7 @@ export function createApp(): express.Application {
 
   app.use('/api/v1', authMiddleware);
   app.use('/api/v1/inventory', inventoryRouter);
+  app.use('/api/v1/meal-plans', mealPlansRouter);
   app.use('/api/v1/recommendations', recommendationsLimiter, recommendationsRouter);
 
   app.use(errorHandler);

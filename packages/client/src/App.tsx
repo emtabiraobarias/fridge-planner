@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { InventoryProvider, useInventory } from './context/InventoryContext';
+import { MealPlanProvider } from './context/MealPlanContext';
 import { InventoryForm } from './components/inventory/InventoryForm';
 import { InventoryList } from './components/inventory/InventoryList';
 import { RecommendationsPanel } from './components/recommendations/RecommendationsPanel';
+import { CalendarPage } from './pages/CalendarPage';
 import type { InventoryItem } from './services/inventory';
+
+type Tab = 'inventory' | 'calendar';
 
 function InventoryPage(): React.JSX.Element {
   const { items, summary, loading, error, addItem, editItem, removeItem } = useInventory();
@@ -55,16 +59,49 @@ function InventoryPage(): React.JSX.Element {
 }
 
 export default function App(): React.JSX.Element {
+  const [activeTab, setActiveTab] = useState<Tab>('inventory');
+
   return (
     <InventoryProvider>
-      <main className="min-h-screen bg-gray-50">
-        <header className="border-b border-gray-200 bg-white px-4 py-4 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Fridge Planner</h1>
-        </header>
-        <div className="max-w-6xl mx-auto px-4 pb-8">
-          <InventoryPage />
-        </div>
-      </main>
+      <MealPlanProvider>
+        <main className="min-h-screen bg-gray-50">
+          <header className="border-b border-gray-200 bg-white px-4 py-4 mb-6">
+            <div className="max-w-6xl mx-auto flex items-center justify-between">
+              <h1 className="text-2xl font-bold text-gray-900">Fridge Planner</h1>
+              <nav className="flex gap-1" aria-label="Main navigation">
+                <button
+                  type="button"
+                  aria-current={activeTab === 'inventory' ? 'page' : undefined}
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'inventory'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                  onClick={() => setActiveTab('inventory')}
+                >
+                  Inventory
+                </button>
+                <button
+                  type="button"
+                  aria-current={activeTab === 'calendar' ? 'page' : undefined}
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'calendar'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                  onClick={() => setActiveTab('calendar')}
+                >
+                  Meal Plan
+                </button>
+              </nav>
+            </div>
+          </header>
+          <div className="max-w-6xl mx-auto px-4 pb-8">
+            {activeTab === 'inventory' && <InventoryPage />}
+            {activeTab === 'calendar' && <CalendarPage />}
+          </div>
+        </main>
+      </MealPlanProvider>
     </InventoryProvider>
   );
 }

@@ -16,6 +16,7 @@ export default {
     // Routes and models — covered by integration tests
     '!src/api/v1/inventory.ts',
     '!src/api/v1/recommendations.ts',
+    '!src/api/v1/meal-plans.ts',
     '!src/models/*.ts',
   ],
   coverageThreshold: {

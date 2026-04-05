@@ -3,6 +3,7 @@ import { fetchRecommendations as fetchRecommendationsService } from '../../servi
 import type { MealRecommendation } from '../../types/meal-recommendation';
 import { DietaryPreferences } from './DietaryPreferences';
 import { MealCard } from './MealCard';
+import { DraggableMealCard } from './DraggableMealCard';
 
 const STORAGE_KEY = 'fridge-planner:dietary-preferences';
 
@@ -17,11 +18,12 @@ function loadPreferences(): string[] {
 
 interface Props {
   fetchRecommendations?: (preferences: string[]) => Promise<MealRecommendation[]>;
+  draggable?: boolean;
 }
 
 type State = 'idle' | 'loading' | 'success' | 'error';
 
-export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchRecommendationsService }: Props): React.JSX.Element {
+export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchRecommendationsService, draggable = false }: Props): React.JSX.Element {
   const [state, setState] = useState<State>('idle');
   const [meals, setMeals] = useState<MealRecommendation[]>([]);
   const [error, setError] = useState('');
@@ -80,9 +82,13 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
 
       {state === 'success' && meals.length > 0 && (
         <ul className="mt-4 space-y-3">
-          {meals.map((meal, i) => (
-            <MealCard key={i} meal={meal} />
-          ))}
+          {meals.map((meal, i) =>
+            draggable ? (
+              <DraggableMealCard key={i} meal={meal} index={i} />
+            ) : (
+              <MealCard key={i} meal={meal} />
+            ),
+          )}
         </ul>
       )}
     </section>

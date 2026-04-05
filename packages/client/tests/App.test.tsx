@@ -14,6 +14,13 @@ vi.mock('../src/services/inventory', () => ({
   fetchRecommendations: vi.fn().mockResolvedValue('Test recommendations'),
 }));
 
+vi.mock('../src/services/meal-plans', () => ({
+  fetchMealPlan: vi.fn().mockResolvedValue(null),
+  addEntry: vi.fn().mockResolvedValue({}),
+  removeEntry: vi.fn().mockResolvedValue({}),
+  replaceEntries: vi.fn().mockResolvedValue({}),
+}));
+
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
