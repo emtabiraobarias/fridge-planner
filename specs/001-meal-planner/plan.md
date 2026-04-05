@@ -2,7 +2,7 @@
 
 **Branch**: `001-meal-planner` | **Date**: 2026-03-29 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-meal-planner/spec.md`
-**Last Updated**: 2026-04-04
+**Last Updated**: 2026-04-05
 
 ## Status
 
@@ -261,6 +261,14 @@ fridge-planner/
 - [x] Inventory context provider with shared state management
 - [x] App.tsx integration with responsive two-column layout
 - [x] Frontend tests passing (RecommendationsPanel + MealCard), >70% coverage
+
+#### Future Improvements (Phase 1 follow-up)
+
+- [ ] **Vectorstore tuning for meal-recommender agent** (`agents/meal-recommender/agent.yaml`):
+  - Increase `top_k` from 5 to 10 to surface more candidate recipes before LLM ranking
+  - Tune `min_similarity_score` (currently 0.7) based on evaluation metric results
+  - Evaluate `chunk_size` (512) and `chunk_overlap` (64) against recipe retrieval faithfulness score
+  - Expand `data/recipes.json` beyond current 20 recipes to improve vectorstore coverage
 
 ### Phase 2 — P2: Weekly Meal Planning Calendar
 
