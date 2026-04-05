@@ -17,52 +17,74 @@ export function MealCard({ meal }: Props): React.JSX.Element {
   );
 
   return (
-    <li className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h3 className="text-base font-semibold text-gray-900 leading-snug">{meal.mealName}</h3>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-            {meal.cuisine}
-          </span>
-          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
-            {MEAL_TYPE_LABEL[meal.suggestedMealType]}
-          </span>
-          <span className="rounded-full bg-gray-50 px-2 py-0.5 text-xs text-gray-500">
-            ⏱ {meal.prepTimeMinutes} min
-          </span>
+    <li className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+      {/* Food image */}
+      {meal.imageUrl && (
+        <img
+          src={meal.imageUrl}
+          alt={meal.mealName}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+          className="w-full h-40 object-cover"
+        />
+      )}
+
+      <div className="p-4">
+        {/* Header */}
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h3 className="text-base font-semibold text-gray-900 leading-snug">{meal.mealName}</h3>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+              {meal.cuisine}
+            </span>
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
+              {MEAL_TYPE_LABEL[meal.suggestedMealType]}
+            </span>
+            <span className="rounded-full bg-gray-50 px-2 py-0.5 text-xs text-gray-500">
+              ⏱ {meal.prepTimeMinutes} min
+            </span>
+            {meal.recipeUrl && (
+              <a
+                href={meal.recipeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200 hover:bg-green-100"
+              >
+                View Recipe ↗
+              </a>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Description */}
-      <p className="mt-1.5 text-xs text-gray-500 leading-relaxed">{meal.description}</p>
+        {/* Description */}
+        <p className="mt-1.5 text-xs text-gray-500 leading-relaxed">{meal.description}</p>
 
-      {/* Ingredients */}
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {meal.expiringIngredients.map((ing) => (
-          <span
-            key={ing}
-            className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200"
-          >
-            ⚠️ {ing}
-          </span>
-        ))}
-        {nonExpiringUsed.map((ing) => (
-          <span
-            key={ing}
-            className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200"
-          >
-            {ing}
-          </span>
-        ))}
-        {meal.missingIngredients.map((ing) => (
-          <span
-            key={ing}
-            className="rounded-full bg-gray-50 px-2 py-0.5 text-xs italic text-gray-400 border border-gray-200"
-          >
-            Need: {ing}
-          </span>
-        ))}
+        {/* Ingredients */}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {meal.expiringIngredients.map((ing) => (
+            <span
+              key={ing}
+              className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200"
+            >
+              ⚠️ {ing}
+            </span>
+          ))}
+          {nonExpiringUsed.map((ing) => (
+            <span
+              key={ing}
+              className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200"
+            >
+              {ing}
+            </span>
+          ))}
+          {meal.missingIngredients.map((ing) => (
+            <span
+              key={ing}
+              className="rounded-full bg-gray-50 px-2 py-0.5 text-xs italic text-gray-400 border border-gray-200"
+            >
+              Need: {ing}
+            </span>
+          ))}
+        </div>
       </div>
     </li>
   );

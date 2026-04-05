@@ -14,6 +14,8 @@ const mockMeal: MealRecommendation = {
   usesIngredients: ['chicken breast', 'rice'],
   expiringIngredients: ['chicken breast'],
   missingIngredients: ['soy sauce'],
+  recipeUrl: 'https://www.allrecipes.com/recipe/16954/chicken-fried-rice/',
+  imageUrl: 'https://www.allrecipes.com/thmb/yOBFTCjJJBkziqXSfJwwHxRqkqQ=/chicken-fried-rice.jpg',
 };
 
 describe('getMealRecommendations', () => {

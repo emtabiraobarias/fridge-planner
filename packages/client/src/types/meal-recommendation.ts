@@ -7,4 +7,6 @@ export interface MealRecommendation {
   usesIngredients: string[];
   expiringIngredients: string[];
   missingIngredients: string[];
+  recipeUrl?: string;
+  imageUrl?: string;
 }

@@ -45,7 +45,9 @@ Return ONLY a valid JSON array. No prose, no markdown, no code fences. The respo
     "description": "A quick one-pan meal that uses up chicken and leftover rice.",
     "usesIngredients": ["chicken breast", "rice", "egg"],
     "expiringIngredients": ["chicken breast"],
-    "missingIngredients": ["soy sauce"]
+    "missingIngredients": ["soy sauce"],
+    "recipeUrl": "https://www.allrecipes.com/recipe/16954/chicken-fried-rice/",
+    "imageUrl": "https://www.allrecipes.com/thmb/yOBFTCjJJBkziqXSfJwwHxRqkqQ=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/223382_easy-fried-rice_Rita-1x1-1-57e6a0a5a39d4265a8b1a5e2a8e3b2d1.jpg"
   }
 ]
 ```
@@ -59,3 +61,5 @@ Field definitions:
 - `usesIngredients`: All inventory ingredients used in this meal (names only, matching the user's input)
 - `expiringIngredients`: Subset of `usesIngredients` that expire within 3 days
 - `missingIngredients`: Key ingredients needed that the user does not have
+- `recipeUrl`: URL to a real recipe page on a well-known site (Allrecipes, BBC Good Food, Food Network, Serious Eats, etc.) that you are confident about from your training data. If you are not certain of a specific page URL, fall back to a search URL in the format `https://www.allrecipes.com/search?q=<url-encoded-meal-name>` (e.g. `https://www.allrecipes.com/search?q=chicken+fried+rice`). This field is always required.
+- `imageUrl`: Direct URL to the hero/thumbnail image on the recipe page. Include this only when you are confident the URL is accurate and publicly accessible. Use `null` if you are not certain — do **not** fabricate or guess image URLs.
