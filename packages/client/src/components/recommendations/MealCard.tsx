@@ -23,6 +23,7 @@ export function MealCard({ meal }: Props): React.JSX.Element {
         <img
           src={meal.imageUrl}
           alt={meal.mealName}
+          draggable={false}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           className="w-full h-40 object-cover"
         />
@@ -47,6 +48,7 @@ export function MealCard({ meal }: Props): React.JSX.Element {
                 href={meal.recipeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                draggable={false}
                 className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200 hover:bg-green-100"
               >
                 View Recipe ↗

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchRecommendations as fetchRecommendationsService } from '../../services/inventory';
 import type { MealRecommendation } from '../../types/meal-recommendation';
+import { useRecommendations } from '../../context/RecommendationsContext';
 import { DietaryPreferences } from './DietaryPreferences';
 import { MealCard } from './MealCard';
 import { DraggableMealCard } from './DraggableMealCard';
@@ -21,12 +22,8 @@ interface Props {
   draggable?: boolean;
 }
 
-type State = 'idle' | 'loading' | 'success' | 'error';
-
 export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchRecommendationsService, draggable = false }: Props): React.JSX.Element {
-  const [state, setState] = useState<State>('idle');
-  const [meals, setMeals] = useState<MealRecommendation[]>([]);
-  const [error, setError] = useState('');
+  const { state, meals, error, setLoading, setMeals, setError } = useRecommendations();
   const [preferences, setPreferences] = useState<string[]>(loadPreferences);
 
   useEffect(() => {
@@ -38,15 +35,12 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
   }, [preferences]);
 
   async function handleFetch(): Promise<void> {
-    setState('loading');
-    setError('');
+    setLoading();
     try {
       const result = await fetchFn(preferences);
       setMeals(result);
-      setState('success');
     } catch {
       setError('Could not load recommendations. Please try again.');
-      setState('error');
     }
   }
 
