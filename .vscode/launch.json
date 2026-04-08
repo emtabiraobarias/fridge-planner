@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug server (tsx watch)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/packages/server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "debug"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true
+    },
+    {
+      "name": "Attach to server (port 9229)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true
+    }
+  ],
+  "compounds": []
+}
