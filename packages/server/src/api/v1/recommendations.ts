@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { InventoryItem } from '../../models/inventory-item.js';
 import { getMealRecommendations } from '../../services/meal-recommender.js';
+import { buildCacheKey, getCached, setCached } from '../../services/recommendations-cache.js';
 import type { MealRecommendation } from '../../types/meal-recommendation.js';
 import { problemJson } from '../../lib/errors.js';
 
@@ -37,11 +38,19 @@ recommendationsRouter.post('/', async (req, res, next) => {
       ...(item.expiresAt ? { expiresAt: item.expiresAt.toISOString() } : {}),
     }));
 
+    const cacheKey = buildCacheKey(req.userId, parsed.data.dietaryPreferences, ingredients);
+    const cached = getCached(cacheKey);
+    if (cached) {
+      res.json({ recommendations: cached });
+      return;
+    }
+
     const recommendations = await getMealRecommendations(
       ingredients,
       parsed.data.dietaryPreferences,
     );
 
+    setCached(cacheKey, recommendations);
     res.json({ recommendations });
   } catch (err) {
     next(err);

@@ -17,7 +17,6 @@ const mealRecommendationSchema = z.object({
   expiringIngredients: z.array(z.string()),
   missingIngredients: z.array(z.string()),
   recipeUrl: z.string().url().optional(),
-  imageUrl: z.string().url().optional(),
 });
 
 const entrySchema = z.object({

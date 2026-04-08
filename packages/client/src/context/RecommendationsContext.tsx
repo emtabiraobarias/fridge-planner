@@ -7,8 +7,10 @@ interface RecommendationsContextValue {
   state: RecommendationsState;
   meals: MealRecommendation[];
   error: string;
+  cachedAt: number | null;
+  cachedPreferences: string[];
   setLoading: () => void;
-  setMeals: (meals: MealRecommendation[]) => void;
+  setMeals: (meals: MealRecommendation[], preferences: string[]) => void;
   setError: (message: string) => void;
 }
 
@@ -18,15 +20,19 @@ export function RecommendationsProvider({ children }: { children: React.ReactNod
   const [state, setState] = useState<RecommendationsState>('idle');
   const [meals, setMealsState] = useState<MealRecommendation[]>([]);
   const [error, setErrorState] = useState('');
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
+  const [cachedPreferences, setCachedPreferences] = useState<string[]>([]);
 
   function setLoading(): void {
     setState('loading');
     setErrorState('');
   }
 
-  function setMeals(next: MealRecommendation[]): void {
+  function setMeals(next: MealRecommendation[], preferences: string[]): void {
     setMealsState(next);
     setState('success');
+    setCachedAt(Date.now());
+    setCachedPreferences(preferences);
   }
 
   function setError(message: string): void {
@@ -35,7 +41,7 @@ export function RecommendationsProvider({ children }: { children: React.ReactNod
   }
 
   return (
-    <RecommendationsContext.Provider value={{ state, meals, error, setLoading, setMeals, setError }}>
+    <RecommendationsContext.Provider value={{ state, meals, error, cachedAt, cachedPreferences, setLoading, setMeals, setError }}>
       {children}
     </RecommendationsContext.Provider>
   );

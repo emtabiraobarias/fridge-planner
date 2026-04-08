@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { fetchRecommendations as fetchRecommendationsService } from '../../services/inventory';
 import type { MealRecommendation } from '../../types/meal-recommendation';
 import { useRecommendations } from '../../context/RecommendationsContext';
+import { useInventory } from '../../context/InventoryContext';
 import { DietaryPreferences } from './DietaryPreferences';
-import { MealCard } from './MealCard';
+import { MealCard, MealCardSkeleton } from './MealCard';
 import { DraggableMealCard } from './DraggableMealCard';
 
 const STORAGE_KEY = 'fridge-planner:dietary-preferences';
+const CLIENT_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 function loadPreferences(): string[] {
   try {
@@ -23,8 +25,10 @@ interface Props {
 }
 
 export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchRecommendationsService, draggable = false }: Props): React.JSX.Element {
-  const { state, meals, error, setLoading, setMeals, setError } = useRecommendations();
+  const { state, meals, error, cachedAt, cachedPreferences, setLoading, setMeals, setError } = useRecommendations();
+  const { items } = useInventory();
   const [preferences, setPreferences] = useState<string[]>(loadPreferences);
+  const prefetchedRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -34,11 +38,42 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
     }
   }, [preferences]);
 
+  // Prefetch when inventory first becomes non-empty
+  useEffect(() => {
+    if (items.length > 0 && state === 'idle' && !prefetchedRef.current) {
+      prefetchedRef.current = true;
+      void handleFetch();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length > 0]);
+
   async function handleFetch(): Promise<void> {
+    const prefsKey = [...preferences].sort().join(',');
+    const cachedPrefsKey = [...cachedPreferences].sort().join(',');
+    const age = cachedAt !== null ? Date.now() - cachedAt : Infinity;
+    const prefsMatch = prefsKey === cachedPrefsKey;
+
+    // Fresh cache hit — skip the network call entirely
+    if (meals.length > 0 && age < CLIENT_CACHE_TTL_MS && prefsMatch) {
+      return;
+    }
+
+    // Stale cache — revalidate silently in the background without clearing existing meals
+    if (meals.length > 0 && age >= CLIENT_CACHE_TTL_MS && prefsMatch) {
+      try {
+        const result = await fetchFn(preferences);
+        setMeals(result, preferences);
+      } catch {
+        // Silently ignore background revalidation errors; stale data remains visible
+      }
+      return;
+    }
+
+    // Cold fetch or preferences changed
     setLoading();
     try {
       const result = await fetchFn(preferences);
-      setMeals(result);
+      setMeals(result, preferences);
     } catch {
       setError('Could not load recommendations. Please try again.');
     }
@@ -59,7 +94,11 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
       </button>
 
       {state === 'loading' && (
-        <p className="mt-4 text-sm text-gray-500 animate-pulse">Loading meal ideas…</p>
+        <ul className="mt-4 space-y-3" aria-label="Loading meal recommendations">
+          <MealCardSkeleton />
+          <MealCardSkeleton />
+          <MealCardSkeleton />
+        </ul>
       )}
 
       {state === 'error' && (

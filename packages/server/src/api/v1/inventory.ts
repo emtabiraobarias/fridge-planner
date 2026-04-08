@@ -2,6 +2,7 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { InventoryItem, CATEGORIES, LOCATIONS } from '../../models/inventory-item.js';
+import { invalidateUser } from '../../services/recommendations-cache.js';
 import { problemJson } from '../../lib/errors.js';
 
 export const inventoryRouter = Router();
@@ -62,6 +63,7 @@ inventoryRouter.post('/', async (req, res, next) => {
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
     });
     await item.save();
+    invalidateUser(req.userId);
     res.status(201).json(item);
   } catch (err) {
     next(err);
@@ -93,6 +95,7 @@ inventoryRouter.put('/:id', async (req, res, next) => {
       problemJson(res, 404, 'Not Found', 'Inventory item not found');
       return;
     }
+    invalidateUser(req.userId);
     res.json(item);
   } catch (err) {
     next(err);
@@ -111,6 +114,7 @@ inventoryRouter.delete('/:id', async (req, res, next) => {
       problemJson(res, 404, 'Not Found', 'Inventory item not found');
       return;
     }
+    invalidateUser(req.userId);
     res.status(204).send();
   } catch (err) {
     next(err);

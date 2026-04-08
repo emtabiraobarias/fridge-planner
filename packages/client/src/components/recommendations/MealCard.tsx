@@ -1,5 +1,30 @@
 import type { MealRecommendation } from '../../types/meal-recommendation';
 
+export function MealCardSkeleton(): React.JSX.Element {
+  return (
+    <li className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden animate-pulse">
+      <div className="w-full h-40 bg-gray-200" />
+      <div className="p-4 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="h-4 bg-gray-200 rounded w-2/5" />
+          <div className="flex items-center gap-1.5">
+            <div className="h-5 bg-gray-200 rounded-full w-14" />
+            <div className="h-5 bg-gray-200 rounded-full w-12" />
+            <div className="h-5 bg-gray-200 rounded-full w-16" />
+          </div>
+        </div>
+        <div className="h-3 bg-gray-200 rounded w-full" />
+        <div className="h-3 bg-gray-200 rounded w-4/5" />
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          <div className="h-5 bg-gray-200 rounded-full w-20" />
+          <div className="h-5 bg-gray-200 rounded-full w-16" />
+          <div className="h-5 bg-gray-200 rounded-full w-24" />
+        </div>
+      </div>
+    </li>
+  );
+}
+
 interface Props {
   meal: MealRecommendation;
 }
