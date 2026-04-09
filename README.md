@@ -10,7 +10,7 @@ packages/server   — Express + TypeScript + Mongoose  (port 3001)
 agents/meal-recommender — Holodeck AI agent, Claude Sonnet 4.6 (port 8001)
 ```
 
-**Backing services:** MongoDB 7, ChromaDB (recipe vector store)
+**Backing services:** MongoDB 7
 
 ## Prerequisites
 
@@ -51,13 +51,6 @@ Requires changing `auth_provider` in `agents/meal-recommender/agent.yaml` back t
 
 All other values have sensible defaults for local development.
 
-**Local overrides (never committed):** Create `.env.local` for machine-specific values such as a local Ollama host. `.env.local` is covered by `.gitignore` (`*.local`):
-
-```bash
-# .env.local — not committed
-OLLAMA_HOST=
-```
-
 ### 3. Start MongoDB
 
 ```bash
@@ -75,16 +68,10 @@ docker compose ps   # should show mongodb as "healthy"
 The holodeck meal-recommender agent powers the AI recommendations. If you want recommendations to work locally:
 
 ```bash
-docker compose up chromadb holodeck -d
+docker compose up holodeck -d
 ```
 
 > **Note:** The holodeck sidecar requires `ANTHROPIC_API_KEY` set in `.env`. If skipped, the app still works for inventory management — recommendation requests will return an error.
-
-> **Ollama embeddings:** The vector store uses `nomic-embed-text` and `mxbai-embed-large` (Ollama). Set `OLLAMA_HOST` in `.env.local` to point to your Ollama instance before starting the holodeck container:
-> ```bash
-> echo "OLLAMA_HOST=http://<host>:11434/" >> .env.local
-> docker compose up chromadb holodeck -d
-> ```
 
 > **Restarting holodeck after agent changes:** The holodeck container mounts `agents/meal-recommender/` at runtime. After updating `agent.yaml` or `instructions/system-prompt.md`, restart the container to pick up the changes:
 > ```bash
@@ -147,12 +134,11 @@ LOG_LEVEL=info
 docker compose up --build -d
 ```
 
-This starts five containers:
+This starts four containers:
 
 | Service | Port | Description |
 |---------|------|-------------|
 | `mongodb` | 27017 | MongoDB 7 database |
-| `chromadb` | 8000 | Recipe vector store |
 | `holodeck` | 8001 | AI meal recommendation agent |
 | `server` | 3001 | Express API |
 | `client` | 5173 → 80 | Nginx serving the React SPA |
@@ -247,7 +233,6 @@ fridge-planner/
 | `CLAUDE_CODE_OAUTH_TOKEN` | — | Yes (for AI, preferred) | Claude Code OAuth token — auto-set inside Claude Code sessions; use `claude setup-token` outside |
 | `ANTHROPIC_API_KEY` | — | Yes (for AI, fallback) | Direct Anthropic API key; requires `auth_provider: api_key` in `agent.yaml` |
 | `OPENAI_API_KEY` | — | No | Fallback LLM provider |
-| `OLLAMA_HOST` | — | No | Ollama base URL for local embeddings. Set in `.env.local` — not committed |
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | No | MongoDB connection string |
 | `HOLODECK_URL` | `http://localhost:8001` | No | Holodeck agent sidecar URL |
 | `PORT` | `3001` | No | Express server port |

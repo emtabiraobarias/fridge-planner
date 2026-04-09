@@ -32,7 +32,7 @@ Build a full-stack meal planning web application with three priority tiers: (P1)
 
 **Language/Version**: TypeScript 5.x (strict); Node.js 20 LTS (backend); React 18 (frontend)
 **Primary Dependencies**: Express 4, Mongoose 8, Vite 5, Tailwind CSS 3, holodeck-agents (sidecar, Python-based CLI)
-**Storage**: MongoDB (primary datastore), ChromaDB (recipe vectorstore inside holodeck sidecar), Redis (caching — P2+)
+**Storage**: MongoDB (primary datastore), Redis (caching — P2+)
 **Testing**: Vitest + React Testing Library (frontend), Jest (backend), holodeck built-in evaluation (agent)
 **Target Platform**: Web (desktop + mobile), Docker for dev/prod parity
 **Project Type**: Monorepo web application (`packages/client` + `packages/server` + `agents/`)
@@ -59,7 +59,6 @@ The AI meal recommendation feature is implemented as a **holodeck-agents sidecar
 └──────────────────────┘                                     └───────────────────────────┘
                                                          │
                                                          ▼
-                                                  ChromaDB (recipes)
                                                   Claude Sonnet 4.6
 ```
 
@@ -78,18 +77,6 @@ model:
 
 instructions:
   file: instructions/system-prompt.md
-
-tools:
-  - type: vectorstore
-    name: recipe_search
-    description: Search recipe database by available ingredients
-    source: data/recipes.json
-    embedding_model: text-embedding-3-small
-    database: chromadb
-    top_k: 5
-    chunk_size: 512
-    chunk_overlap: 64
-    min_similarity_score: 0.7
 
 evaluations:
   model:
@@ -222,7 +209,7 @@ fridge-planner/
 │           └── recipes.json           # seed recipe dataset for vectorstore
 │
 ├── package.json                       # workspace root
-├── docker-compose.yml                 # mongodb + chromadb + holodeck + server + client
+├── docker-compose.yml                 # mongodb + holodeck + server + client
 └── .env.example
 ```
 
@@ -235,7 +222,7 @@ fridge-planner/
 - [x] Verify holodeck serve supports Anthropic/Claude (run `legal-assistant` sample locally)
 - [x] Scaffold monorepo: `packages/client`, `packages/server`, workspace `package.json`
 - [x] Configure ESLint, Prettier, and pre-commit hooks
-- [x] Set up `docker-compose.yml` with MongoDB, ChromaDB, holodeck sidecar, server, client
+- [x] Set up `docker-compose.yml` with MongoDB, holodeck sidecar, server, client
 - [x] Create `.env.example` with all required environment variables
 
 ### Phase 1 — P1: Inventory + AI Recommendations (MVP) ✅
@@ -292,7 +279,7 @@ fridge-planner/
 - [x] **Codebase**: Single repository, feature branch `001-meal-planner`
 - [x] **Dependencies**: All dependencies declared in `package.json` (npm workspaces) and holodeck `agent.yaml`
 - [x] **Config**: `HOLODECK_URL`, `ANTHROPIC_API_KEY`, `MONGODB_URI`, `CORS_ORIGIN`, `LOG_LEVEL` via env vars
-- [x] **Backing Services**: MongoDB, ChromaDB, holodeck sidecar all accessed via config URLs
+- [x] **Backing Services**: MongoDB, holodeck sidecar all accessed via config URLs
 - [x] **Build/Release/Run**: Vite build (client), tsc (server), holodeck serve (agent) — separated
 - [x] **Processes**: Express is stateless; no in-memory state
 - [x] **Port Binding**: Client (:5173 dev / :80 prod), Server (:3001), holodeck (:8001) — all configurable
