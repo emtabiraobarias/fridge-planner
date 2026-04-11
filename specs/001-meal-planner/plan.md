@@ -11,7 +11,7 @@
 | Phase 0 — Scaffolding | **Complete** | Monorepo, Docker, ESLint, Prettier, pre-commit hooks |
 | Phase 1 — P1: Inventory + AI Recommendations | **Complete** | Full backend CRUD, recommendations, middleware, frontend components wired together; corrected holodeck endpoint, structured JSON response, meal card UI |
 | Phase 2 — P2: Weekly Meal Planning Calendar | **Complete** | MealPlan schema + CRUD API, drag-and-drop calendar UI, ingredient consumption, 72 backend + 80 frontend tests passing |
-| Phase 3 — P3: Smart Grocery List | Not started | |
+| Phase 3 — P3: Smart Grocery List | Not started | GroceryList model + unit normalization + grocery list UI |
 
 ### Deferred to Phase 2+
 
@@ -257,19 +257,146 @@ fridge-planner/
   - Evaluate `chunk_size` (512) and `chunk_overlap` (64) against recipe retrieval faithfulness score
   - Expand `data/recipes.json` beyond current 20 recipes to improve vectorstore coverage
 
-### Phase 2 — P2: Weekly Meal Planning Calendar
+### Phase 2 — P2: Weekly Meal Planning Calendar ✅
 
-1. `MealPlan` Mongoose schema + CRUD API
-2. Drag-and-drop weekly calendar UI (React DnD or similar)
-3. Assign recommended meals to calendar days
-4. Ingredient consumption tracking (deduct from inventory on assignment)
+**Backend (TDD)**:
+- [x] `MealPlan` Mongoose schema (`userId`, `weekStart`, `entries[]` with `slotId`, `date`, `mealType`, `meal`)
+- [x] Meal Plans CRUD API (`/api/v1/meal-plans`) — GET by weekStart, POST entry, DELETE entry, PUT (bulk replace)
+- [x] Ingredient consumption on meal assignment — non-blocking decrement/delete of matched inventory items (`lib/ingredient-consumption.ts`)
+- [x] Compound unique index `(userId, weekStart)` on MealPlan
+- [x] 72 backend tests passing, >80% coverage
+
+**Frontend**:
+- [x] `WeeklyCalendar` — 7-day × 4-meal-type grid with week navigation
+- [x] `CalendarSlot` — dnd-kit droppable with hover highlight
+- [x] `CalendarMealCard` — dnd-kit draggable; click opens `MealDetailModal`
+- [x] `MealDetailModal` — full recipe detail; have / expiring-soon / need-to-buy sections; keyboard-accessible
+- [x] `DraggableMealCard` — wraps `MealCard` for drag from recommendations panel to calendar
+- [x] `CalendarPage` — `DndContext` wrapper integrating `WeeklyCalendar` + `RecommendationsPanel`
+- [x] `MealPlanContext` — `assignMeal`, `unassignMeal`, `moveMeal`, week-offset navigation
+- [x] 80 frontend tests passing, >70% coverage
 
 ### Phase 3 — P3: Smart Grocery List
 
-1. Grocery list generation from planned meals vs. current inventory
-2. Ingredient aggregation with unit normalisation (e.g., 500g + 1kg → 1.5kg)
-3. Grocery list CRUD API + UI
-4. Export/share grocery list
+#### Architecture Overview
+
+The grocery list feature is built on top of Phases 1 & 2. It reads the week's `MealPlan`, collects `missingIngredients` from each meal entry, normalizes and groups ingredient names, optionally subtracts non-expired inventory, and produces a persisted `GroceryList` document. A separate `GroceryListProvider`/page on the frontend completes the UI.
+
+**Key design constraint:** `MealRecommendation` stores ingredient names only (no quantities). Auto-generated grocery items express quantity as "number of meals needing this ingredient" with unit `"servings"`. Real unit normalization applies when users manually set quantities via FR-030.
+
+#### New Files
+
+**Server:**
+- `packages/server/src/types/grocery-list.ts` — `IGroceryListItem`, `IGroceryList`, `GroceryCategory`
+- `packages/server/src/lib/unit-normalizer.ts` — pure unit conversion (volume/mass/count/servings)
+- `packages/server/src/lib/ingredient-matcher.ts` — pure name normalization + grouping
+- `packages/server/src/lib/ingredient-categorizer.ts` — keyword-based category inference
+- `packages/server/src/lib/grocery-list-generator.ts` — orchestration: collect → group → subtract → categorize → sort
+- `packages/server/src/models/GroceryList.ts` — Mongoose schema (`userId+weekStart` unique index; subdocument `_id: true`)
+- `packages/server/src/api/v1/grocery-lists.ts` — REST router (6 endpoints)
+- `packages/server/tests/unit/unit-normalizer.test.ts`
+- `packages/server/tests/unit/ingredient-matcher.test.ts`
+- `packages/server/tests/unit/ingredient-categorizer.test.ts`
+- `packages/server/tests/unit/grocery-list-generator.test.ts`
+- `packages/server/tests/integration/grocery-lists.test.ts`
+
+**Client:**
+- `packages/client/src/types/grocery-list.ts` — client-side type mirrors
+- `packages/client/src/services/grocery-lists.ts` — fetch wrappers for all 6 endpoints
+- `packages/client/src/context/GroceryListContext.tsx` — consumes `useMealPlan()` for `currentWeekStart`
+- `packages/client/src/components/grocery/GroceryListHeader.tsx`
+- `packages/client/src/components/grocery/GroceryListSearchBar.tsx`
+- `packages/client/src/components/grocery/GroceryListCategoryGroup.tsx`
+- `packages/client/src/components/grocery/GroceryListItemRow.tsx`
+- `packages/client/src/components/grocery/AddGroceryItemForm.tsx`
+- `packages/client/src/components/grocery/CheckoutConfirmModal.tsx`
+- `packages/client/src/pages/GroceryListPage.tsx`
+
+**Modified files:**
+- `packages/server/src/app.ts` — mount `groceryListsRouter` at `/api/v1/grocery-lists`
+- `packages/client/src/App.tsx` — add "Grocery List" tab; wrap `GroceryListPage` in `GroceryListProvider` (inside `MealPlanProvider` scope)
+
+#### API Endpoints
+
+| Method | Path | FR | Description |
+|--------|------|----|-------------|
+| GET | `/api/v1/grocery-lists/:weekStart` | FR-025 | Fetch list; auto-generates lazily if missing |
+| POST | `/api/v1/grocery-lists/:weekStart/generate` | FR-025 | Force-regenerate; preserves manual items |
+| POST | `/api/v1/grocery-lists/:weekStart/items` | FR-030 | Add manual item |
+| PATCH | `/api/v1/grocery-lists/:weekStart/items/:itemId` | FR-030, FR-031 | Edit item or toggle `isPurchased` |
+| DELETE | `/api/v1/grocery-lists/:weekStart/items/:itemId` | FR-030 | Remove item |
+| POST | `/api/v1/grocery-lists/:weekStart/complete` | FR-032 | Add purchased items to inventory (partial success) |
+
+Rate limit: default 100/min (no AI call).
+
+#### Data Model
+
+```typescript
+// GroceryListItem (subdocument, _id: true)
+{
+  ingredientName:  string;    // canonical lowercase key for matching
+  displayName:     string;    // title-cased original for UI
+  quantity:        number;    // count-of-meals when auto-generated
+  unit:            string;    // 'servings' when auto-generated; real unit when manually set
+  category:        GroceryCategory;
+  isPurchased:     boolean;
+  isManuallyAdded: boolean;
+  sourceMealNames: string[];
+  notes:           string;
+}
+
+// GroceryList (top-level, unique index: userId+weekStart)
+{
+  userId:      string;
+  weekStart:   Date;
+  items:       GroceryListItem[];
+  generatedAt: Date | null;
+  timestamps:  true;
+}
+```
+
+#### Generation Algorithm
+
+1. **Collect** `missingIngredients` from all `mealPlan.entries[].meal.missingIngredients`
+2. **Normalize & group** names: lowercase → strip leading quantity prefix → simple plural stem → group by canonical key → pick best `displayName` (most words, title-cased)
+3. **Quantity** = number of meal entries referencing the ingredient; unit = `"servings"`
+4. **Subtract inventory** (optional): canonical name match AND both have real non-`"servings"` units AND same dimension family → apply `netNeeded()`; drop if net ≤ 0
+5. **Categorize** via keyword map (Produce/Dairy/Meat/Seafood/Grains/Pantry/Condiments/Frozen/Other)
+6. **Sort** by category order, then alphabetically within
+
+#### Unit Normalization
+
+Canonical base units:
+- Volume → `ml` (cup × 236.588, tbsp × 14.787, tsp × 4.929, l × 1000, fl oz × 29.574)
+- Mass → `g` (kg × 1000, oz × 28.350, lb × 453.592)
+- Count → `count` (dozen × 12, piece × 1)
+- `servings` — sentinel; never mixed with real units
+
+`canSubtract(unitA, unitB)`: `false` if different dimension families or either is `servings`/`unknown`.
+
+#### Frontend Architecture
+
+- `GroceryListProvider` reads `currentWeekStart` from `useMealPlan()` — no duplicated week state
+- Re-fetches when `currentWeekStart` changes (grocery list always matches visible calendar week)
+- Must be rendered inside `MealPlanProvider`
+- Search/filter is pure client-side `useState` in `GroceryListPage`
+- `CheckoutConfirmModal` calls `inventoryRefresh()` from `useInventory()` after `completeSession()` succeeds
+
+#### Implementation Sequence
+
+1. Server types (`grocery-list.ts`)
+2. `unit-normalizer.ts` + unit tests
+3. `ingredient-matcher.ts` + unit tests
+4. `ingredient-categorizer.ts` + unit tests
+5. `grocery-list-generator.ts` + unit tests
+6. `GroceryList.ts` Mongoose model
+7. `grocery-lists.ts` router + mount in `app.ts`
+8. Integration tests
+9. Client types + service layer
+10. `GroceryListContext.tsx` + context tests
+11. Grocery components + component tests
+12. `GroceryListPage.tsx` + page tests
+13. Add Grocery tab in `App.tsx`
 
 ---
 
