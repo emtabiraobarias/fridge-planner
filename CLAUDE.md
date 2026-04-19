@@ -41,6 +41,7 @@ Run all commands from the **repo root** unless noted otherwise.
 # Server
 npm -w packages/server run test          # all server tests
 npm -w packages/server run test -- --testPathPattern=inventory  # filtered
+npm -w packages/server run build         # production build 
 
 # Client
 npm -w packages/client run test          # all client tests
@@ -49,7 +50,11 @@ npm -w packages/client run build         # production build (tsc + vite)
 
 ### Docker (full stack)
 ```bash
-docker compose up --build   # MongoDB + Holodeck + server + nginx/client
+docker compose up --build               # MongoDB + Holodeck + server + nginx/client
+docker compose rm -fs holodeck          # Stop and remove Holodeck 0-=container
+docker compose up -d --build holodeck   # Rebuild and restart Holodeck
+docker compose ps holodeck              # Verify if Holodeck is healthy
+docker compose logs -f holodeck         # Check Holodeck logs
 ```
 
 ---
@@ -59,39 +64,49 @@ docker compose up --build   # MongoDB + Holodeck + server + nginx/client
 ```
 fridge-planner/
 ├── packages/
-│   ├── client/src/
-│   │   ├── components/
-│   │   │   ├── calendar/         # WeeklyCalendar, CalendarSlot, MealDetailModal
-│   │   │   ├── inventory/        # InventoryForm, InventoryList
-│   │   │   └── recommendations/  # RecommendationsPanel, MealCard, DietaryPreferences
-│   │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext
-│   │   ├── pages/                # CalendarPage
-│   │   ├── services/             # inventory.ts, meal-plans.ts (API fetch wrappers)
-│   │   ├── types/                # Shared TS interfaces
-│   │   ├── lib/                  # date-utils.ts
-│   │   ├── App.tsx
-│   │   └── main.tsx
+│   ├── client/
+│   │   ├── src/
+│   │   │   ├── components/
+│   │   │   │   ├── calendar/         # WeeklyCalendar, CalendarSlot, CalendarMealCard, MealSlotCard, MealDetailModal
+│   │   │   │   ├── grocery/          # AddGroceryItemForm, GroceryListHeader, GroceryListCategoryGroup,
+│   │   │   │   │                     # GroceryListItemRow, GroceryListSearchBar, CheckoutConfirmModal
+│   │   │   │   ├── inventory/        # InventoryForm, InventoryList
+│   │   │   │   ├── recommendations/  # RecommendationsPanel, MealCard, DraggableMealCard, DietaryPreferences
+│   │   │   │   └── shared/
+│   │   │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
+│   │   │   ├── pages/                # CalendarPage, GroceryListPage
+│   │   │   ├── services/             # inventory.ts, meal-plans.ts, grocery-lists.ts (API fetch wrappers)
+│   │   │   ├── types/                # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
+│   │   │   ├── lib/                  # date-utils.ts
+│   │   │   ├── App.tsx
+│   │   │   └── main.tsx
+│   │   └── tests/                    # Vitest — components/, context/, lib/, pages/
 │   │
-│   └── server/src/
-│       ├── api/v1/               # inventory.ts, recommendations.ts, meal-plans.ts
-│       ├── middleware/           # auth.ts, error-handler.ts, rate-limiter.ts
-│       ├── models/               # InventoryItem.ts, MealPlan.ts (Mongoose schemas)
-│       ├── services/             # meal-recommender.ts, recommendations-cache.ts
-│       ├── lib/                  # expiration.ts, errors.ts, ingredient-consumption.ts
-│       ├── types/
-│       ├── app.ts                # Express app setup
-│       └── index.ts              # Entry point
+│   └── server/
+│       ├── src/
+│       │   ├── api/v1/               # inventory.ts, recommendations.ts, meal-plans.ts, grocery-lists.ts
+│       │   ├── middleware/           # auth.ts, error-handler.ts, rate-limiter.ts
+│       │   ├── models/               # inventory-item.ts, meal-plan.ts, grocery-list.ts (Mongoose schemas)
+│       │   ├── services/             # meal-recommender.ts, recommendations-cache.ts
+│       │   ├── lib/                  # expiration.ts, errors.ts, ingredient-consumption.ts,
+│       │   │                         # grocery-list-generator.ts, ingredient-categorizer.ts,
+│       │   │                         # ingredient-matcher.ts, unit-normalizer.ts
+│       │   ├── types/                # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
+│       │   ├── app.ts                # Express app setup
+│       │   └── index.ts              # Entry point
+│       └── tests/
+│           ├── integration/          # inventory, meal-plans, recommendations, grocery-lists
+│           └── unit/                 # expiration, models, services, middleware, grocery lib
 │
 ├── agents/meal-recommender/
 │   ├── agent.yaml                # Holodeck config (model, eval metrics, test cases)
 │   ├── instructions/             # Claude system prompt
 │   └── data/recipes.json
 │
-├── specs/001-meal-planner/       # spec.md, plan.md
+├── specs/001-meal-planner/       # spec.md, plan.md, checklists/
 ├── docker-compose.yml
 ├── .env.example                  # All required env vars documented here
 ├── constitution.md               # Core principles (source of truth)
-├── AGENTS.md                     # Developer + agent guide
 ├── eslint.config.js              # ESLint flat config (v9)
 └── .prettierrc                   # Formatting rules
 ```
@@ -120,10 +135,20 @@ Rate limit: **10 req/min** (vs 100/min for other endpoints)
 ### Meal Plans
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/meal-plans/:weekStart` | Fetch weekly plan |
-| POST | `/meal-plans/:weekStart/entries` | Assign meal to slot |
-| PUT | `/meal-plans/:weekStart/entries/:slotId` | Move meal |
-| DELETE | `/meal-plans/:weekStart/entries/:slotId` | Remove meal |
+| GET | `/meal-plans?weekStart=<ISO>` | Fetch weekly plan |
+| POST | `/meal-plans/:weekStart/entries` | Add meal entry to slot |
+| PUT | `/meal-plans/:weekStart` | Replace full entries array |
+| DELETE | `/meal-plans/:weekStart/entries/:slotId` | Remove meal entry |
+
+### Grocery Lists
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/grocery-lists/:weekStart` | Fetch list; lazily generates from meal plan if none exists |
+| POST | `/grocery-lists/:weekStart/generate` | Force-regenerate list (preserves manually-added items) |
+| POST | `/grocery-lists/:weekStart/items` | Add a manual item |
+| PATCH | `/grocery-lists/:weekStart/items/:itemId` | Update item (checked state, quantity, etc.) |
+| DELETE | `/grocery-lists/:weekStart/items/:itemId` | Remove item |
+| POST | `/grocery-lists/:weekStart/complete` | Checkout — mark list complete and consume inventory |
 
 All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
 
@@ -150,11 +175,41 @@ All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
 ### MealPlan (MongoDB)
 ```typescript
 {
-  userId: string;          // compound unique index with weekStart
+  userId: string;    // compound unique index with weekStart
   weekStart: Date;
-  entries: MealPlanEntry[];  // [{ slotId, date, mealType, meal }]
+  entries: {
+    slotId: string;
+    date: Date;
+    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    meal: MealRecommendation;
+  }[];
 }
 ```
+- Compound unique index on `(userId, weekStart)`
+- `entries` subdocs have `_id: false`; `meal` stores a full `MealRecommendation` snapshot
+
+### GroceryList (MongoDB)
+```typescript
+{
+  userId: string;    // compound unique index with weekStart
+  weekStart: Date;
+  generatedAt: Date | null;
+  items: {
+    ingredientName: string;   // normalised key
+    displayName: string;      // human-readable label
+    quantity: number;
+    unit: string;             // default: 'servings'
+    category: GroceryCategory; // same enum as CATEGORIES on InventoryItem
+    isPurchased: boolean;
+    isManuallyAdded: boolean;
+    sourceMealNames: string[]; // which meals need this ingredient
+    notes: string;
+  }[];
+}
+```
+- Compound unique index on `(userId, weekStart)`
+- Lazily created on first GET; `POST /:weekStart/generate` force-regenerates while preserving `isManuallyAdded` items
+- `POST /:weekStart/complete` marks all items purchased and triggers inventory consumption
 
 ---
 
@@ -162,16 +217,23 @@ All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
 
 Copy `.env.example` to `.env` before running locally.
 
+> **Location:** The root `.env` is loaded by `tsx --env-file ../../.env` (dev) and Docker Compose. Always edit the root file — never create `.env` inside `packages/`.
+
 | Variable | Default | Required |
 |----------|---------|----------|
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | Yes |
 | `HOLODECK_URL` | `http://localhost:8001` | Yes (AI features) |
 | `CLAUDE_CODE_OAUTH_TOKEN` | — | Preferred for AI |
 | `ANTHROPIC_API_KEY` | — | Fallback for AI |
+| `OPENAI_API_KEY` | — | Fallback if Anthropic unavailable in Holodeck |
+| `AUTH_ISSUER` | — | No (CR-001, production OIDC) |
+| `AUTH_AUDIENCE` | — | No (CR-001, production OIDC) |
+| `AUTH_JWKS_URI` | — | No (CR-001, production OIDC) |
 | `PORT` | `3001` | No |
 | `NODE_ENV` | `development` | No |
 | `CORS_ORIGIN` | `http://localhost:5173` | No |
 | `LOG_LEVEL` | `info` | No |
+| `REDIS_URL` | `redis://localhost:6379` | No (P2+, not required for P1 MVP) |
 
 > **Auth note:** `middleware/auth.ts` is a development stub — it reads `X-User-Id` header and defaults to `'anonymous'`. Production OIDC validation is a known TODO (CR-001).
 
@@ -179,10 +241,12 @@ Copy `.env.example` to `.env` before running locally.
 
 ## 7. Code Conventions
 
-### TypeScript Rules (enforced by ESLint)
-- **Strict mode** (`"strict": true`, `"noUncheckedIndexedAccess": true`)
+### TypeScript Rules (enforced by ESLint + tsconfig)
+- **Strict mode** (`"strict": true`, `"noUncheckedIndexedAccess": true`, `"noImplicitOverride": true`, `"exactOptionalPropertyTypes": true`)
 - **No `any`** — use proper types or `unknown`
-- **Explicit return types** on all exported functions
+- **Explicit return types** on all functions (not just exported)
+- **No unused variables** — args may be prefixed with `_` to suppress (`argsIgnorePattern: ^_`)
+- **No `console.log`** — use `console.warn` or `console.error`; bare log triggers ESLint warning
 - **`interface`** for object shapes; `type` for unions/intersections
 - **Cyclomatic complexity** limit: 10 per function
 
@@ -197,14 +261,14 @@ Copy `.env.example` to `.env` before running locally.
 ### Formatting (Prettier)
 - 2-space indentation
 - Single quotes
-- Trailing commas in multiline
+- Trailing commas everywhere (`"trailingComma": "all"` — includes function parameters)
 - 100-character line width
 - Semicolons required
 
 ### React Patterns
 - **Functional components only** — no class components
 - **Context + hooks** for state — no Redux or Zustand
-- Each context exports a custom hook (`useInventory()`, `useMealPlan()`, `useRecommendations()`)
+- Each context exports a custom hook (`useInventory()`, `useMealPlan()`, `useRecommendations()`, `useGroceryList()`)
 - **Presentational vs container:** keep UI components pure; logic lives in hooks/context
 - `useCallback`/`useMemo` only when profiling justifies it
 
@@ -223,15 +287,18 @@ Copy `.env.example` to `.env` before running locally.
 - **Coverage threshold:** 80% (branches, functions, lines, statements)
 - In-memory MongoDB via `mongodb-memory-server` — no real DB in tests
 - Mock Holodeck HTTP calls in recommender tests
+- Route files (`api/v1/`) are excluded from unit coverage — they're covered by integration tests
+- ESM imports in test files must use `.js` extension (Jest's `moduleNameMapper` resolves them to `.ts`)
 
 ```typescript
 // Unit test example
-import { calculateExpirationStatus } from '../../src/lib/expiration';
+import { describe, it, expect } from '@jest/globals';
+import { getExpirationStatus } from '../../src/lib/expiration.js';
 
-describe('calculateExpirationStatus', () => {
+describe('getExpirationStatus', () => {
   it('returns expired for past dates', () => {
     const yesterday = new Date(Date.now() - 86400000);
-    expect(calculateExpirationStatus(yesterday)).toBe('expired');
+    expect(getExpirationStatus(yesterday)).toBe('expired');
   });
 });
 ```
@@ -239,6 +306,8 @@ describe('calculateExpirationStatus', () => {
 ### Client (Vitest + React Testing Library)
 - **Location:** `packages/client/tests/`
 - **Coverage threshold:** 70%
+- Environment: `jsdom`; setup file at `tests/setup.ts`
+- Services layer (`src/services/`) excluded from client coverage — covered by server integration tests
 - Test user interactions and rendered output — avoid testing implementation details
 - Mock all API calls (services layer)
 
@@ -261,48 +330,103 @@ it('shows expiring badge when ingredient expires soon', () => {
 ## 9. AI Agent (Holodeck / Meal Recommender)
 
 - **Config:** `agents/meal-recommender/agent.yaml`
+- **Instructions:** `agents/meal-recommender/instructions/system-prompt.md`
 - **Model:** Claude Sonnet 4.6 (`claude-sonnet-4-6`)
 - **Temperature:** 0.5, **Max tokens:** 3000
 - **Auth:** OAuth token preferred (`CLAUDE_CODE_OAUTH_TOKEN`); falls back to `ANTHROPIC_API_KEY`
 
 The agent receives inventory data (sorted by expiry date) and dietary preferences, and returns a JSON array of `MealRecommendation` objects. It must **never** return markdown or prose — only raw JSON.
 
-**Evaluation metrics** (G-Eval):
-- `ExpiryPrioritisation` — uses ingredients expiring soonest
-- `Practicality` — suggests meals achievable from available items
+**Evaluation metrics** (G-Eval, evaluated by Claude Sonnet 4.6 at temperature 0.0):
+- `ExpiryPrioritisation` — uses ingredients expiring soonest (threshold: 0.8)
+- `Practicality` — suggests meals achievable from available items (threshold: 0.75)
 
-**Caching:** `services/recommendations-cache.ts` caches results by `(userId, dietaryPreferences, ingredients)` key with a 5-minute TTL. Cache is invalidated on any inventory change.
+Test cases for both metrics are defined in `agent.yaml` under `test_cases`.
+
+**Caching:** `services/recommendations-cache.ts` caches results by `(userId, dietaryPreferences, ingredients)` key with a **15-minute TTL**. Cache is invalidated per-user (`invalidateUser(userId)`) on any inventory mutation.
 
 ---
 
 ## 10. Git Workflow
 
-- **Branch from `main`:** `feat/`, `fix/`, `refactor/`, `test/`, `docs/` prefixes
+- **Branch from `main`:** `feat/`, `fix/`, `refactor/`, `test/`, `docs/` prefixes for human work; Claude Code auto-generates `claude/<description>-<id>` branches
 - **Commit format:** Conventional Commits — `feat: add dietary filter to recommendations`
 - **Before pushing:** `npm run lint && npm test` must pass
 - **PRs require:** all tests green, zero lint warnings
 
 ---
 
-## 11. Known Issues & TODOs
+## 11. Feature Specification Workflow
+
+New features follow a **spec-first** process. Templates and tooling live in `.specify/`.
+
+### Steps
+1. **Scaffold:** Run `.specify/scripts/bash/create-new-feature.sh` with the feature name. This creates a numbered directory under `specs/` from the templates in `.specify/templates/`.
+2. **Write `spec.md`:** Define user scenarios, acceptance criteria, and priorities (P1/P2/P3). Each user story must be independently testable.
+3. **Write `plan.md`:** Architecture decisions, component design, API changes, phase breakdown.
+4. **Write `tasks.md`:** Implementation checklist derived from the plan.
+5. **Implement:** Work through `tasks.md`, checking off items. Branch naming follows section 10.
+
+### Reference
+| Path | Purpose |
+|------|---------|
+| `.specify/templates/` | Markdown templates: spec, plan, tasks, checklist, constitution, agent-file |
+| `.specify/scripts/bash/create-new-feature.sh` | Scaffold a new feature spec directory (main entry point) |
+| `.specify/scripts/bash/setup-plan.sh` | Set up a plan for an existing spec |
+| `.specify/scripts/bash/update-agent-context.sh` | Regenerate AI agent context files from plan.md |
+| `.specify/scripts/bash/check-prerequisites.sh` | Validate tooling prerequisites before running workflow scripts |
+| `.specify/memory/constitution.md` | Stored project constitution (auto-maintained by `update-agent-context.sh`) |
+| `specs/001-meal-planner/` | Working example (spec.md, plan.md, checklists/) |
+
+---
+
+## 12. Known Issues & TODOs
 
 | ID | Description | Location |
 |----|-------------|----------|
 | CR-001 | Auth stub — replace X-User-Id header with proper OIDC/JWT validation | `packages/server/src/middleware/auth.ts` |
+| CR-013 | OpenAPI 3.0 spec not yet written — deferred until API shape stabilises post-Phase 2 | `packages/server/src/api/` |
 | — | Drag-and-drop has intermittent bugs noted in commit history | `packages/client/src/pages/CalendarPage.tsx` |
-| — | Redis-backed cache planned for Phase 2 | `REDIS_URL` in `.env.example` |
+| — | No CI/CD pipeline — GitHub Actions deferred until test suite is stable | repo root |
+| — | No E2E tests — unit + integration tests are the current confidence ceiling | `packages/*/tests/` |
+| — | Redis-backed cache deferred to Phase 2+ | `REDIS_URL` in `.env.example` |
 
 ---
 
-## 12. Key Files Quick Reference
+## 13. Key Files Quick Reference
 
 | File | Purpose |
 |------|---------|
 | `constitution.md` | Core principles and governance — source of truth |
-| `AGENTS.md` | Developer + agent guide with code examples |
 | `specs/001-meal-planner/spec.md` | Feature requirements |
 | `specs/001-meal-planner/plan.md` | Implementation plan |
-| `agents/meal-recommender/instructions/` | Claude system prompt for meal AI |
+| `agents/meal-recommender/agent.yaml` | Holodeck agent config — model, eval metrics, test cases |
+| `agents/meal-recommender/instructions/system-prompt.md` | Claude system prompt for meal AI |
 | `packages/server/src/lib/expiration.ts` | Expiration status logic (midnight cutoff) |
 | `packages/server/src/lib/errors.ts` | Problem JSON error helpers |
+| `packages/server/src/lib/grocery-list-generator.ts` | Generates grocery list items from a meal plan + inventory |
 | `.env.example` | All environment variables documented |
+| `.specify/templates/` | Spec, plan, and tasks templates for new features |
+| `.specify/scripts/bash/create-new-feature.sh` | Scaffold a new feature spec directory |
+
+---
+
+## 14. Things NOT to do
+
+**Don't add a vector store or embedding layer to the AI agent.**
+ChromaDB and Ollama embeddings were added then removed (commit `983ec78`). The meal recommender doesn't need semantic search — it receives structured inventory JSON directly. Adding embedding infrastructure is over-engineering for this use case.
+
+**Don't set `auth_provider: api_key` in `agent.yaml`.**
+The agent originally defaulted to API key auth and was corrected to `oauth_token` (commit `da0f65f`). Always use `auth_provider: oauth_token`; `ANTHROPIC_API_KEY` is the fallback, not the default.
+
+**Don't let the meal recommender return prose or markdown.**
+The original agent returned human-readable text; the system prompt was rewritten to enforce raw JSON only (commit `4082def`). Any prompt change that loosens this constraint will break the client's JSON parser.
+
+**Don't use `.ts` extensions in server-side import paths.**
+The server uses `"moduleResolution": "NodeNext"` — imports must use `.js` even for `.ts` source files (e.g., `import { foo } from './bar.js'`). ESLint is configured to ignore `.js` files, so wrong extensions can silently compile but fail at runtime.
+
+**Don't manually set `expirationStatus` in `findOneAndUpdate` calls.**
+`expirationStatus` is auto-computed by a Mongoose `pre('findOneAndUpdate')` hook in `models/inventory-item.ts` whenever `expiresAt` changes. Writing it directly in an update will produce a stale value or get overwritten; always let the hook manage it.
+
+**Don't add state management libraries (Redux, Zustand, etc.).**
+All shared state uses React Context + custom hooks. Adding a third-party store would duplicate the existing pattern and violate the architecture constraint in `constitution.md`.
