@@ -384,6 +384,36 @@ New features follow a **spec-first** process. Templates live in `.specify/templa
 | `.specify/memory/constitution.md` | Stored project constitution |
 | `specs/001-meal-planner/` | Working example (spec.md, plan.md, checklists/) |
 
+### Bug Fixes (ensuring spec adherence)
+
+A bug is a **code failure** to meet an existing spec requirement — the spec itself does not change.
+
+1. **Locate the violated requirement** — find the acceptance scenario and `FR-XXX` in `specs/<feature>/spec.md` that the defect contradicts. If no FR covers it, the spec is incomplete → treat as a spec tweak (see below).
+2. **Write a failing test** — cite the FR number in the test name so the traceability is permanent: `it('excludes items expiring today (FR-007)', ...)`.
+3. **Fix the code** — make the test pass without touching spec, plan, or tasks.
+4. **Commit** referencing the FR: `fix: midnight cutoff off-by-one (FR-007)`.
+
+> If you find yourself wanting to change the spec to match what the code does, stop — that is a spec tweak, not a bug fix.
+
+### Spec Tweaks (cascading updates)
+
+When a requirement itself changes, update files in strict cascade order — each layer is the source of truth for the one below it:
+
+| Step | File | What to update |
+|------|------|----------------|
+| 1 | `specs/<feature>/spec.md` | Revise the acceptance scenario, `FR-XXX` statement, or `SC-XXX` metric |
+| 2 | *(run `/speckit.analyze`)* | Surfaces gaps in plan and tasks caused by the spec change |
+| 3 | `specs/<feature>/plan.md` | Update Technical Context, Constitution Check, or phase breakdown if the approach changes |
+| 4 | `specs/<feature>/tasks.md` | Add, remove, or reorder tasks to match the revised plan |
+| 5 | `specs/<feature>/checklists/` | Add or remove checklist items if validation criteria changed |
+| 6 | `.specify/memory/constitution.md` | Amend only if the change conflicts with or requires a new constitutional principle; increment version (`MINOR` for new guidance, `PATCH` for clarifications) |
+
+After updating the spec, any existing code that no longer satisfies the revised requirement becomes a bug — apply the bug-fix workflow above.
+
+**Deciding which workflow applies:**
+- "The code is wrong for what we originally intended" → **Bug fix** (code changes only)
+- "What we intended has changed" → **Spec tweak** (spec → plan → tasks → code)
+
 ---
 
 ## 12. Known Issues & TODOs
