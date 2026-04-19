@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { InventoryProvider, useInventory } from './context/InventoryContext';
 import { MealPlanProvider } from './context/MealPlanContext';
 import { RecommendationsProvider } from './context/RecommendationsContext';
+import { GroceryListProvider } from './context/GroceryListContext';
 import { InventoryForm } from './components/inventory/InventoryForm';
 import { InventoryList } from './components/inventory/InventoryList';
 import { RecommendationsPanel } from './components/recommendations/RecommendationsPanel';
 import { CalendarPage } from './pages/CalendarPage';
+import { GroceryListPage } from './pages/GroceryListPage';
 import type { InventoryItem } from './services/inventory';
 
-type Tab = 'inventory' | 'calendar';
+type Tab = 'inventory' | 'calendar' | 'grocery';
 
 function InventoryPage(): React.JSX.Element {
   const { items, summary, loading, error, addItem, editItem, removeItem } = useInventory();
@@ -95,12 +97,29 @@ export default function App(): React.JSX.Element {
                   >
                     Meal Plan
                   </button>
+                  <button
+                    type="button"
+                    aria-current={activeTab === 'grocery' ? 'page' : undefined}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                      activeTab === 'grocery'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    onClick={() => setActiveTab('grocery')}
+                  >
+                    Grocery List
+                  </button>
                 </nav>
               </div>
             </header>
             <div className="max-w-6xl mx-auto px-4 pb-8">
               {activeTab === 'inventory' && <InventoryPage />}
               {activeTab === 'calendar' && <CalendarPage />}
+              {activeTab === 'grocery' && (
+                <GroceryListProvider>
+                  <GroceryListPage />
+                </GroceryListProvider>
+              )}
             </div>
           </main>
         </RecommendationsProvider>

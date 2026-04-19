@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
 
+import { groceryListsRouter } from './api/v1/grocery-lists.js';
 import { inventoryRouter } from './api/v1/inventory.js';
 import { mealPlansRouter } from './api/v1/meal-plans.js';
 import { recommendationsRouter } from './api/v1/recommendations.js';
@@ -30,6 +31,7 @@ export function createApp(): express.Application {
   app.use('/api/v1/inventory', inventoryRouter);
   app.use('/api/v1/meal-plans', mealPlansRouter);
   app.use('/api/v1/recommendations', recommendationsLimiter, recommendationsRouter);
+  app.use('/api/v1/grocery-lists', groceryListsRouter);
 
   app.use(errorHandler);
 

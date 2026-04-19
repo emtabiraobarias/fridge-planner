@@ -47,7 +47,7 @@ Inside a Claude Code session `CLAUDE_CODE_OAUTH_TOKEN` is already present in the
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ```
-Requires changing `auth_provider` in `agents/meal-recommender/agent.yaml` back to `api_key` (or removing the field, as `api_key` is the default).
+Also set `auth_provider: api_key` in `agents/meal-recommender/agent.yaml` (the repo default is `oauth_token`).
 
 All other values have sensible defaults for local development.
 
@@ -71,7 +71,7 @@ The holodeck meal-recommender agent powers the AI recommendations. If you want r
 docker compose up holodeck -d
 ```
 
-> **Note:** The holodeck sidecar requires `ANTHROPIC_API_KEY` set in `.env`. If skipped, the app still works for inventory management — recommendation requests will return an error.
+> **Note:** The holodeck sidecar requires either `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` set in `.env`. If skipped, the app still works for inventory management — recommendation requests will return an error.
 
 > **Restarting holodeck after agent changes:** The holodeck container mounts `agents/meal-recommender/` at runtime. After updating `agent.yaml` or `instructions/system-prompt.md`, restart the container to pick up the changes:
 > ```bash
@@ -182,32 +182,36 @@ fridge-planner/
 │   ├── client/                 # React frontend
 │   │   ├── src/
 │   │   │   ├── components/
+│   │   │   │   ├── calendar/       # WeeklyCalendar, CalendarSlot, CalendarMealCard, MealSlotCard, MealDetailModal
+│   │   │   │   ├── grocery/        # AddGroceryItemForm, GroceryListHeader, GroceryListCategoryGroup,
+│   │   │   │   │                   # GroceryListItemRow, GroceryListSearchBar, CheckoutConfirmModal
 │   │   │   │   ├── inventory/      # InventoryForm, InventoryList
-│   │   │   │   └── recommendations/ # RecommendationsPanel, MealCard, DietaryPreferences
-│   │   │   ├── context/            # InventoryContext (shared state)
-│   │   │   ├── types/              # MealRecommendation interface
-│   │   │   └── services/           # API client (fetch wrappers)
+│   │   │   │   ├── recommendations/ # RecommendationsPanel, MealCard, DraggableMealCard, DietaryPreferences
+│   │   │   │   └── shared/
+│   │   │   ├── context/            # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
+│   │   │   ├── pages/              # CalendarPage, GroceryListPage
+│   │   │   ├── services/           # inventory.ts, meal-plans.ts, grocery-lists.ts (API fetch wrappers)
+│   │   │   ├── types/              # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
+│   │   │   └── lib/                # date-utils.ts
 │   │   ├── tests/
 │   │   ├── Dockerfile
 │   │   └── nginx.conf
 │   └── server/                 # Express backend
 │       ├── src/
-│       │   ├── api/v1/             # inventory, recommendations routes
-│       │   ├── middleware/         # auth, error-handler, rate-limiter
-│       │   ├── models/             # Mongoose schemas
-│       │   ├── services/           # holodeck HTTP client
-│       │   ├── types/              # MealRecommendation interface
-│       │   └── lib/               # expiration logic, error helpers
-│       ├── tests/
-│       └── Dockerfile
+│       │   ├── api/v1/             # inventory.ts, recommendations.ts, meal-plans.ts, grocery-lists.ts
+│       │   ├── middleware/         # auth.ts, error-handler.ts, rate-limiter.ts
+│       │   ├── models/             # inventory-item.ts, meal-plan.ts, grocery-list.ts (Mongoose schemas)
+│       │   ├── services/           # meal-recommender.ts, recommendations-cache.ts
+│       │   ├── types/              # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
+│       │   └── lib/                # expiration.ts, errors.ts, grocery-list-generator.ts,
+│       │                           # ingredient-categorizer.ts, ingredient-matcher.ts, unit-normalizer.ts
+│       └── tests/
 ├── agents/
 │   └── meal-recommender/       # Holodeck AI agent
-│       ├── agent.yaml
-│       ├── instructions/
-│       └── data/recipes.json
-├── docker/
-│   └── holodeck.Dockerfile
-├── specs/                      # Feature specifications and plans
+│       ├── agent.yaml          # Model, eval metrics, test cases
+│       └── instructions/       # system-prompt.md
+├── specs/                      # Feature specifications (spec.md, plan.md, checklists/)
+├── .specify/                   # Spec-first workflow templates and scripts
 ├── docker-compose.yml
 ├── .env.example
 └── package.json                # Monorepo root (npm workspaces)
@@ -215,30 +219,89 @@ fridge-planner/
 
 ## API Endpoints
 
+Base URL: `http://localhost:3001/api/v1`
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/health` | Health check |
-| `GET` | `/api/v1/inventory` | List inventory (supports `?category=`, `?status=`, `?page=`, `?limit=`) |
-| `POST` | `/api/v1/inventory` | Add inventory item |
-| `PUT` | `/api/v1/inventory/:id` | Update inventory item |
-| `DELETE` | `/api/v1/inventory/:id` | Delete inventory item |
-| `POST` | `/api/v1/recommendations` | Get AI meal recommendations |
+| `GET` | `/health` | Health check (no prefix) |
+| `GET` | `/inventory` | List items (`?category=`, `?status=`, `?page=`, `?limit=`) |
+| `POST` | `/inventory` | Add inventory item |
+| `PUT` | `/inventory/:id` | Update inventory item |
+| `DELETE` | `/inventory/:id` | Delete inventory item |
+| `POST` | `/recommendations` | Get AI meal suggestions — body: `{ dietaryPreferences: string[] }` |
+| `GET` | `/meal-plans?weekStart=<ISO>` | Fetch weekly meal plan |
+| `POST` | `/meal-plans/:weekStart/entries` | Add a meal entry to a slot |
+| `PUT` | `/meal-plans/:weekStart` | Replace full entries array |
+| `DELETE` | `/meal-plans/:weekStart/entries/:slotId` | Remove a meal entry |
+| `GET` | `/grocery-lists/:weekStart` | Fetch list; lazily generates from meal plan if none exists |
+| `POST` | `/grocery-lists/:weekStart/generate` | Force-regenerate list (preserves manually-added items) |
+| `POST` | `/grocery-lists/:weekStart/items` | Add a manual item |
+| `PATCH` | `/grocery-lists/:weekStart/items/:itemId` | Update item (checked state, quantity, etc.) |
+| `DELETE` | `/grocery-lists/:weekStart/items/:itemId` | Remove item |
+| `POST` | `/grocery-lists/:weekStart/complete` | Checkout — add purchased items to inventory |
 
-**Rate limits:** 100 req/min (default), 10 req/min (recommendations)
+**Rate limits:** 100 req/min (default), 10 req/min (`/recommendations`)
 
 ## Environment Variables
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
 | `CLAUDE_CODE_OAUTH_TOKEN` | — | Yes (for AI, preferred) | Claude Code OAuth token — auto-set inside Claude Code sessions; use `claude setup-token` outside |
-| `ANTHROPIC_API_KEY` | — | Yes (for AI, fallback) | Direct Anthropic API key; requires `auth_provider: api_key` in `agent.yaml` |
-| `OPENAI_API_KEY` | — | No | Fallback LLM provider |
+| `ANTHROPIC_API_KEY` | — | Yes (for AI, fallback) | Direct Anthropic API key; set `auth_provider: api_key` in `agent.yaml` |
+| `OPENAI_API_KEY` | — | No | Fallback if Anthropic provider unavailable in Holodeck |
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | No | MongoDB connection string |
 | `HOLODECK_URL` | `http://localhost:8001` | No | Holodeck agent sidecar URL |
+| `AUTH_ISSUER` | — | No | OIDC issuer URL (CR-001, production only) |
+| `AUTH_AUDIENCE` | — | No | OIDC audience (CR-001, production only) |
+| `AUTH_JWKS_URI` | — | No | OIDC JWKS endpoint (CR-001, production only) |
 | `PORT` | `3001` | No | Express server port |
 | `CORS_ORIGIN` | `http://localhost:5173` | No | Allowed CORS origin |
 | `LOG_LEVEL` | `info` | No | Pino log level |
 | `NODE_ENV` | `development` | No | Environment mode |
+| `REDIS_URL` | `redis://localhost:6379` | No | Redis cache (P2+, not required for P1 MVP) |
+
+## Feature Specification Workflow
+
+New features follow a **spec-first** process. Templates live in `.specify/templates/`; the workflow is driven by Claude Code slash commands in `.claude/commands/`.
+
+### New Features
+
+1. **Scaffold:** Run `.specify/scripts/bash/create-new-feature.sh` with the feature name.
+2. **Write `spec.md`:** Run `/speckit.specify` — Claude clarifies requirements and writes the spec. Each user story must be independently testable.
+3. **Write `plan.md`:** Run `/speckit.plan` — architecture decisions, component design, API changes, phase breakdown.
+4. **Write `tasks.md`:** Run `/speckit.tasks` — implementation checklist derived from spec and plan.
+5. **Analyse:** Run `/speckit.analyze` — cross-checks spec, plan, and tasks for gaps before coding starts.
+6. **Implement:** Work through `tasks.md`, checking off items as you go.
+
+### Bug Fixes (ensuring spec adherence)
+
+A bug is a **code failure** to meet an existing spec requirement — the spec itself does not change.
+
+1. **Locate the violated requirement** — find the acceptance scenario and `FR-XXX` in `specs/<feature>/spec.md` that the defect contradicts. If no FR covers it, the spec is incomplete → treat as a spec tweak (see below).
+2. **Write a failing test** — cite the FR number in the test name: `it('excludes items expiring today (FR-007)', ...)`.
+3. **Fix the code** — make the test pass without touching spec, plan, or tasks.
+4. **Commit** referencing the FR: `fix: midnight cutoff off-by-one (FR-007)`.
+
+> If you find yourself wanting to change the spec to match what the code does, stop — that is a spec tweak, not a bug fix.
+
+### Spec Tweaks (cascading updates)
+
+When a requirement itself changes, update files in strict cascade order:
+
+| Step | File | What to update |
+|------|------|----------------|
+| 1 | `specs/<feature>/spec.md` | Revise the acceptance scenario, `FR-XXX` statement, or `SC-XXX` metric |
+| 2 | *(run `/speckit.analyze`)* | Surfaces gaps in plan and tasks caused by the spec change |
+| 3 | `specs/<feature>/plan.md` | Update Technical Context, Constitution Check, or phase breakdown if approach changes |
+| 4 | `specs/<feature>/tasks.md` | Add, remove, or reorder tasks to match the revised plan |
+| 5 | `specs/<feature>/checklists/` | Add or remove checklist items if validation criteria changed |
+| 6 | `.specify/memory/constitution.md` | Amend only if the change requires a new constitutional principle; increment version |
+
+After updating the spec, any existing code that no longer satisfies the revised requirement becomes a bug — apply the bug-fix workflow above.
+
+**Deciding which workflow applies:**
+- "The code is wrong for what we originally intended" → **Bug fix** (code changes only)
+- "What we intended has changed" → **Spec tweak** (spec → plan → tasks → code)
 
 ## License
 
