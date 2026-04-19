@@ -203,8 +203,7 @@ fridge-planner/
 ├── agents/
 │   └── meal-recommender/       # Holodeck AI agent
 │       ├── agent.yaml
-│       ├── instructions/
-│       └── data/recipes.json
+│       └── instructions/
 ├── docker/
 │   └── holodeck.Dockerfile
 ├── specs/                      # Feature specifications and plans

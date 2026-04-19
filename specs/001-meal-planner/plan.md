@@ -203,10 +203,8 @@ fridge-planner/
 ├── agents/
 │   └── meal-recommender/
 │       ├── agent.yaml
-│       ├── instructions/
-│       │   └── system-prompt.md
-│       └── data/
-│           └── recipes.json           # seed recipe dataset for vectorstore
+│       └── instructions/
+│           └── system-prompt.md
 │
 ├── package.json                       # workspace root
 ├── docker-compose.yml                 # mongodb + holodeck + server + client
@@ -231,7 +229,7 @@ fridge-planner/
 - [x] Mongoose `InventoryItem` schema (name, quantity, unit, category, expiresAt, location)
 - [x] Inventory CRUD API (`/api/v1/inventory`) with Zod validation, pagination, filtering
 - [x] Expiration tracking — midnight cutoff logic (yellow = expiring-soon, red = expired)
-- [x] holodeck agent (`agents/meal-recommender/`) with seed recipe dataset (25 recipes)
+- [x] holodeck agent (`agents/meal-recommender/`) wired to Claude Sonnet 4.6 via Holodeck
 - [x] Recommendations endpoint (`POST /api/v1/recommendations`) — calls holodeck sidecar at `POST /agent/meal-recommender/chat`
 - [x] Structured `MealRecommendation[]` JSON response (aligned with Phase 2 MealPlan schema)
 - [x] `MealRecommendation` type shared between server (`src/types/`) and client (`src/types/`)
@@ -251,11 +249,9 @@ fridge-planner/
 
 #### Future Improvements (Phase 1 follow-up)
 
-- [ ] **Vectorstore tuning for meal-recommender agent** (`agents/meal-recommender/agent.yaml`):
-  - Increase `top_k` from 5 to 10 to surface more candidate recipes before LLM ranking
-  - Tune `min_similarity_score` (currently 0.7) based on evaluation metric results
-  - Evaluate `chunk_size` (512) and `chunk_overlap` (64) against recipe retrieval faithfulness score
-  - Expand `data/recipes.json` beyond current 20 recipes to improve vectorstore coverage
+- [ ] **Meal recommender agent tuning** (`agents/meal-recommender/agent.yaml`):
+  - Tune temperature and max_tokens based on evaluation metric results
+  - Expand `ExpiryPrioritisation` and `Practicality` G-Eval test cases for broader coverage
 
 ### Phase 2 — P2: Weekly Meal Planning Calendar ✅
 

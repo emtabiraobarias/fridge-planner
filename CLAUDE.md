@@ -100,8 +100,7 @@ fridge-planner/
 │
 ├── agents/meal-recommender/
 │   ├── agent.yaml                # Holodeck config (model, eval metrics, test cases)
-│   ├── instructions/             # Claude system prompt
-│   └── data/recipes.json
+│   └── instructions/             # Claude system prompt
 │
 ├── specs/001-meal-planner/       # spec.md, plan.md, checklists/
 ├── docker-compose.yml
@@ -358,24 +357,31 @@ Test cases for both metrics are defined in `agent.yaml` under `test_cases`.
 
 ## 11. Feature Specification Workflow
 
-New features follow a **spec-first** process. Templates and tooling live in `.specify/`.
+New features follow a **spec-first** process. Templates live in `.specify/templates/`; the workflow is driven by Claude Code slash commands in `.claude/commands/`.
 
 ### Steps
 1. **Scaffold:** Run `.specify/scripts/bash/create-new-feature.sh` with the feature name. This creates a numbered directory under `specs/` from the templates in `.specify/templates/`.
-2. **Write `spec.md`:** Define user scenarios, acceptance criteria, and priorities (P1/P2/P3). Each user story must be independently testable.
-3. **Write `plan.md`:** Architecture decisions, component design, API changes, phase breakdown.
-4. **Write `tasks.md`:** Implementation checklist derived from the plan.
-5. **Implement:** Work through `tasks.md`, checking off items. Branch naming follows section 10.
+2. **Write `spec.md`:** Run `/speckit.specify` — Claude will clarify requirements and write the spec. Each user story must be independently testable.
+3. **Write `plan.md`:** Run `/speckit.plan` — Claude produces architecture decisions, component design, API changes, and phase breakdown.
+4. **Write `tasks.md`:** Run `/speckit.tasks` — Claude derives an implementation checklist from the spec and plan.
+5. **Analyse:** Run `/speckit.analyze` — cross-checks spec, plan, and tasks for gaps, ambiguities, and constitution conflicts before coding starts.
+6. **Implement:** Run `/speckit.implement` or work through `tasks.md` manually. Branch naming follows section 10.
+
+### Additional Commands
+| Command | Purpose |
+|---------|---------|
+| `/speckit.clarify` | Ask targeted clarifying questions about requirements |
+| `/speckit.checklist` | Generate a domain-specific requirements quality checklist (e.g., UX, security, API) |
+| `/speckit.constitution` | View or update the project constitution |
+| `/speckit.taskstoissues` | Convert `tasks.md` items into GitHub issues |
 
 ### Reference
 | Path | Purpose |
 |------|---------|
+| `.claude/commands/` | All speckit slash commands |
 | `.specify/templates/` | Markdown templates: spec, plan, tasks, checklist, constitution, agent-file |
 | `.specify/scripts/bash/create-new-feature.sh` | Scaffold a new feature spec directory (main entry point) |
-| `.specify/scripts/bash/setup-plan.sh` | Set up a plan for an existing spec |
-| `.specify/scripts/bash/update-agent-context.sh` | Regenerate AI agent context files from plan.md |
-| `.specify/scripts/bash/check-prerequisites.sh` | Validate tooling prerequisites before running workflow scripts |
-| `.specify/memory/constitution.md` | Stored project constitution (auto-maintained by `update-agent-context.sh`) |
+| `.specify/memory/constitution.md` | Stored project constitution |
 | `specs/001-meal-planner/` | Working example (spec.md, plan.md, checklists/) |
 
 ---
