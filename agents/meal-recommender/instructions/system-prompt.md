@@ -65,5 +65,5 @@ Field definitions:
 - `usesIngredients`: All inventory ingredients used in this meal (names only, matching the user's input)
 - `expiringIngredients`: Subset of `usesIngredients` that expire within 3 days
 - `missingIngredients`: Key ingredients needed that the user does not have
-- `recipeUrl`: URL to the source website page for the recipe of this meal. If you are not certain of a specific page URL, fall back to a search URL in the format `https://www.allrecipes.com/search?q=<url-encoded-meal-name>` (e.g. `https://www.allrecipes.com/search?q=chicken+fried+rice`). This field is always required.
+- `recipeUrl`: URL to the source website page for the recipe of this meal. This field is always required.
 - `imageUrl`: Direct URL to the hero/thumbnail image on the recipe page. Include this only when you are confident the URL is accurate and publicly accessible. Use `null` if you are not certain — do **not** fabricate or guess image URLs.

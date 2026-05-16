@@ -18,35 +18,154 @@ instructions:
 
 evaluations:
   model:
-    provider: anthropic
-    name: claude-sonnet-4-6
+    # provider: anthropic
+    # name: claude-sonnet-4-6
+    # provider: ollama
+    # name: qwen3.6:35b-a3b
+    # endpoint: ${OLLAMA_ENDPOINT}
+    provider: azure_openai
+    name: ${AZURE_MODEL_NAME}
+    endpoint: ${AZURE_OPENAI_ENDPOINT}
+    api_key: ${AZURE_OPENAI_API_KEY}
     temperature: 0.0
   metrics:
     - type: geval
       name: ExpiryPrioritisation
-      criteria: |
-        Evaluate whether the meal suggestions prioritise ingredients with the
-        earliest expiration dates. A good response should:
-        1. Recommend meals that use ingredients expiring within 1-3 days first
-        2. Clearly indicate which expiring ingredients are used in each meal
-        3. Not suggest meals that ignore all soon-to-expire items
+      criteria: >
+        Evaluate whether the meal suggestions prioritise ingredients with the earliest
+        expiration dates, as reflected in the expiringIngredients and usesIngredients
+        fields of each meal object.
+      evaluation_steps:
+        - >
+          Parse the input to build an expiry-ordered list of ingredients: identify which
+          items expire within 1-3 days (critical), within 4-7 days (near-term), and
+          beyond 7 days or never (non-urgent). If no ingredient has an expiry date,
+          score 1.0 immediately — the metric is not applicable.
+        - >
+          For each meal object in actual_output, examine the expiringIngredients array.
+          Check whether the ingredient(s) with the earliest expiry date appear in at
+          least one meal's expiringIngredients. Heavily penalise (reduce score by at
+          least 0.5) if the single most-urgent ingredient is absent from every meal's
+          expiringIngredients and usesIngredients arrays.
+        - >
+          Count what proportion of critical and near-term expiring ingredients from the
+          input appear across all meals' expiringIngredients arrays. A higher proportion
+          yields a higher score.
+        - >
+          Evaluate ordering signal: meals that feature the most urgently expiring
+          ingredients should appear earlier in the array. Reward responses where the
+          first 1-2 meals centre on the soonest-expiring item; penalise responses where
+          high-urgency meals appear only at the end.
+        - >
+          Apply the following scoring rubric and return a score between 0.0 and 1.0:
+          (0.0-0.2): No expiring ingredient from the input appears in any meal's
+            expiringIngredients or usesIngredients — the agent has completely ignored expiry.
+          (0.3-0.5): Some expiring ingredients appear, but the single most-urgent item
+            (earliest expiry date) is absent from every meal.
+          (0.6-0.7): The most-urgent ingredient is present in at least one meal, but
+            coverage of other expiring items is poor (less than half represented), or
+            high-urgency meals appear at the end of the array rather than the beginning.
+          (0.8-0.9): Most expiring ingredients are represented across the meal set and
+            the most-urgent item is featured prominently; minor gaps in coverage or ordering.
+          (1.0): All or nearly all expiring ingredients are represented; the most urgently
+            expiring ingredient appears in the first 1-2 meals; the array ordering clearly
+            reflects expiry urgency.
       evaluation_params:
         - input
         - actual_output
       threshold: 0.8
 
-    - type: geval
-      name: Practicality
-      criteria: |
-        Evaluate whether the suggestions are practical and achievable with the
-        given ingredients. A practical response should:
-        1. Only suggest meals where most key ingredients are available
-        2. Clearly note any missing ingredients needed
-        3. Provide 3-5 distinct meal options, not variations of the same dish
-      evaluation_params:
-        - input
-        - actual_output
-      threshold: 0.75
+    # - type: geval
+    #   name: Practicality
+    #   criteria: |
+    #     Evaluate whether the suggestions are practical and achievable with the
+    #     given ingredients. A practical response should:
+    #     1. Only suggest meals where most key ingredients are available
+    #     2. Clearly note any missing ingredients needed
+    #     3. Provide 3-5 distinct meal options, not variations of the same dish
+    #   evaluation_params:
+    #     - input
+    #     - actual_output
+    #   threshold: 0.75
+
+    # - type: geval
+    #   name: DietaryAdherence
+    #   criteria: |
+    #     Given the dietary preferences stated in the input, evaluate whether every
+    #     recommended meal strictly avoids ingredients and meal types that conflict
+    #     with those preferences. A meal that suggests meat for a vegetarian user,
+    #     or gluten-containing ingredients for a gluten-free user, should score very
+    #     low. If no dietary preferences are provided in the input, score 1.0.
+    #   evaluation_params:
+    #     - input
+    #     - actual_output
+    #   threshold: 0.85
+    #   strict_mode: false
+    #   enabled: true
+    #   fail_on_error: false
+
+    # - type: geval
+    #   name: MissingIngredientMinimization
+    #   criteria: |
+    #     Evaluate whether each recommended meal lists at most 2 missing ingredients
+    #     in its missingIngredients array. Penalise meals that require 3 or more
+    #     items not present in the provided inventory. The score should reflect the
+    #     proportion of meals that stay within the 2-item limit — a set where every
+    #     meal exceeds the limit should score 0, and a set where every meal respects
+    #     it should score 1.
+    #   evaluation_params:
+    #     - input
+    #     - actual_output
+    #   threshold: 0.85
+    #   enabled: true
+    #   fail_on_error: false
+
+    # - type: geval
+    #   name: IngredientVariety
+    #   criteria: |
+    #     Evaluate whether the recommended meals are meaningfully distinct from each
+    #     other. Meals should differ in their primary ingredients, cuisines, and
+    #     cooking methods. A set of meals that all centre on the same protein or the
+    #     same cuisine should score low. A high-scoring response spans at least 2
+    #     different cuisines and does not repeat the same primary ingredient across
+    #     more than 2 meals.
+    #   evaluation_params:
+    #     - actual_output
+    #   threshold: 0.75
+    #   enabled: true
+    #   fail_on_error: false
+
+    # - type: geval
+    #   name: RecipeUrlConformance
+    #   criteria: |
+    #     When a recipeUrl is provided in a recommendation, verify it references one
+    #     of the approved domains: panlasangpinoy.com, recipetineats.com,
+    #     kawalingpinoy.com, or taste.com.au. A URL pointing to any other domain, or
+    #     that appears fabricated (non-standard path, generic placeholder), should
+    #     lower the score significantly. Meals where recipeUrl is absent or null
+    #     should not be penalised — only non-conforming URLs are penalised.
+    #   evaluation_params:
+    #     - actual_output
+    #   threshold: 0.9
+    #   strict_mode: true
+    #   enabled: true
+    #   fail_on_error: false
+
+    # - type: geval
+    #   name: JSONOutputIntegrity
+    #   criteria: |
+    #     Evaluate whether the response is a valid JSON array where each object
+    #     contains all required fields: mealName, suggestedMealType, prepTimeMinutes,
+    #     cuisine, description, usesIngredients, expiringIngredients, and
+    #     missingIngredients. Any prose, markdown fences, or missing required fields
+    #     must score 0. Optional fields (recipeUrl, imageUrl) may be absent without
+    #     penalty. A perfectly conforming response scores 1.
+    #   evaluation_params:
+    #     - actual_output
+    #   threshold: 1.0
+    #   strict_mode: true
+    #   enabled: true
+    #   fail_on_error: false
 
 test_cases:
   - name: Prioritise expiring chicken
@@ -54,36 +173,150 @@ test_cases:
       Suggest 3-5 meals I can make with these ingredients.
       Prioritise ingredients expiring soonest to minimise food waste.
 
-      - 2 lbs chicken breast (expires: 2026-03-30)
-      - 1 cup rice (expires: 2026-06-01)
-      - 500g broccoli (expires: 2026-04-02)
-      - 2 cloves garlic (expires: 2026-05-01)
+      - 2 lbs chicken breast (expires: 1 day from now)
+      - 1 cup rice (expires: 2 days from now)
+      - 500g broccoli (expires: 1 day from now)
+      - 2 cloves garlic (expires: 4 days from now)
     ground_truth: |
       Should return a JSON array of 3-5 meal objects. At least one meal must include
       "chicken breast" in usesIngredients and expiringIngredients, since it expires
       soonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,
       cuisine, description, usesIngredients, expiringIngredients, and missingIngredients.
 
-  - name: Mixed pantry and perishables
-    input: |
-      Suggest 3-5 meals I can make with these ingredients.
-      Prioritise ingredients expiring soonest to minimise food waste.
+  # - name: Mixed pantry and perishables
+  #   input: |
+  #     Suggest 3-5 meals I can make with these ingredients.
+  #     Prioritise ingredients expiring soonest to minimise food waste.
 
-      - 3 eggs (expires: 2026-03-31)
-      - 200g spinach (expires: 2026-03-30)
-      - 1 can tomatoes (expires: 2027-01-01)
-      - 100g feta cheese (expires: 2026-04-05)
-    ground_truth: |
-      Should return a JSON array where spinach and eggs appear in expiringIngredients
-      of the prioritised meals. Response must be valid JSON with no prose or markdown.
+  #     - 3 eggs (expires: 2026-03-31)
+  #     - 200g spinach (expires: 2026-03-30)
+  #     - 1 can tomatoes (expires: 2027-01-01)
+  #     - 100g feta cheese (expires: 2026-04-05)
+  #   ground_truth: |
+  #     Should return a JSON array where spinach and eggs appear in expiringIngredients
+  #     of the prioritised meals. Response must be valid JSON with no prose or markdown.
 
-  - name: Single ingredient
-    input: |
-      Suggest 3-5 meals I can make with these ingredients.
-      Prioritise ingredients expiring soonest to minimise food waste.
+  # - name: Single ingredient
+  #   input: |
+  #     Suggest 3-5 meals I can make with these ingredients.
+  #     Prioritise ingredients expiring soonest to minimise food waste.
 
-      - 500g ground beef (expires: 2026-03-29)
-    ground_truth: |
-      Should return a JSON array of meals centred around ground beef, with
-      "ground beef" in usesIngredients and expiringIngredients. missingIngredients
-      may list common pantry staples assumed absent.
+  #     - 500g ground beef (expires: 2026-03-29)
+  #   ground_truth: |
+  #     Should return a JSON array of meals centred around ground beef, with
+  #     "ground beef" in usesIngredients and expiringIngredients. missingIngredients
+  #     may list common pantry staples assumed absent.
+
+  # # ── DietaryAdherence ───────────────────────────────────────────────────────
+
+  # - name: Vegetarian preference respected
+  #   input: |
+  #     Dietary preferences: vegetarian
+  #     Suggest 3-5 meals I can make with these ingredients.
+  #     Prioritise ingredients expiring soonest to minimise food waste.
+
+  #     - 200g cheddar cheese (expires: 2026-04-01)
+  #     - 300g baby spinach (expires: 2026-03-30)
+  #     - 500g chicken breast (expires: 2026-03-31)
+  #     - 1 cup rice (no expiry)
+  #     - 2 cloves garlic (no expiry)
+  #   ground_truth: |
+  #     Must return a JSON array where no meal includes chicken breast (or any other
+  #     meat/poultry) in usesIngredients — the user is vegetarian. Cheese, spinach,
+  #     rice, and garlic are all acceptable. Every meal object must have all required
+  #     fields and the response must be valid JSON with no prose.
+
+  # - name: Gluten-free preference respected
+  #   input: |
+  #     Dietary preferences: gluten-free
+  #     Suggest 3-5 meals I can make with these ingredients.
+  #     Prioritise ingredients expiring soonest to minimise food waste.
+
+  #     - 400g salmon fillet (expires: 2026-03-30)
+  #     - 250g broccoli (expires: 2026-04-01)
+  #     - 500g plain flour (no expiry)
+  #     - 200ml soy sauce (no expiry)
+  #     - 1 cup jasmine rice (no expiry)
+  #   ground_truth: |
+  #     Must return a JSON array where no meal uses plain flour or regular soy sauce
+  #     (both contain gluten). Salmon, broccoli, and jasmine rice are acceptable.
+  #     If soy sauce appears, it should be qualified as tamari or gluten-free soy sauce,
+  #     or omitted entirely. Response must be valid JSON with no prose or markdown.
+
+  # # ── MissingIngredientMinimization ─────────────────────────────────────────
+
+  # - name: Sparse inventory — missing ingredient cap
+  #   input: |
+  #     Suggest 3-5 meals I can make with these ingredients.
+  #     Prioritise ingredients expiring soonest to minimise food waste.
+
+  #     - 300g ground pork (expires: 2026-03-30)
+  #     - 1 cup jasmine rice (no expiry)
+  #   ground_truth: |
+  #     Should return a JSON array of 3-5 meals. Each meal's missingIngredients array
+  #     must contain at most 2 items — the agent should build meals around the two
+  #     available ingredients and keep extra requirements minimal. No meal should list
+  #     more than 2 missing ingredients.
+
+  # # ── IngredientVariety ──────────────────────────────────────────────────────
+
+  # - name: Rich inventory — diverse meal suggestions
+  #   input: |
+  #     Suggest 3-5 meals I can make with these ingredients.
+  #     Prioritise ingredients expiring soonest to minimise food waste.
+
+  #     - 500g chicken breast (expires: 2026-04-01)
+  #     - 400g salmon fillet (expires: 2026-03-31)
+  #     - 200g cheddar cheese (expires: 2026-04-02)
+  #     - 300g baby spinach (expires: 2026-03-30)
+  #     - 250g mushrooms (expires: 2026-04-03)
+  #     - 1 cup jasmine rice (no expiry)
+  #     - 500g spaghetti (no expiry)
+  #     - 1 can diced tomatoes (no expiry)
+  #     - 200ml soy sauce (no expiry)
+  #     - 2 cloves garlic (no expiry)
+  #   ground_truth: |
+  #     Should return a JSON array of 3-5 meals that are meaningfully distinct — not all
+  #     the same cuisine or protein. Expect at least 2 different cuisines (e.g. Asian and
+  #     Italian, or Filipino and Western). No single ingredient should appear as the primary
+  #     protein in more than 2 meals. Spinach and salmon should be prioritised since they
+  #     expire soonest. Response must be valid JSON.
+
+  # # ── RecipeUrlConformance ───────────────────────────────────────────────────
+
+  # - name: Recipe URLs from approved domains only
+  #   input: |
+  #     Suggest 3-5 meals I can make with these ingredients.
+  #     Prioritise ingredients expiring soonest to minimise food waste.
+
+  #     - 500g pork belly (expires: 2026-03-31)
+  #     - 300g bok choy (expires: 2026-03-30)
+  #     - 200ml soy sauce (no expiry)
+  #     - 1 cup jasmine rice (no expiry)
+  #     - 3 cloves garlic (no expiry)
+  #   ground_truth: |
+  #     Should return a JSON array of 3-5 meal objects. Any recipeUrl fields present
+  #     must reference one of the four approved domains: panlasangpinoy.com,
+  #     recipetineats.com, kawalingpinoy.com, or taste.com.au. URLs pointing to
+  #     allrecipes.com, foodnetwork.com, or any other domain are not acceptable.
+  #     Meals may omit recipeUrl (null or absent) without penalty.
+
+  # # ── JSONOutputIntegrity ────────────────────────────────────────────────────
+
+  # - name: JSON schema compliance — all required fields present
+  #   input: |
+  #     Suggest 3-5 meals I can make with these ingredients.
+  #     Prioritise ingredients expiring soonest to minimise food waste.
+
+  #     - 2 eggs (expires: 2026-03-30)
+  #     - 100g butter (expires: 2026-04-10)
+  #     - 1 cup all-purpose flour (no expiry)
+  #     - 200ml whole milk (expires: 2026-04-02)
+  #   ground_truth: |
+  #     Must return a raw JSON array — no markdown fences, no prose, no leading text.
+  #     Every object must contain exactly these fields (all required): mealName (string),
+  #     suggestedMealType ("breakfast" | "lunch" | "dinner" | "snack"), prepTimeMinutes
+  #     (number), cuisine (string), description (string), usesIngredients (string array),
+  #     expiringIngredients (string array), missingIngredients (string array). Optional
+  #     fields recipeUrl and imageUrl may be present or absent. Any object missing a
+  #     required field or any non-JSON wrapping text fails this test case.

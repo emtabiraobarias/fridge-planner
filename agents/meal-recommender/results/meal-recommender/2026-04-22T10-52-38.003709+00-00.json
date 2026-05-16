@@ -1,0 +1,148 @@
+{
+  "report": {
+    "agent_name": "meal-recommender",
+    "agent_config_path": "agents/meal-recommender/agent.yaml",
+    "results": [
+      {
+        "test_name": "Prioritise expiring chicken",
+        "test_input": "Suggest 3-5 meals I can make with these ingredients.\nPrioritise ingredients expiring soonest to minimise food waste.\n\n- 2 lbs chicken breast (expires: 2026-03-30)\n- 1 cup rice (expires: 2026-06-01)\n- 500g broccoli (expires: 2026-04-02)\n- 2 cloves garlic (expires: 2026-05-01)\n",
+        "processed_files": [],
+        "agent_response": "\u26a0\ufe0f **Important Food Safety Warning**\n\nBefore suggesting any meals, I need to flag that **two of your key ingredients have already expired** based on today's date (2026-04-22):\n\n| Ingredient | Expiry Date | Status |\n|---|---|---|\n| \ud83d\udeab Chicken breast (2 lbs) | 2026-03-30 | **Expired 23 days ago** |\n| \ud83d\udeab Broccoli (500g) | 2026-04-02 | **Expired 20 days ago** |\n| \u2705 Garlic (2 cloves) | 2026-05-01 | Good for ~9 more days |\n| \u2705 Rice (1 cup) | 2026-06-01 | Good for ~40 more days |\n\n**Please discard the chicken breast and broccoli immediately.** Consuming chicken or vegetables this far past their expiry date poses a serious risk of food poisoning.\n\n---\n\n### What you can still use:\nWith only **rice** and **garlic** remaining, there aren't enough ingredients to form a complete, balanced meal without significant additions. I'd recommend a quick grocery run. Here are some **budget-friendly ingredients to pick up** that pair well with what you have:\n\n- \ud83d\uded2 **Eggs** \u2013 for garlic fried rice (a classic!)\n- \ud83d\uded2 **Fresh chicken or canned tuna** \u2013 for a protein source\n- \ud83d\uded2 **Soy sauce & sesame oil** \u2013 pantry staples for Asian-style rice dishes\n- \ud83d\uded2 **Fresh vegetables** (e.g. carrots, cabbage, spring onions)\n\nOnce you've restocked, feel free to share your updated ingredient list and I'll suggest meals right away! \ud83c\udf7d\ufe0f",
+        "tool_calls": [],
+        "tool_invocations": [],
+        "expected_tools": null,
+        "tools_matched": null,
+        "metric_results": [
+          {
+            "metric_name": "ExpiryPrioritisation",
+            "kind": "geval",
+            "score": 0.13879425836827547,
+            "threshold": 0.8,
+            "passed": false,
+            "scale": "0-1",
+            "error": null,
+            "retry_count": 0,
+            "evaluation_time_ms": 9094,
+            "model_used": null,
+            "reasoning": "The response does consider expiration dates and avoids using ingredients that, relative to the stated current date of 2026-04-22, are already expired: chicken breast (2026-03-30) and broccoli (2026-04-02). However, it fails the main task of suggesting 3-5 meals and does not provide meal suggestions linked to the input ingredients, especially identifying soon-to-expire items used in each meal. It also omits any prioritised ordering of meals based on the input dates, instead replacing the requested output with a safety warning and shopping advice."
+          }
+        ],
+        "ground_truth": "Should return a JSON array of 3-5 meal objects. At least one meal must include\n\"chicken breast\" in usesIngredients and expiringIngredients, since it expires\nsoonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,\ncuisine, description, usesIngredients, expiringIngredients, and missingIngredients.\n",
+        "passed": false,
+        "execution_time_ms": 28872,
+        "errors": [],
+        "timestamp": "2026-04-22T10:52:38.003357+00:00",
+        "token_usage": {
+          "prompt_tokens": 2,
+          "completion_tokens": 926,
+          "total_tokens": 928
+        }
+      }
+    ],
+    "summary": {
+      "total_tests": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "total_duration_ms": 28872,
+      "metrics_evaluated": {
+        "ExpiryPrioritisation": 1
+      },
+      "average_scores": {
+        "ExpiryPrioritisation": 0.13879425836827547
+      }
+    },
+    "timestamp": "2026-04-22T10:52:38.003709+00:00",
+    "holodeck_version": "0.6.2",
+    "environment": {
+      "execution_config": "{'file_timeout': 30, 'llm_timeout': 60, 'download_timeout': 30, 'cache_enabled': True, 'cache_dir': '.holodeck/cache', 'verbose': False, 'quiet': False}"
+    }
+  },
+  "metadata": {
+    "agent_config": {
+      "name": "meal-recommender",
+      "description": "AI-powered meal recommendation agent that suggests meals to minimise food waste",
+      "author": null,
+      "model": {
+        "provider": "anthropic",
+        "name": "claude-sonnet-4-6",
+        "temperature": 0.5,
+        "max_tokens": 3000,
+        "top_p": null,
+        "endpoint": null,
+        "api_key": null,
+        "api_version": null,
+        "auth_provider": "oauth_token"
+      },
+      "instructions": {
+        "file": "instructions/system-prompt.md",
+        "inline": null
+      },
+      "response_format": null,
+      "tools": null,
+      "tool_filtering": null,
+      "evaluations": {
+        "model": {
+          "provider": "azure_openai",
+          "name": "gpt-5.4",
+          "temperature": 0.0,
+          "max_tokens": 1000,
+          "top_p": null,
+          "endpoint": "https://aidevtoolkit.openai.azure.com/",
+          "api_key": "***",
+          "api_version": null,
+          "auth_provider": null
+        },
+        "metrics": [
+          {
+            "type": "geval",
+            "name": "ExpiryPrioritisation",
+            "criteria": "Evaluate whether the meal suggestions prioritise ingredients with the\nearliest expiration dates. A good response should:\n1. Recommend meals that use ingredients expiring within 1-3 days first\n2. Clearly indicate which expiring ingredients are used in each meal\n3. Not suggest meals that ignore all soon-to-expire items\n",
+            "evaluation_steps": null,
+            "evaluation_params": [
+              "input",
+              "actual_output"
+            ],
+            "strict_mode": false,
+            "threshold": 0.8,
+            "model": null,
+            "enabled": true,
+            "fail_on_error": false
+          }
+        ]
+      },
+      "test_cases": [
+        {
+          "name": "Prioritise expiring chicken",
+          "input": "Suggest 3-5 meals I can make with these ingredients.\nPrioritise ingredients expiring soonest to minimise food waste.\n\n- 2 lbs chicken breast (expires: 2026-03-30)\n- 1 cup rice (expires: 2026-06-01)\n- 500g broccoli (expires: 2026-04-02)\n- 2 cloves garlic (expires: 2026-05-01)\n",
+          "expected_tools": null,
+          "ground_truth": "Should return a JSON array of 3-5 meal objects. At least one meal must include\n\"chicken breast\" in usesIngredients and expiringIngredients, since it expires\nsoonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,\ncuisine, description, usesIngredients, expiringIngredients, and missingIngredients.\n",
+          "files": null,
+          "retrieval_context": null,
+          "evaluations": null
+        }
+      ],
+      "execution": null,
+      "observability": null,
+      "deployment": null,
+      "embedding_provider": null,
+      "claude": null
+    },
+    "prompt_version": {
+      "version": "auto-ff672eaf",
+      "author": null,
+      "description": null,
+      "tags": [],
+      "source": "file",
+      "file_path": "/Users/emeraldbarias/Git/fridge-planner/agents/meal-recommender/instructions/system-prompt.md",
+      "body_hash": "ff672eafa25cd6f92a0c0b6f8d15715b5455b4d187c82503336ff80dbda00715",
+      "extra": {}
+    },
+    "holodeck_version": "0.6.2",
+    "cli_args": [
+      "test",
+      "agents/meal-recommender/agent.yaml"
+    ],
+    "git_commit": "09ae5701fb6dc580e727774773185fa34209d3cf"
+  }
+}
