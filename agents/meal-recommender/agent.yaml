@@ -16,6 +16,13 @@ model:
 instructions:
   file: instructions/system-prompt.md
 
+claude:
+  permission_mode: acceptAll
+  web_search: true
+  allowed_tools:
+    - WebSearch
+    - WebFetch
+
 evaluations:
   model:
     # provider: anthropic
@@ -73,7 +80,7 @@ evaluations:
       evaluation_params:
         - input
         - actual_output
-      threshold: 0.8
+      threshold: 0.9
 
     # - type: geval
     #   name: Practicality
@@ -179,9 +186,12 @@ test_cases:
       - 2 cloves garlic (expires: 4 days from now)
     ground_truth: |
       Should return a JSON array of 3-5 meal objects. At least one meal must include
-      "chicken breast" in usesIngredients and expiringIngredients, since it expires
+      "chicken breast" and "broccoli" in usesIngredients and expiringIngredients, since they expire
       soonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,
       cuisine, description, usesIngredients, expiringIngredients, and missingIngredients.
+    expected_tools:
+      - WebSearch
+      - WebFetch
 
   # - name: Mixed pantry and perishables
   #   input: |
