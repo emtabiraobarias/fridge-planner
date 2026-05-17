@@ -330,3 +330,33 @@ test_cases:
   #     expiringIngredients (string array), missingIngredients (string array). Optional
   #     fields recipeUrl and imageUrl may be present or absent. Any object missing a
   #     required field or any non-JSON wrapping text fails this test case.
+observability:
+  enabled: true
+  traces:
+    enabled: true
+    capture_content: true  # See prompts for debugging
+  metrics:
+    enabled: true
+  logs:
+    enabled: true                  # Structured logging
+    level: INFO                    # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    include_trace_context: true    # Include trace/span IDs
+  exporters:
+    otlp:
+      enabled: true
+      endpoint: http://host.docker.internal:4317
+      protocol: grpc
+      insecure: true
+
+deployment:
+  runtime: container
+  platform: linux/arm64
+  target:
+    provider: gcp
+    gcp:
+      project_id: my-project
+      region: us-central1
+  registry:
+    url: ghcr.io/emtabiraobarias
+    repository: fridge-planner
+    tag_strategy: latest
