@@ -1,4 +1,5 @@
-export type { MealRecommendation } from '../types/meal-recommendation';
+import type { MealRecommendation } from '../types/meal-recommendation';
+export type { MealRecommendation };
 export type ExpirationStatus = 'expired' | 'expiring-soon' | 'normal' | 'none';
 export type Category = 'Produce' | 'Dairy' | 'Meat' | 'Seafood' | 'Grains' | 'Pantry' | 'Condiments' | 'Frozen' | 'Other';
 export type Location = 'fridge' | 'freezer' | 'pantry';

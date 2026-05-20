@@ -54,7 +54,7 @@ export function CheckoutConfirmModal({
       unit: f.unit || 'count',
       category: f.category,
       location: f.location,
-      expiresAt: f.expiresAt || undefined,
+      ...(f.expiresAt ? { expiresAt: f.expiresAt } : {}),
     }));
     onConfirm(items);
   }
