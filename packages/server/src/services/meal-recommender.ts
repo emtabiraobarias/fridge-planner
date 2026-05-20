@@ -17,21 +17,15 @@ interface HolodeckResponse {
 
 export async function getMealRecommendations(
   ingredients: IngredientInput[],
-  dietaryPreferences: string[] = [],
 ): Promise<MealRecommendation[]> {
   const holodeckUrl = process.env['HOLODECK_URL'];
   if (!holodeckUrl) {
     throw new Error('HOLODECK_URL environment variable is not set');
   }
 
-  const dietaryNote =
-    dietaryPreferences.length > 0
-      ? `\nDietary requirements: ${dietaryPreferences.join(', ')}.`
-      : '';
-
   const message = [
     'Suggest 3-5 meals I can make with these ingredients.',
-    'Prioritise ingredients expiring soonest to minimise food waste.' + dietaryNote,
+    'Prioritise ingredients expiring soonest to minimise food waste.',
     '',
     ...ingredients.map((i) =>
       i.expiresAt

@@ -72,11 +72,11 @@ export async function deleteItem(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to delete item: ${res.status}`);
 }
 
-export async function fetchRecommendations(dietaryPreferences: string[] = []): Promise<MealRecommendation[]> {
+export async function fetchRecommendations(): Promise<MealRecommendation[]> {
   const res = await fetch(`${BASE}/recommendations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dietaryPreferences }),
+    body: JSON.stringify({}),
   });
   if (!res.ok) throw new Error(`Failed to fetch recommendations: ${res.status}`);
   const data = await res.json() as { recommendations: MealRecommendation[] };

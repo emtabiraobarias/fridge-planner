@@ -102,22 +102,6 @@ evaluations:
     #   threshold: 0.75
 
     # - type: geval
-    #   name: DietaryAdherence
-    #   criteria: |
-    #     Given the dietary preferences stated in the input, evaluate whether every
-    #     recommended meal strictly avoids ingredients and meal types that conflict
-    #     with those preferences. A meal that suggests meat for a vegetarian user,
-    #     or gluten-containing ingredients for a gluten-free user, should score very
-    #     low. If no dietary preferences are provided in the input, score 1.0.
-    #   evaluation_params:
-    #     - input
-    #     - actual_output
-    #   threshold: 0.85
-    #   strict_mode: false
-    #   enabled: true
-    #   fail_on_error: false
-
-    # - type: geval
     #   name: MissingIngredientMinimization
     #   criteria: |
     #     Evaluate whether each recommended meal lists at most 2 missing ingredients
@@ -212,42 +196,6 @@ test_cases:
   #     Should return a JSON array of meals centred around ground beef, with
   #     "ground beef" in usesIngredients and expiringIngredients. missingIngredients
   #     may list common pantry staples assumed absent.
-
-  # # ── DietaryAdherence ───────────────────────────────────────────────────────
-
-  # - name: Vegetarian preference respected
-  #   input: |
-  #     Dietary preferences: vegetarian
-  #     Suggest 3-5 meals I can make with these ingredients.
-  #     Prioritise ingredients expiring soonest to minimise food waste.
-
-  #     - 200g cheddar cheese (expires: 2026-04-01)
-  #     - 300g baby spinach (expires: 2026-03-30)
-  #     - 500g chicken breast (expires: 2026-03-31)
-  #     - 1 cup rice (no expiry)
-  #     - 2 cloves garlic (no expiry)
-  #   ground_truth: |
-  #     Must return a JSON array where no meal includes chicken breast (or any other
-  #     meat/poultry) in usesIngredients — the user is vegetarian. Cheese, spinach,
-  #     rice, and garlic are all acceptable. Every meal object must have all required
-  #     fields and the response must be valid JSON with no prose.
-
-  # - name: Gluten-free preference respected
-  #   input: |
-  #     Dietary preferences: gluten-free
-  #     Suggest 3-5 meals I can make with these ingredients.
-  #     Prioritise ingredients expiring soonest to minimise food waste.
-
-  #     - 400g salmon fillet (expires: 2026-03-30)
-  #     - 250g broccoli (expires: 2026-04-01)
-  #     - 500g plain flour (no expiry)
-  #     - 200ml soy sauce (no expiry)
-  #     - 1 cup jasmine rice (no expiry)
-  #   ground_truth: |
-  #     Must return a JSON array where no meal uses plain flour or regular soy sauce
-  #     (both contain gluten). Salmon, broccoli, and jasmine rice are acceptable.
-  #     If soy sauce appears, it should be qualified as tamari or gluten-free soy sauce,
-  #     or omitted entirely. Response must be valid JSON with no prose or markdown.
 
   # # ── MissingIngredientMinimization ─────────────────────────────────────────
 

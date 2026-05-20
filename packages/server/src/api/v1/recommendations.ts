@@ -1,26 +1,14 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { InventoryItem } from '../../models/inventory-item.js';
 import { getMealRecommendations } from '../../services/meal-recommender.js';
 import { buildCacheKey, getCached, setCached } from '../../services/recommendations-cache.js';
 import type { MealRecommendation } from '../../types/meal-recommendation.js';
-import { problemJson } from '../../lib/errors.js';
 
 export const recommendationsRouter = Router();
-
-const requestSchema = z.object({
-  dietaryPreferences: z.array(z.string()).optional().default([]),
-});
 
 // POST /api/v1/recommendations
 recommendationsRouter.post('/', async (req, res, next) => {
   try {
-    const parsed = requestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      problemJson(res, 400, 'Invalid input', parsed.error.issues.map((i) => i.message).join('; '));
-      return;
-    }
-
     // FR-007: exclude expired items from LLM input
     const activeItems = await InventoryItem.find({
       expirationStatus: { $ne: 'expired' },
@@ -38,17 +26,14 @@ recommendationsRouter.post('/', async (req, res, next) => {
       ...(item.expiresAt ? { expiresAt: item.expiresAt.toISOString() } : {}),
     }));
 
-    const cacheKey = buildCacheKey(req.userId, parsed.data.dietaryPreferences, ingredients);
+    const cacheKey = buildCacheKey(req.userId, ingredients);
     const cached = getCached(cacheKey);
     if (cached) {
       res.json({ recommendations: cached });
       return;
     }
 
-    const recommendations = await getMealRecommendations(
-      ingredients,
-      parsed.data.dietaryPreferences,
-    );
+    const recommendations = await getMealRecommendations(ingredients);
 
     setCached(cacheKey, recommendations);
     res.json({ recommendations });

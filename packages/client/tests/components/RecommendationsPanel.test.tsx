@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { RecommendationsPanel } from '../../src/components/recommendations/RecommendationsPanel';
 import { RecommendationsProvider } from '../../src/context/RecommendationsContext';
@@ -41,21 +41,21 @@ describe('RecommendationsPanel', () => {
   });
 
   it('shows loading state while fetching', async () => {
-    const slowFetch = vi.fn((_preferences: string[]) => new Promise<MealRecommendation[]>(() => {})); // never resolves
+    const slowFetch = vi.fn(() => new Promise<MealRecommendation[]>(() => {})); // never resolves
     renderWithProviders(<RecommendationsPanel fetchRecommendations={slowFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     expect(await screen.findByRole('list', { name: /loading meal recommendations/i })).toBeInTheDocument();
   });
 
   it('renders a meal card with meal name after successful fetch', async () => {
-    const mockFetch = vi.fn<(preferences: string[]) => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]);
+    const mockFetch = vi.fn<() => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]);
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     expect(await screen.findByText('Chicken Stir-fry')).toBeInTheDocument();
   });
 
   it('renders cuisine badge and prep time on meal card', async () => {
-    const mockFetch = vi.fn<(preferences: string[]) => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]);
+    const mockFetch = vi.fn<() => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]);
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     await screen.findByText('Chicken Stir-fry');
@@ -64,7 +64,7 @@ describe('RecommendationsPanel', () => {
   });
 
   it('renders expiring ingredient with warning indicator', async () => {
-    const mockFetch = vi.fn<(preferences: string[]) => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]);
+    const mockFetch = vi.fn<() => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]);
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     await screen.findByText('Chicken Stir-fry');
@@ -72,7 +72,7 @@ describe('RecommendationsPanel', () => {
   });
 
   it('renders missing ingredients with "Need:" prefix', async () => {
-    const mockFetch = vi.fn<(preferences: string[]) => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]);
+    const mockFetch = vi.fn<() => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]);
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     await screen.findByText('Chicken Stir-fry');
@@ -80,30 +80,16 @@ describe('RecommendationsPanel', () => {
   });
 
   it('shows empty state message when no meals returned', async () => {
-    const mockFetch = vi.fn<(preferences: string[]) => Promise<MealRecommendation[]>>().mockResolvedValue([]);
+    const mockFetch = vi.fn<() => Promise<MealRecommendation[]>>().mockResolvedValue([]);
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     expect(await screen.findByText(/no suggestions.*ingredient/i)).toBeInTheDocument();
   });
 
   it('shows an error message on fetch failure', async () => {
-    const mockFetch = vi.fn<(preferences: string[]) => Promise<MealRecommendation[]>>().mockRejectedValue(new Error('Service unavailable'));
+    const mockFetch = vi.fn<() => Promise<MealRecommendation[]>>().mockRejectedValue(new Error('Service unavailable'));
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
-  });
-
-  it('renders dietary preferences fieldset', () => {
-    renderWithProviders(<RecommendationsPanel />);
-    expect(screen.getByText('Dietary Preferences')).toBeInTheDocument();
-  });
-
-  it('passes selected preferences to fetch function', async () => {
-    const mockFetch = vi.fn<(preferences: string[]) => Promise<MealRecommendation[]>>().mockResolvedValue([mockMeal]);
-    renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
-    fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(expect.any(Array));
-    });
   });
 });

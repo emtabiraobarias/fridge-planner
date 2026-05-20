@@ -126,7 +126,6 @@ interface HolodeckResponse {
 
 export async function getMealRecommendations(
   ingredients: IngredientInput[],
-  dietaryPreferences: string[] = [],
 ): Promise<MealRecommendation[]> {
   const res = await fetch(`${process.env.HOLODECK_URL}/agent/meal-recommender/chat`, {
     method: 'POST',
@@ -242,7 +241,6 @@ fridge-planner/
 - [x] Add/edit ingredient form with validation
 - [x] AI recommendation panel with structured `MealRecommendation[]` state
 - [x] Meal card UI with cuisine badge, prep time, expiring/missing ingredient pills
-- [x] Dietary preference settings with localStorage persistence
 - [x] Inventory context provider with shared state management
 - [x] App.tsx integration with responsive two-column layout
 - [x] Frontend tests passing (RecommendationsPanel + MealCard), >70% coverage

@@ -11,15 +11,13 @@ const cache = new Map<string, CacheEntry>();
 
 export function buildCacheKey(
   userId: string,
-  preferences: string[],
   ingredients: Array<{ name: string; quantity: number; unit: string; expiresAt?: string }>,
 ): string {
-  const sortedPrefs = [...preferences].sort().join(',');
   const sortedIngredients = ingredients
     .map((i) => `${i.name}|${i.quantity}|${i.unit}|${i.expiresAt ?? ''}`)
     .sort()
     .join(';');
-  return `${userId}::${sortedPrefs}::${sortedIngredients}`;
+  return `${userId}::${sortedIngredients}`;
 }
 
 export function getCached(key: string): MealRecommendation[] | null {

@@ -71,7 +71,7 @@ fridge-planner/
 │   │   │   │   ├── grocery/          # AddGroceryItemForm, GroceryListHeader, GroceryListCategoryGroup,
 │   │   │   │   │                     # GroceryListItemRow, GroceryListSearchBar, CheckoutConfirmModal
 │   │   │   │   ├── inventory/        # InventoryForm, InventoryList
-│   │   │   │   ├── recommendations/  # RecommendationsPanel, MealCard, DraggableMealCard, DietaryPreferences
+│   │   │   │   ├── recommendations/  # RecommendationsPanel, MealCard, DraggableMealCard
 │   │   │   │   └── shared/
 │   │   │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
 │   │   │   ├── pages/                # CalendarPage, GroceryListPage
@@ -127,7 +127,7 @@ Base URL: `http://localhost:3001/api/v1`
 ### Recommendations
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/recommendations` | Get AI meal suggestions — body: `{ dietaryPreferences: string[] }` |
+| POST | `/recommendations` | Get AI meal suggestions (no body required) |
 
 Rate limit: **10 req/min** (vs 100/min for other endpoints)
 
@@ -334,7 +334,7 @@ it('shows expiring badge when ingredient expires soon', () => {
 - **Temperature:** 0.5, **Max tokens:** 3000
 - **Auth:** OAuth token preferred (`CLAUDE_CODE_OAUTH_TOKEN`); falls back to `ANTHROPIC_API_KEY`
 
-The agent receives inventory data (sorted by expiry date) and dietary preferences, and returns a JSON array of `MealRecommendation` objects. It must **never** return markdown or prose — only raw JSON.
+The agent receives inventory data (sorted by expiry date) and returns a JSON array of `MealRecommendation` objects. It must **never** return markdown or prose — only raw JSON.
 
 **Evaluation metrics** (G-Eval, evaluated by Claude Sonnet 4.6 at temperature 0.0):
 - `ExpiryPrioritisation` — uses ingredients expiring soonest (threshold: 0.8)
@@ -342,14 +342,14 @@ The agent receives inventory data (sorted by expiry date) and dietary preference
 
 Test cases for both metrics are defined in `agent.yaml` under `test_cases`.
 
-**Caching:** `services/recommendations-cache.ts` caches results by `(userId, dietaryPreferences, ingredients)` key with a **15-minute TTL**. Cache is invalidated per-user (`invalidateUser(userId)`) on any inventory mutation.
+**Caching:** `services/recommendations-cache.ts` caches results by `(userId, ingredients)` key with a **15-minute TTL**. Cache is invalidated per-user (`invalidateUser(userId)`) on any inventory mutation.
 
 ---
 
 ## 10. Git Workflow
 
 - **Branch from `main`:** `feat/`, `fix/`, `refactor/`, `test/`, `docs/` prefixes for human work; Claude Code auto-generates `claude/<description>-<id>` branches
-- **Commit format:** Conventional Commits — `feat: add dietary filter to recommendations`
+- **Commit format:** Conventional Commits — `feat: add expiry-aware meal suggestions`
 - **Before pushing:** `npm run lint && npm test` must pass
 - **PRs require:** all tests green, zero lint warnings
 

@@ -186,7 +186,7 @@ fridge-planner/
 │   │   │   │   ├── grocery/        # AddGroceryItemForm, GroceryListHeader, GroceryListCategoryGroup,
 │   │   │   │   │                   # GroceryListItemRow, GroceryListSearchBar, CheckoutConfirmModal
 │   │   │   │   ├── inventory/      # InventoryForm, InventoryList
-│   │   │   │   ├── recommendations/ # RecommendationsPanel, MealCard, DraggableMealCard, DietaryPreferences
+│   │   │   │   ├── recommendations/ # RecommendationsPanel, MealCard, DraggableMealCard
 │   │   │   │   └── shared/
 │   │   │   ├── context/            # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
 │   │   │   ├── pages/              # CalendarPage, GroceryListPage
@@ -228,7 +228,7 @@ Base URL: `http://localhost:3001/api/v1`
 | `POST` | `/inventory` | Add inventory item |
 | `PUT` | `/inventory/:id` | Update inventory item |
 | `DELETE` | `/inventory/:id` | Delete inventory item |
-| `POST` | `/recommendations` | Get AI meal suggestions — body: `{ dietaryPreferences: string[] }` |
+| `POST` | `/recommendations` | Get AI meal suggestions (no body required) |
 | `GET` | `/meal-plans?weekStart=<ISO>` | Fetch weekly meal plan |
 | `POST` | `/meal-plans/:weekStart/entries` | Add a meal entry to a slot |
 | `PUT` | `/meal-plans/:weekStart` | Replace full entries array |
