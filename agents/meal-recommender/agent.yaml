@@ -13,7 +13,7 @@ model:
   name: claude-sonnet-4-6
   auth_provider: oauth_token
   temperature: 0.5
-  max_tokens: 500 
+  max_tokens: 3000
 
 instructions:
   file: instructions/system-prompt.md
@@ -164,21 +164,11 @@ evaluations:
     #   enabled: true
     #   fail_on_error: false
 
-    # - type: geval
-    #   name: JSONOutputIntegrity
-    #   criteria: |
-    #     Evaluate whether the response is a valid JSON array where each object
-    #     contains all required fields: mealName, suggestedMealType, prepTimeMinutes,
-    #     cuisine, description, usesIngredients, expiringIngredients, and
-    #     missingIngredients. Any prose, markdown fences, or missing required fields
-    #     must score 0. Optional fields (recipeUrl, imageUrl) may be absent without
-    #     penalty. A perfectly conforming response scores 1.
-    #   evaluation_params:
-    #     - actual_output
-    #   threshold: 1.0
-    #   strict_mode: true
-    #   enabled: true
-    #   fail_on_error: false
+    - type: code
+      name: JSONOutputIntegrity
+      grader: "graders.json_output_integrity:grade"
+      threshold: 1.0
+      fail_on_error: false
 
 test_cases:
   - name: Prioritise expiring chicken
