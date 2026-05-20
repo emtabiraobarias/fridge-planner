@@ -6,12 +6,14 @@
 name: meal-recommender
 description: AI-powered meal recommendation agent that suggests meals to minimise food waste
 
+execution:
+  llm_timeout: 180
 model:
   provider: anthropic
   name: claude-sonnet-4-6
   auth_provider: oauth_token
   temperature: 0.5
-  max_tokens: 3000
+  max_tokens: 500 
 
 instructions:
   file: instructions/system-prompt.md
@@ -19,6 +21,10 @@ instructions:
 claude:
   permission_mode: acceptAll
   web_search: true
+  extended_thinking:
+    enabled: false          # Disable entirely, OR
+    budget_tokens: 2000     # Reduce drastically if you want to keep it
+  max_turns: 2              # A meal recommendation should need at most 1-2 turns
   allowed_tools:
     - WebSearch
     - WebFetch
@@ -344,7 +350,7 @@ observability:
   exporters:
     otlp:
       enabled: true
-      endpoint: http://host.docker.internal:4317
+      endpoint: ${OTLP_ENDPOINT}  # e.g. http://otel-collector:4317
       protocol: grpc
       insecure: true
 
