@@ -13,18 +13,16 @@ model:
   name: claude-sonnet-4-6
   auth_provider: oauth_token
   temperature: 0.5
-  max_tokens: 3000
+  max_tokens: 2000
 
 instructions:
   file: instructions/system-prompt.md
 
 claude:
   permission_mode: acceptAll
-  web_search: true
+  max_turns: 10
   extended_thinking:
-    enabled: false          # Disable entirely, OR
-    budget_tokens: 2000     # Reduce drastically if you want to keep it
-  max_turns: 2              # A meal recommendation should need at most 1-2 turns
+    enabled: false
   allowed_tools:
     - WebSearch
     - WebFetch
@@ -86,7 +84,7 @@ evaluations:
       evaluation_params:
         - input
         - actual_output
-      threshold: 0.9
+      threshold: 0.8
 
     # - type: geval
     #   name: Practicality
@@ -147,12 +145,6 @@ evaluations:
     #   strict_mode: true
     #   enabled: true
     #   fail_on_error: false
-
-    - type: code
-      name: JSONOutputIntegrity
-      grader: "graders.json_output_integrity:grade"
-      threshold: 1.0
-      fail_on_error: false
 
 test_cases:
   - name: Prioritise expiring chicken

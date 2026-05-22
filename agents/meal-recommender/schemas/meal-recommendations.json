@@ -1,0 +1,62 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "mealName": {
+        "type": "string",
+        "description": "Short, recognisable name of the dish"
+      },
+      "suggestedMealType": {
+        "type": "string",
+        "enum": ["breakfast", "lunch", "dinner", "snack"]
+      },
+      "prepTimeMinutes": {
+        "type": "integer",
+        "description": "Estimated preparation + cooking time"
+      },
+      "cuisine": {
+        "type": "string",
+        "description": "Cuisine style (e.g. Filipino, Chinese, Western)"
+      },
+      "description": {
+        "type": "string",
+        "description": "One sentence describing the dish"
+      },
+      "usesIngredients": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "All inventory ingredients used in this meal"
+      },
+      "expiringIngredients": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Subset of usesIngredients expiring within 3 days"
+      },
+      "missingIngredients": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Key ingredients needed that the user does not have"
+      },
+      "recipeUrl": {
+        "type": "string",
+        "description": "URL to the source recipe page"
+      },
+      "imageUrl": {
+        "type": "string",
+        "description": "Direct URL to the hero image; omit if not certain"
+      }
+    },
+    "required": [
+      "mealName",
+      "suggestedMealType",
+      "prepTimeMinutes",
+      "cuisine",
+      "description",
+      "usesIngredients",
+      "expiringIngredients",
+      "missingIngredients",
+      "recipeUrl"
+    ]
+  }
+}
