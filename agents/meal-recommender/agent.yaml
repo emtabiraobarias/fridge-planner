@@ -19,8 +19,8 @@ instructions:
   file: instructions/system-prompt.md
 
 claude:
-  permission_mode: acceptAll
-  max_turns: 10
+  max_turns: 15
+  setting_sources: []   # explicit: no inheritance from ~/.claude or project settings
   extended_thinking:
     enabled: false
   allowed_tools:
