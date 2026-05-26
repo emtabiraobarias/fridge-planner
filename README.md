@@ -47,7 +47,7 @@ Inside a Claude Code session `CLAUDE_CODE_OAUTH_TOKEN` is already present in the
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ```
-Also set `auth_provider: api_key` in `agents/meal-recommender/agent.yaml` (the repo default is `oauth_token`).
+Holodeck will fall back to the API key automatically when `CLAUDE_CODE_OAUTH_TOKEN` is absent — no changes to `agent.yaml` needed.
 
 All other values have sensible defaults for local development.
 
@@ -247,7 +247,7 @@ Base URL: `http://localhost:3001/api/v1`
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
 | `CLAUDE_CODE_OAUTH_TOKEN` | — | Yes (for AI, preferred) | Claude Code OAuth token — auto-set inside Claude Code sessions; use `claude setup-token` outside |
-| `ANTHROPIC_API_KEY` | — | Yes (for AI, fallback) | Direct Anthropic API key; set `auth_provider: api_key` in `agent.yaml` |
+| `ANTHROPIC_API_KEY` | — | Yes (for AI, fallback) | Direct Anthropic API key; used automatically when `CLAUDE_CODE_OAUTH_TOKEN` is absent |
 | `OPENAI_API_KEY` | — | No | Fallback if Anthropic provider unavailable in Holodeck |
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | No | MongoDB connection string |
 | `HOLODECK_URL` | `http://localhost:8001` | No | Holodeck agent sidecar URL |

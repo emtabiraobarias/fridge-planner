@@ -11,7 +11,7 @@
 | Phase 0 — Scaffolding | **Complete** | Monorepo, Docker, ESLint, Prettier, pre-commit hooks |
 | Phase 1 — P1: Inventory + AI Recommendations | **Complete** | Full backend CRUD, recommendations, middleware, frontend components wired together; corrected holodeck endpoint, structured JSON response, meal card UI |
 | Phase 2 — P2: Weekly Meal Planning Calendar | **Complete** | MealPlan schema + CRUD API, drag-and-drop calendar UI, ingredient consumption, 72 backend + 80 frontend tests passing |
-| Phase 3 — P3: Smart Grocery List | Not started | GroceryList model + unit normalization + grocery list UI |
+| Phase 3 — P3: Smart Grocery List | **Complete** | GroceryList model, unit normalization, 6 REST endpoints, 6 grocery components, GroceryListContext, checkout → inventory integration |
 
 ### Deferred to Phase 2+
 
@@ -55,7 +55,7 @@ The AI meal recommendation feature is implemented as a **holodeck-agents sidecar
 ┌──────────────────────┐  POST /agent/meal-recommender/chat  ┌───────────────────────────┐
 │  Express API         │ ──────────────────────────────────► │  holodeck serve           │
 │  packages/server     │ ◄────────────────────────────────── │  agents/meal-recommender  │
-│  :3000               │  { message: "[{...}]", ... }        │  :8001 (REST protocol)    │
+│  :3001               │  { message: "[{...}]", ... }        │  :8001 (REST protocol)    │
 └──────────────────────┘                                     └───────────────────────────┘
                                                          │
                                                          ▼
@@ -65,37 +65,37 @@ The AI meal recommendation feature is implemented as a **holodeck-agents sidecar
 ### Agent Definition
 
 ```yaml
-# agents/meal-recommender/agent.yaml
+# agents/meal-recommender/agent.yaml (abbreviated — see full file for evaluation_steps)
 name: meal-recommender
-description: Suggests meals based on fridge inventory, prioritising ingredients expiring soonest
+description: AI-powered meal recommendation agent that suggests meals to minimise food waste
 
 model:
   provider: anthropic
   name: claude-sonnet-4-6
+  auth_provider: oauth_token
   temperature: 0.5
-  max_tokens: 2048
+  max_tokens: 2000
 
-instructions:
-  file: instructions/system-prompt.md
+claude:
+  max_turns: 15
+  setting_sources: []      # explicit: no inheritance from ~/.claude or project settings
+  allowed_tools:
+    - WebSearch
+    - WebFetch
 
 evaluations:
   model:
-    provider: anthropic
-    name: claude-sonnet-4-6
+    provider: azure_openai
+    name: ${AZURE_MODEL_NAME}
+    endpoint: ${AZURE_OPENAI_ENDPOINT}
+    api_key: ${AZURE_OPENAI_API_KEY}
     temperature: 0.0
   metrics:
-    - type: rag
-      metric_type: faithfulness
-      threshold: 0.8
     - type: geval
       name: ExpiryPrioritisation
-      criteria: |
-        Does the response prioritise meals that use ingredients with the earliest
-        expiration dates? Penalise responses that ignore expiry context.
-      evaluation_params:
-        - input
-        - actual_output
       threshold: 0.8
+      # Practicality, MissingIngredientMinimization, IngredientVariety,
+      # RecipeUrlConformance, JSONOutputIntegrity — defined but currently disabled
 ```
 
 ### Deployment (sidecar)
@@ -145,10 +145,6 @@ export async function getMealRecommendations(
 HOLODECK_URL=http://localhost:8001       # Express → holodeck sidecar
 ANTHROPIC_API_KEY=...                    # holodeck agent → Claude
 ```
-
-### Known risk to verify before implementation
-
-The holodeck serve docs note: *"Claude Agent SDK backends are not yet supported for `holodeck serve`"* — only Semantic Kernel backends (OpenAI, Azure OpenAI, Ollama) are explicitly listed as compatible. However, the `legal-assistant` sample in `holodeck-samples` uses Claude Sonnet 4.6 successfully. **This must be verified against the installed holodeck version before committing to Anthropic as the provider.** OpenAI `gpt-4o` is the fallback if Claude is blocked.
 
 ---
 
@@ -270,11 +266,11 @@ fridge-planner/
 - [x] `MealPlanContext` — `assignMeal`, `unassignMeal`, `moveMeal`, week-offset navigation
 - [x] 80 frontend tests passing, >70% coverage
 
-### Phase 3 — P3: Smart Grocery List
+### Phase 3 — P3: Smart Grocery List ✅
 
 #### Architecture Overview
 
-The grocery list feature is built on top of Phases 1 & 2. It reads the week's `MealPlan`, collects `missingIngredients` from each meal entry, normalizes and groups ingredient names, optionally subtracts non-expired inventory, and produces a persisted `GroceryList` document. A separate `GroceryListProvider`/page on the frontend completes the UI.
+Implemented as designed. The grocery list feature is built on top of Phases 1 & 2. It reads the week's `MealPlan`, collects `missingIngredients` from each meal entry, normalizes and groups ingredient names, optionally subtracts non-expired inventory, and produces a persisted `GroceryList` document. A separate `GroceryListProvider`/page on the frontend completes the UI.
 
 **Key design constraint:** `MealRecommendation` stores ingredient names only (no quantities). Auto-generated grocery items express quantity as "number of meals needing this ingredient" with unit `"servings"`. Real unit normalization applies when users manually set quantities via FR-030.
 
@@ -425,7 +421,7 @@ Canonical base units:
 - [x] Unit tests for business logic (expiration logic, error handler, meal recommender)
 - [x] Integration tests for API contracts (inventory CRUD, recommendations)
 - [ ] E2E tests for critical user journeys (deferred)
-- [ ] holodeck evaluation tests for recommendation quality (deferred — requires running sidecar)
+- [x] holodeck evaluation tests for recommendation quality (ExpiryPrioritisation metric active; results in `agents/meal-recommender/results/`)
 - [ ] CI/CD pipeline configured to block failing tests (deferred)
 
 **Performance Requirements**:

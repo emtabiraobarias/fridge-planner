@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-meal-planner`  
 **Created**: 2026-02-15  
-**Status**: Phases 1 & 2 Complete — Phase 3 (Smart Grocery List) not started  
+**Status**: All Three Phases Complete (P1: Inventory + AI Recommendations, P2: Weekly Calendar, P3: Smart Grocery List)  
 **Input**: User description: "Build a web application that will help me take stock of my current fridge and pantry inventory which can then be fed through an LLM agent that can recommend meals designed to maximise the use of the current items in fridge and pantry inventory. The app should be able to let the user plan the recommended meals throughout the week through a draggable meal card on a calendar form. The app should also intelligently suggest any missing ingredients yet to be purchased and added to the grocery list for the week. The app should be able to accurately categorise and aggregate the amount needed for each ingredient in the grocery list."
 
 ## User Scenarios & Testing *(mandatory)*
