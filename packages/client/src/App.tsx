@@ -29,9 +29,9 @@ function InventoryPage(): React.JSX.Element {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="space-y-4">
         <InventoryForm
-          item={editingItem}
+          {...(editingItem !== undefined ? { item: editingItem } : {})}
           onSubmit={handleSubmit}
-          onCancel={editingItem ? (): void => setEditingItem(undefined) : undefined}
+          {...(editingItem !== undefined ? { onCancel: (): void => setEditingItem(undefined) } : {})}
         />
 
         {loading && <p className="text-sm text-gray-500 animate-pulse">Loading inventory…</p>}

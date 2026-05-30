@@ -1,0 +1,341 @@
+{
+  "report": {
+    "agent_name": "meal-recommender",
+    "agent_config_path": "./agents/meal-recommender/agent.yaml",
+    "results": [
+      {
+        "test_name": "Prioritise expiring chicken",
+        "test_input": "Suggest 3-5 meals I can make with these ingredients.\nPrioritise ingredients expiring soonest to minimise food waste.\n\n- 2 lbs chicken breast (expires: 1 day from now)\n- 1 cup rice (expires: 2 days from now)\n- 500g broccoli (expires: 1 day from now)\n- 2 cloves garlic (expires: 4 days from now)\n",
+        "processed_files": [],
+        "agent_response": "[\n  {\n    \"mealName\": \"Chicken Broccoli Stir Fry\",\n    \"suggestedMealType\": \"dinner\",\n    \"prepTimeMinutes\": 20,\n    \"cuisine\": \"Chinese\",\n    \"description\": \"A saucy Chinese-style stir fry where thinly sliced chicken is seared in a hot wok with broccoli and garlic, then coated in a rich oyster-soy sauce and served over steamed rice.\",\n    \"usesIngredients\": [\"chicken breast\", \"broccoli\", \"garlic\"],\n    \"expiringIngredients\": [\"chicken breast\", \"broccoli\"],\n    \"missingIngredients\": [\"oyster sauce\", \"soy sauce\"],\n    \"recipeUrl\": \"https://www.recipetineats.com/chicken-broccoli-stir-fry/\",\n    \"imageUrl\": \"https://www.recipetineats.com/tachyon/2020/07/Chicken-Broccoli-Stir-Fry_2.jpg\"\n  },\n  {\n    \"mealName\": \"Chicken Fried Rice\",\n    \"suggestedMealType\": \"lunch\",\n    \"prepTimeMinutes\": 20,\n    \"cuisine\": \"Asian\",\n    \"description\": \"A hearty one-pan meal where diced chicken breast and garlic are stir-fried with cooked rice and soy sauce, finishing with scrambled eggs folded through for a complete and satisfying dish.\",\n    \"usesIngredients\": [\"chicken breast\", \"rice\", \"garlic\"],\n    \"expiringIngredients\": [\"chicken breast\", \"rice\"],\n    \"missingIngredients\": [\"soy sauce\", \"eggs\"],\n    \"recipeUrl\": \"https://www.recipetineats.com/chicken-fried-rice/\",\n    \"imageUrl\": \"https://www.recipetineats.com/tachyon/2019/09/Chicken-fried-rice-copy.jpg\"\n  },\n  {\n    \"mealName\": \"Chicken with Broccoli (Filipino Style)\",\n    \"suggestedMealType\": \"dinner\",\n    \"prepTimeMinutes\": 40,\n    \"cuisine\": \"Filipino\",\n    \"description\": \"Cornstarch-coated chicken strips are pan-fried until golden, then tossed with blanched broccoli florets and garlic in a savory oyster-soy glaze until thickened; best served over steamed rice.\",\n    \"usesIngredients\": [\"chicken breast\", \"broccoli\", \"garlic\"],\n    \"expiringIngredients\": [\"chicken breast\", \"broccoli\"],\n    \"missingIngredients\": [\"oyster sauce\"],\n    \"recipeUrl\": \"https://panlasangpinoy.com/chicken-with-broccoli-oyster-sauce-recipe/\",\n    \"imageUrl\": \"https://panlasangpinoy.com/wp-content/uploads/2013/02/Chicken-with-Broccoli.jpg\"\n  },\n  {\n    \"mealName\": \"Arroz Caldo (Chicken Rice Porridge)\",\n    \"suggestedMealType\": \"breakfast\",\n    \"prepTimeMinutes\": 50,\n    \"cuisine\": \"Filipino\",\n    \"description\": \"A comforting Filipino rice porridge where chicken, rice, and garlic are simmered together with ginger and onion until the rice breaks down into a creamy congee, topped with toasted garlic and green onions.\",\n    \"usesIngredients\": [\"chicken breast\", \"rice\", \"garlic\"],\n    \"expiringIngredients\": [\"chicken breast\", \"rice\"],\n    \"missingIngredients\": [\"ginger\", \"onion\"],\n    \"recipeUrl\": \"https://panlasangpinoy.com/arroz-caldo/\",\n    \"imageUrl\": \"https://panlasangpinoy.com/wp-content/uploads/2017/05/How-to-Make-Arroz-Caldo.jpg\"\n  },\n  {\n    \"mealName\": \"One Pot Chicken Broccoli Rice Casserole\",\n    \"suggestedMealType\": \"dinner\",\n    \"prepTimeMinutes\": 30,\n    \"cuisine\": \"Western\",\n    \"description\": \"An all-in-one creamy casserole where chicken, garlic, and raw rice are cooked together in milk and chicken broth until risotto-like, then broccoli is folded in at the end and topped with optional melted cheese.\",\n    \"usesIngredients\": [\"chicken breast\", \"broccoli\", \"garlic\", \"rice\"],\n    \"expiringIngredients\": [\"chicken breast\", \"broccoli\", \"rice\"],\n    \"missingIngredients\": [\"chicken broth\", \"milk\"],\n    \"recipeUrl\": \"https://www.recipetineats.com/one-pot-chicken-broccoli-rice-casserole/\",\n    \"imageUrl\": \"https://www.recipetineats.com/tachyon/2018/01/One-Pot-Chicken-Broccoli-Rice_7.jpg\"\n  }\n]",
+        "tool_calls": [
+          "WebSearch",
+          "WebSearch",
+          "WebSearch",
+          "WebFetch",
+          "WebFetch",
+          "WebFetch",
+          "WebFetch",
+          "WebSearch",
+          "WebFetch",
+          "WebFetch"
+        ],
+        "tool_invocations": [
+          {
+            "name": "WebSearch",
+            "args": {
+              "query": "chicken breast broccoli garlic stir fry rice recipe site:recipetineats.com"
+            },
+            "result": "Web search results for query: \"chicken breast broccoli garlic stir fry rice recipe site:recipetineats.com\"\n\nLinks: [{\"title\":\"Chicken Broccoli Stir Fry (extra saucy!) - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/chicken-broccoli-stir-fry/\"},{\"title\":\"Chicken Stir Fry with Rice Noodles - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/chicken-stir-fry-with-rice-noodles/\"},{\"title\":\"One Pot Chicken Broccoli Rice Casserole - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/one-pot-chicken-broccoli-rice-casserole/\"},{\"title\":\"Chicken Fried Rice - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/chicken-fried-rice/\"},{\"title\":\"Chop Suey (Chicken Stir Fry) - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/chicken-stir-fry-chop-suey/\"},{\"title\":\"Emergency Chicken Rice Casserole (from SCRATCH!) - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/emergency-chicken-rice-casserole/\"},{\"title\":\"Fried Rice - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/egg-fried-rice/\"},{\"title\":\"My go-to Chicken Breast recipe - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/chicken-breast-recipe/\"},{\"title\":\"Crispy Shredded Chicken Noodle Stir Fry - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/crispy-shredded-chicken-noodle-stir-fry/\"},{\"title\":\"One Pot Creamy Baked Risotto with Lemon Pepper Chicken - RecipeTin Eats\",\"url\":\"https://www.recipetineats.com/one-pot-creamy-parmesan-garlic-risotto-with-lemon-pepper-chicken/\"}]\n\nI found several relevant recipes from RecipeTin Eats for your search. Here are the top results:\n\n## 1. **Chicken Broccoli Stir Fry (Extra Saucy!)**\nThis is a big batch stir fry made with chicken and broccoli, and lots and lots of sauce \u2013 because broccoli florets hold lots of sauce but you still want some to soak your rice! The sauce uses minimum ingredients but still stacks up to real Chinese takeout, with Chinese cooking wine (shaoxing wine) being the restaurant secret that adds depth of flavour.\n\nLink: https://www.recipetineats.com/chicken-broccoli-stir-fry/\n\n## 2. **Chicken Fried Rice**\nThis recipe only calls for 2 cups of cooked rice compared to almost 4 cups of other \"stuff\" (chicken, veg, bacon). You can serve it as a meal or as a side dish.\n\nLink: https://www.recipetineats.com/chicken-fried-rice/\n\n## 3. **Chop Suey (Chicken Stir Fry)**\nThis is a 5 minute stir fry that starts off by saut\u00e9ing garlic and onion before adding vegetables in the order in which they cook, with vegetables that take longer to cook going in first and more delicate vegetables like leafy greens going in last, then the sauce is added and simmered for just a minute or two so it thickens, then served immediately over rice to soak up all that tasty sauce!\n\nLink: https://www.recipetineats.com/chicken-stir-fry-chop-suey/\n\nAll of these recipes feature chicken breast, broccoli, garlic, and are served with rice!\n\n\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.",
+            "bytes": 3096,
+            "duration_ms": null,
+            "error": null
+          },
+          {
+            "name": "WebSearch",
+            "args": {
+              "query": "chicken broccoli rice recipe site:taste.com.au"
+            },
+            "result": "Web search results for query: \"chicken broccoli rice recipe site:taste.com.au\"\n\nNo links found.\n\nI've performed the web search for \"chicken broccoli rice recipe site:taste.com.au\". However, the search results didn't return any specific information I can share with you.\n\nThis could mean:\n1. There may not be a recipe matching that specific combination on taste.com.au\n2. The search results may not have been indexed or available at the time of the search\n\nI'd recommend:\n- Visiting taste.com.au directly and searching their site for chicken broccoli rice recipes\n- Trying a broader search without the site restriction to find similar recipes from other sources\n- Searching for variations like \"chicken and broccoli rice\" or individual recipes for each component\n\nWould you like me to search for chicken broccoli rice recipes without the site restriction, or help you with something else?\n\n\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.",
+            "bytes": 1016,
+            "duration_ms": null,
+            "error": null
+          },
+          {
+            "name": "WebSearch",
+            "args": {
+              "query": "chicken breast broccoli fried rice garlic recipe site:panlasangpinoy.com OR site:kawalingpinoy.com"
+            },
+            "result": "Web search results for query: \"chicken breast broccoli fried rice garlic recipe site:panlasangpinoy.com OR site:kawalingpinoy.com\"\n\nLinks: [{\"title\":\"Chicken with Broccoli recipe\",\"url\":\"https://panlasangpinoy.com/chicken-with-broccoli-oyster-sauce-recipe/\"},{\"title\":\"Chicken Fried Rice Recipe\",\"url\":\"https://panlasangpinoy.com/chicken-fried-rice-recipe/\"},{\"title\":\"Beef and Broccoli Recipe\",\"url\":\"https://panlasangpinoy.com/beef-with-broccoli-recipe-knr-kls/\"},{\"title\":\"Chicken and Egg Fried Rice Recipe - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/chicken-egg-fried-rice-recipe/\"},{\"title\":\"Garlic Fried Rice\",\"url\":\"https://panlasangpinoy.com/how-to-cook-garlic-fried-steamed-rice-dish-recipe/\"},{\"title\":\"Crispy Fried Chicken Recipe - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/crispy-fried-chicken-recipe/\"},{\"title\":\"Oven Roasted Broccoli - Simple and Easy Vegetable Recipe\",\"url\":\"https://panlasangpinoy.com/oven-roasted-broccoli/\"},{\"title\":\"Beef and Broccoli Stir Fry - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/beef-broccoli-stir-fry/\"},{\"title\":\"BBQ Chicken with Java Rice - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/bbq-chicken-with-java-rice/\"},{\"title\":\"Chicken Barbecue Fried Rice\",\"url\":\"https://panlasangpinoy.com/chicken-barbecue-fried-rice/\"}]\n\nI found several recipes from Panlasang Pinoy that match your search query. Here are the most relevant results:\n\n## Chicken Fried Rice Recipe\nThis Chicken Fried Rice is a savory dish seasoned with soy sauce and sesame oil, with meaty flavor from chicken breast. The recipe includes minced onion and garlic, which give the rice a satisfyingly rich and salty taste.\n\nThe recipe calls for 6 ounces of boneless chicken breast that needs to be cut into small pieces. It also includes 1\u00bd cups of frozen mixed vegetables containing carrots, green peas and corn, which are stir-fried for 2 minutes while cooking evenly.\n\n## Chicken and Egg Fried Rice Recipe\nAnother variation available is the Chicken and Egg Fried Rice, which combines tender marinated chicken, fluffy scrambled eggs, and day-old rice tossed together in a hot pan, ready in under 30 minutes. This one-pan dish is made with diced chicken breast, scrambled eggs broken into pieces, frozen green peas, garlic, green onions, and cold leftover rice.\n\n## Garlic Fried Rice Recipe\nThere's also a Garlic Fried Rice that is day old rice fried in garlic oil with a bit of salt.\n\nYou can find these complete recipes on Panlasang Pinoy's website for detailed instructions and ingredient measurements.\n\n\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.",
+            "bytes": 2761,
+            "duration_ms": null,
+            "error": null
+          },
+          {
+            "name": "WebFetch",
+            "args": {
+              "url": "https://www.recipetineats.com/chicken-broccoli-stir-fry/",
+              "prompt": "Get the recipe name, description, ingredients, prep time, and the hero/main image URL from this page."
+            },
+            "result": "# Chicken Broccoli Stir Fry Recipe\n\n**Recipe Name:** Chicken Broccoli Stir Fry (extra saucy!)\n\n**Description:** \"Big batch stir fry made with chicken and broccoli, and lots and lots of sauce\" featuring a homemade stir fry sauce that aims to replicate takeout quality.\n\n**Prep Time:** 10 minutes\n\n**Key Ingredients:**\n- 500g chicken breast (thinly sliced)\n- 400g broccoli florets\n- 3 tbsp oyster sauce\n- 3 tbsp light soy sauce\n- 1.5 tbsp Chinese cooking wine (shaoxing wine)\n- 2 tsp sesame oil\n- 2 tbsp cornflour/cornstarch\n- 1.5 tsp baking soda\n- Garlic, onion, and white pepper\n\n**Hero Image URL:** https://www.recipetineats.com/tachyon/2020/07/Chicken-Broccoli-Stir-Fry_2.jpg",
+            "bytes": 700,
+            "duration_ms": null,
+            "error": null
+          },
+          {
+            "name": "WebFetch",
+            "args": {
+              "url": "https://www.recipetineats.com/one-pot-chicken-broccoli-rice-casserole/",
+              "prompt": "Get the recipe name, description, ingredients, prep time, and the hero/main image URL from this page."
+            },
+            "result": "# One Pot Chicken Broccoli Rice Casserole\n\n**Recipe Name:** One Pot Broccoli, Chicken and Rice Casserole\n\n**Description:** \"Made from scratch, this tastes like a risotto but is so much more straight forward to make! A complete meal in one pot.\"\n\n**Prep Time:** 10 minutes\n\n**Cook Time:** 20 minutes\n\n**Ingredients:**\n- 2 tbsp unsalted butter\n- 1 tbsp olive oil\n- 1 onion (finely chopped)\n- 2 garlic cloves (minced)\n- 500g chicken thigh (bite-sized pieces)\n- 2.5 tbsp flour\n- 2 cups milk\n- 2 cups chicken broth\n- 1\u00bc cups long grain white rice (uncooked)\n- 1 tsp dried thyme\n- Salt and pepper\n- 1 large head broccoli (cut into florets)\n- 2 cups shredded mozzarella or cheddar cheese\n- Finely chopped parsley (optional garnish)\n\n**Hero Image URL:** https://www.recipetineats.com/tachyon/2018/01/One-Pot-Chicken-Broccoli-Rice_7.jpg",
+            "bytes": 862,
+            "duration_ms": null,
+            "error": null
+          },
+          {
+            "name": "WebFetch",
+            "args": {
+              "url": "https://panlasangpinoy.com/chicken-with-broccoli-oyster-sauce-recipe/",
+              "prompt": "Get the recipe name, description, ingredients, prep time, and the hero/main image URL from this page."
+            },
+            "result": "# Chicken with Broccoli Recipe\n\n**Recipe Name:** Chicken with Broccoli Recipe\n\n**Description:** \"Chicken with broccoli is an easy to prepare recipe that you can cook for your family during ordinary days. This dish is delicious\"\n\n**Prep Time:** 10 minutes\n\n**Cook Time:** 30 minutes\n\n**Total Time:** 40 minutes\n\n**Servings:** 4\n\n**Hero Image URL:** https://panlasangpinoy.com/wp-content/uploads/2013/02/Chicken-with-Broccoli.jpg\n\n**Key Ingredients:**\n- 1 lb chicken breast (sliced thin)\n- 1 small head broccoli (cut into florets)\n- 1 medium yellow onion (sliced)\n- 1 tablespoon minced ginger\n- 1 teaspoon garlic powder\n- 3/4 cup cornstarch\n- 1 egg (beaten)\n- 2 1/2 tablespoons oyster sauce\n- 1 teaspoon soy sauce\n- Cooking oil, salt, and pepper to taste",
+            "bytes": 782,
+            "duration_ms": null,
+            "error": null
+          },
+          {
+            "name": "WebFetch",
+            "args": {
+              "url": "https://www.recipetineats.com/chicken-fried-rice/",
+              "prompt": "Get the recipe name, description, ingredients, prep time, and the hero/main image URL from this page."
+            },
+            "result": "# Chicken Fried Rice Recipe\n\n**Recipe Name:** Chicken Fried Rice\n\n**Description:** \"A fully loaded, completely delicious Chicken Fried Rice! Serve it as a side - or have it as a main!\"\n\n**Prep Time:** 10 minutes\n\n**Hero Image URL:** https://www.recipetineats.com/tachyon/2019/09/Chicken-fried-rice-copy.jpg\n\n**Key Ingredients:**\n- 2 tbsp oil (peanut, vegetable or canola)\n- 2 eggs\n- 150g chicken breast (finely sliced)\n- 2 garlic cloves (minced)\n- 1/2 onion (finely chopped)\n- 120g bacon (chopped)\n- 1 small carrot (diced)\n- 1/2 cup frozen corn\n- 1/2 cup frozen peas\n- 2 cups cooked white rice (day old)\n- 3/4 cup green onions (finely sliced)\n- 2.5 tbsp Chinese cooking wine or Mirin\n- 1 tbsp oyster sauce\n- 3 tbsp light soy sauce\n- 1/2 tsp sesame oil (optional)\n- 1/4 tsp white pepper (optional)",
+            "bytes": 826,
+            "duration_ms": null,
+            "error": null
+          },
+          {
+            "name": "WebSearch",
+            "args": {
+              "query": "arroz caldo chicken rice congee recipe site:panlasangpinoy.com"
+            },
+            "result": "Web search results for query: \"arroz caldo chicken rice congee recipe site:panlasangpinoy.com\"\n\nLinks: [{\"title\":\"Chicken Arroz Caldo Recipe - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/chicken-arroz-caldo-recipe-glutinous-rice-porridge/\"},{\"title\":\"Arroz Caldo Recipe\",\"url\":\"https://panlasangpinoy.com/arroz-caldo/\"},{\"title\":\"Arroz Caldo with Tokwa (Chicken Congee with Fried Tofu) - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/arroz-caldo-with-tokwa/\"},{\"title\":\"Chicken Congee Recipe - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/chicken-congee-recipe/\"},{\"title\":\"Yellow Arroz Caldo Recipe - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/yellow-arroz-caldo-recipe/\"},{\"title\":\"Rotisserie Chicken Arroz Caldo Recipe\",\"url\":\"https://panlasangpinoy.com/rotisserie-chicken-arroz-caldo-recipe/\"},{\"title\":\"How To Cook Filipino Chicken Arroz Caldo - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/how-to-cook-filipino-chicken-arroz-caldo/\"},{\"title\":\"Congee Recipes Archives - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/categories/recipes/congee-recipes/\"},{\"title\":\"Porridge and Congee Recipes Archives - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/categories/recipes/porridgecongee/\"},{\"title\":\"Special Goto Recipe - Panlasang Pinoy\",\"url\":\"https://panlasangpinoy.com/special-goto-recipe/\"}]\n\nI found several arroz caldo chicken rice congee recipes from Panlasang Pinoy! Here are the key results:\n\n## Main Recipes Found:\n\n1. **Chicken Arroz Caldo Recipe** - This recipe uses 2 types of rice: jasmine and sweet rice (also known as glutinous rice or malagkit). The chicken and rice are simmered for 35 to 50 minutes on the lowest heat, stirring occasionally every 3 to 5 minutes.\n\n2. **Arroz Caldo Recipe** - This version uses 2 lbs chicken cut into serving pieces and 1 \u00bd cups uncooked rice. The rice cooks for about 30 to 40 minutes after reducing the heat.\n\n3. **Chicken Congee Recipe** - Chicken congee is a type of rice porridge similar to chicken arroz caldo, usually consumed for breakfast and best enjoyed with chopped scallions.\n\n4. **Yellow Arroz Caldo Recipe** - This version uses packaged yellow rice, which is better known as arroz amarillo.\n\n5. **Rotisserie Chicken Arroz Caldo Recipe** - Rotisserie chicken provides a yummy roast chicken flavor that blends well with the ginger.\n\nAll recipes include common toppings like boiled eggs, toasted garlic, and chopped green onions (or scallions).\n\n\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.",
+            "bytes": 2664,
+            "duration_ms": null,
+            "error": null
+          },
+          {
+            "name": "WebFetch",
+            "args": {
+              "url": "https://www.recipetineats.com/chicken-breast-recipe/",
+              "prompt": "Get the recipe name, description, key ingredients, prep/cook time, and the hero/main image URL from this page."
+            },
+            "result": "# Recipe Information\n\n**Recipe Name:** My go-to Chicken Breast recipe\n\n**Description:** \"Quick, pantry staples but NOT BORING! Seasoned crusted chicken, simple buttery pan sauce, so good.\" This dish is ready in just 12 minutes.\n\n**Key Ingredients:**\n- Chicken breasts (2 large, cut into steaks)\n- Unsalted butter\n- Paprika, onion powder, garlic powder, cumin\n- Salt and black pepper\n- Flour\n- Dry white wine\n- Parsley\n\n**Prep Time:** 5 minutes\n\n**Cook Time:** 7 minutes\n\n**Hero Image URL:** https://www.recipetineats.com/tachyon/2025/07/Anytime-Chicken-Breast-in-white-wine-sauce_5.jpg",
+            "bytes": 608,
+            "duration_ms": null,
+            "error": null
+          },
+          {
+            "name": "WebFetch",
+            "args": {
+              "url": "https://panlasangpinoy.com/arroz-caldo/",
+              "prompt": "Get the recipe name, description, key ingredients, prep/cook time, and the hero/main image URL from this page."
+            },
+            "result": "# Chicken Arroz Caldo Recipe\n\n**Recipe Name:** Arroz Caldo Recipe\n\n**Description:** \"Filipino Chicken congee with boiled eggs\" - a Filipino rice porridge dish traditionally served with boiled eggs, scallions, and roasted garlic.\n\n**Key Ingredients:**\n- 2 lbs chicken\n- 3/4 cup Jasmine rice\n- 3/4 cup sweet rice\n- Garlic, onions, and ginger\n- Hard boiled eggs\n- Green onions\n- Safflower/kasubha\n\n**Prep & Cook Time:** The recipe notes that simmering the chicken until the rice breaks down \"usually takes more than 35 minutes to achieve.\"\n\n**Hero Image URL:** https://panlasangpinoy.com/wp-content/uploads/2017/05/How-to-Make-Arroz-Caldo.jpg",
+            "bytes": 662,
+            "duration_ms": null,
+            "error": null
+          }
+        ],
+        "expected_tools": [
+          "WebSearch",
+          "WebFetch"
+        ],
+        "tools_matched": true,
+        "metric_results": [
+          {
+            "metric_name": "ExpiryPrioritisation",
+            "kind": "geval",
+            "score": 1.0,
+            "threshold": 0.9,
+            "passed": true,
+            "scale": "0-1",
+            "error": null,
+            "retry_count": 0,
+            "evaluation_time_ms": 3388,
+            "model_used": null,
+            "reasoning": "The response strongly follows the expiry-prioritization criteria. From the input, the critical items are chicken breast and broccoli (1 day), rice is also urgent/critical at 2 days, and garlic is near-term at 4 days. Every one of these expiring ingredients appears across meals' expiringIngredients arrays, including the most urgent items with earliest expiry. The first meal already features both chicken breast and broccoli, so ordering clearly prioritizes the soonest-expiring ingredients. Coverage is effectively complete, with multiple meals highlighting chicken, broccoli, and rice, and garlic represented in usesIngredients though not always marked as expiringIngredients."
+          }
+        ],
+        "ground_truth": "Should return a JSON array of 3-5 meal objects. At least one meal must include\n\"chicken breast\" and \"broccoli\" in usesIngredients and expiringIngredients, since they expire\nsoonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,\ncuisine, description, usesIngredients, expiringIngredients, and missingIngredients.\n",
+        "passed": true,
+        "execution_time_ms": 461715,
+        "errors": [],
+        "timestamp": "2026-05-17T05:54:12.799328+00:00",
+        "token_usage": {
+          "prompt_tokens": 1119,
+          "completion_tokens": 7876,
+          "total_tokens": 8995,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0
+        },
+        "turns": null
+      }
+    ],
+    "summary": {
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "total_duration_ms": 461715,
+      "metrics_evaluated": {
+        "ExpiryPrioritisation": 1
+      },
+      "average_scores": {
+        "ExpiryPrioritisation": 1.0
+      }
+    },
+    "timestamp": "2026-05-17T05:54:12.799984+00:00",
+    "holodeck_version": "0.6.32",
+    "environment": {
+      "execution_config": "{'file_timeout': 30, 'llm_timeout': 60, 'download_timeout': 30, 'cache_enabled': True, 'cache_dir': '.holodeck/cache', 'verbose': False, 'quiet': False, 'parallel_test_cases': 1}"
+    }
+  },
+  "metadata": {
+    "agent_config": {
+      "name": "meal-recommender",
+      "description": "AI-powered meal recommendation agent that suggests meals to minimise food waste",
+      "author": null,
+      "model": {
+        "provider": "anthropic",
+        "name": "claude-sonnet-4-6",
+        "temperature": 0.5,
+        "max_tokens": 3000,
+        "top_p": null,
+        "endpoint": null,
+        "api_key": null,
+        "api_version": null,
+        "auth_provider": "oauth_token"
+      },
+      "instructions": {
+        "file": "instructions/system-prompt.md",
+        "inline": null
+      },
+      "response_format": null,
+      "tools": null,
+      "tool_filtering": null,
+      "evaluations": {
+        "model": {
+          "provider": "azure_openai",
+          "name": "gpt-5.4",
+          "temperature": 0.0,
+          "max_tokens": 1000,
+          "top_p": null,
+          "endpoint": "https://aidevtoolkit.openai.azure.com/",
+          "api_key": "***",
+          "api_version": null,
+          "auth_provider": null
+        },
+        "metrics": [
+          {
+            "type": "geval",
+            "name": "ExpiryPrioritisation",
+            "criteria": "Evaluate whether the meal suggestions prioritise ingredients with the earliest expiration dates, as reflected in the expiringIngredients and usesIngredients fields of each meal object.\n",
+            "evaluation_steps": [
+              "Parse the input to build an expiry-ordered list of ingredients: identify which items expire within 1-3 days (critical), within 4-7 days (near-term), and beyond 7 days or never (non-urgent). If no ingredient has an expiry date, score 1.0 immediately \u2014 the metric is not applicable.\n",
+              "For each meal object in actual_output, examine the expiringIngredients array. Check whether the ingredient(s) with the earliest expiry date appear in at least one meal's expiringIngredients. Heavily penalise (reduce score by at least 0.5) if the single most-urgent ingredient is absent from every meal's expiringIngredients and usesIngredients arrays.\n",
+              "Count what proportion of critical and near-term expiring ingredients from the input appear across all meals' expiringIngredients arrays. A higher proportion yields a higher score.\n",
+              "Evaluate ordering signal: meals that feature the most urgently expiring ingredients should appear earlier in the array. Reward responses where the first 1-2 meals centre on the soonest-expiring item; penalise responses where high-urgency meals appear only at the end.\n",
+              "Apply the following scoring rubric and return a score between 0.0 and 1.0: (0.0-0.2): No expiring ingredient from the input appears in any meal's\n  expiringIngredients or usesIngredients \u2014 the agent has completely ignored expiry.\n(0.3-0.5): Some expiring ingredients appear, but the single most-urgent item\n  (earliest expiry date) is absent from every meal.\n(0.6-0.7): The most-urgent ingredient is present in at least one meal, but\n  coverage of other expiring items is poor (less than half represented), or\n  high-urgency meals appear at the end of the array rather than the beginning.\n(0.8-0.9): Most expiring ingredients are represented across the meal set and\n  the most-urgent item is featured prominently; minor gaps in coverage or ordering.\n(1.0): All or nearly all expiring ingredients are represented; the most urgently\n  expiring ingredient appears in the first 1-2 meals; the array ordering clearly\n  reflects expiry urgency.\n"
+            ],
+            "evaluation_params": [
+              "input",
+              "actual_output"
+            ],
+            "strict_mode": false,
+            "threshold": 0.9,
+            "model": null,
+            "enabled": true,
+            "fail_on_error": false
+          }
+        ]
+      },
+      "test_cases": [
+        {
+          "name": "Prioritise expiring chicken",
+          "input": "Suggest 3-5 meals I can make with these ingredients.\nPrioritise ingredients expiring soonest to minimise food waste.\n\n- 2 lbs chicken breast (expires: 1 day from now)\n- 1 cup rice (expires: 2 days from now)\n- 500g broccoli (expires: 1 day from now)\n- 2 cloves garlic (expires: 4 days from now)\n",
+          "expected_tools": [
+            "WebSearch",
+            "WebFetch"
+          ],
+          "ground_truth": "Should return a JSON array of 3-5 meal objects. At least one meal must include\n\"chicken breast\" and \"broccoli\" in usesIngredients and expiringIngredients, since they expire\nsoonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,\ncuisine, description, usesIngredients, expiringIngredients, and missingIngredients.\n",
+          "files": null,
+          "retrieval_context": null,
+          "evaluations": null,
+          "turns": null
+        }
+      ],
+      "execution": null,
+      "observability": {
+        "enabled": true,
+        "service_name": null,
+        "traces": {
+          "enabled": true,
+          "sample_rate": 1.0,
+          "capture_content": true,
+          "capture_evaluation_content": false,
+          "redaction_patterns": [],
+          "max_queue_size": 2048,
+          "max_export_batch_size": 512,
+          "schedule_delay_millis": 2000
+        },
+        "metrics": {
+          "enabled": true,
+          "export_interval_ms": 5000,
+          "include_semantic_kernel_metrics": true
+        },
+        "logs": {
+          "enabled": true,
+          "level": "INFO",
+          "include_trace_context": true,
+          "filter_namespaces": [
+            "semantic_kernel"
+          ]
+        },
+        "exporters": {
+          "console": null,
+          "otlp": {
+            "enabled": true,
+            "endpoint": "http://localhost:4317",
+            "protocol": "grpc",
+            "headers": {},
+            "timeout_ms": 30000,
+            "compression": null,
+            "insecure": true
+          },
+          "prometheus": null,
+          "azure_monitor": null
+        },
+        "resource_attributes": {}
+      },
+      "deployment": null,
+      "embedding_provider": null,
+      "claude": {
+        "working_directory": null,
+        "permission_mode": "acceptAll",
+        "max_turns": null,
+        "max_concurrent_sessions": 10,
+        "extended_thinking": null,
+        "web_search": true,
+        "bash": null,
+        "file_system": null,
+        "agents": null,
+        "allowed_tools": [
+          "WebSearch",
+          "WebFetch"
+        ],
+        "effort": null,
+        "max_budget_usd": null,
+        "fallback_model": null,
+        "disallowed_tools": null
+      }
+    },
+    "prompt_version": {
+      "version": "auto-ff672eaf",
+      "author": null,
+      "description": null,
+      "tags": [],
+      "source": "file",
+      "file_path": "/Users/emeraldbarias/Git/fridge-planner/agents/meal-recommender/instructions/system-prompt.md",
+      "body_hash": "ff672eafa25cd6f92a0c0b6f8d15715b5455b4d187c82503336ff80dbda00715",
+      "extra": {}
+    },
+    "holodeck_version": "0.6.32",
+    "cli_args": [
+      "test",
+      "./agents/meal-recommender/agent.yaml"
+    ],
+    "git_commit": "233c71b210dfe24f99758c8e65a04d14a23e09a2"
+  }
+}

@@ -81,18 +81,6 @@ describe('POST /api/v1/recommendations', () => {
     expect(names).not.toContain('Old Milk');
   });
 
-  it('passes dietary preferences to holodeck', async () => {
-    await seedItem();
-    await request(app)
-      .post('/api/v1/recommendations')
-      .send({ dietaryPreferences: ['vegetarian', 'gluten-free'] });
-
-    expect(mockGetRecommendations).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.arrayContaining(['vegetarian', 'gluten-free']),
-    );
-  });
-
   it('returns empty array when inventory is empty (no holodeck call)', async () => {
     const res = await request(app).post('/api/v1/recommendations').send({});
     expect(res.status).toBe(200);

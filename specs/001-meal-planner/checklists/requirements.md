@@ -43,7 +43,7 @@
 - Success criteria include concrete metrics (time, percentages, counts)
 - Edge cases comprehensively cover error scenarios and boundary conditions
 - 12 assumptions documented to clarify scope decisions
-- Feature scope is bounded (single user, English only, standard dietary restrictions)
+- Feature scope is bounded (single user, English only)
 
 ### ✅ PASSED - Feature Readiness
 - 35 functional requirements (FR-001 through FR-035) with clear acceptance criteria

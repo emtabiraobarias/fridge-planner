@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import pino from 'pino';
-import pinoHttp from 'pino-http';
+import { pinoHttp } from 'pino-http';
 
 import { groceryListsRouter } from './api/v1/grocery-lists.js';
 import { inventoryRouter } from './api/v1/inventory.js';

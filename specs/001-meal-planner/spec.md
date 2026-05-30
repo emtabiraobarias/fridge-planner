@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-meal-planner`  
 **Created**: 2026-02-15  
-**Status**: Phases 1 & 2 Complete — Phase 3 (Smart Grocery List) not started  
+**Status**: All Three Phases Complete (P1: Inventory + AI Recommendations, P2: Weekly Calendar, P3: Smart Grocery List)  
 **Input**: User description: "Build a web application that will help me take stock of my current fridge and pantry inventory which can then be fed through an LLM agent that can recommend meals designed to maximise the use of the current items in fridge and pantry inventory. The app should be able to let the user plan the recommended meals throughout the week through a draggable meal card on a calendar form. The app should also intelligently suggest any missing ingredients yet to be purchased and added to the grocery list for the week. The app should be able to accurately categorise and aggregate the amount needed for each ingredient in the grocery list."
 
 ## User Scenarios & Testing *(mandatory)*
@@ -23,9 +23,7 @@ As a home cook, I want to track what ingredients I have in my fridge and pantry 
 
 3. **Given** I view a recommended meal, **When** I see the ingredient list, **Then** ingredients I already have are clearly marked/highlighted separately from ingredients I need to purchase
 
-4. **Given** I have dietary preferences set (vegetarian, gluten-free, allergies), **When** I request recommendations, **Then** all suggested meals respect my dietary restrictions
-
-5. **Given** my inventory has perishable items nearing expiration, **When** I request recommendations, **Then** the AI prioritizes meals that use soon-to-expire ingredients
+4. **Given** my inventory has perishable items nearing expiration, **When** I request recommendations, **Then** the AI prioritizes meals that use soon-to-expire ingredients
 
 6. **Given** I use an ingredient in a planned meal, **When** I view my inventory, **Then** the system updates quantities to reflect the ingredient consumption
 
@@ -95,7 +93,6 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 
 - **Empty Inventory**: When user requests meal recommendations with an empty or nearly empty inventory, system suggests popular recipes and prompts user to add inventory items
 - **Insufficient Ingredients**: When no recipes can be made with current inventory (e.g., only condiments available), system recommends simple recipes requiring minimal additional ingredients
-- **Conflicting Dietary Restrictions**: When user sets dietary restrictions that are too restrictive (e.g., vegan + allergic to nuts + gluten-free + soy-free), system displays a warning and suggests relaxing some constraints
 - **Duplicate Ingredients**: When user adds the same ingredient multiple times with different quantities, system prompts to merge or asks which entry to keep
 - **Expired Ingredients**: When user has items in inventory past expiration dates, system flags them with red highlighting and excludes them from meal recommendation input to LLM
 - **Partially Expired Inventory**: When user has both fresh and expired versions of the same ingredient (e.g., bought milk last week and yesterday), system distinguishes between them and only counts non-expired quantities for recommendations
@@ -129,7 +126,6 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 
 **AI-Powered Meal Recommendations**:
 - **FR-012**: System MUST integrate with an LLM agent via API to generate meal recommendations based on current inventory (excluding expired items)
-- **FR-013**: Users MUST be able to set dietary preferences (vegetarian, vegan, pescatarian, gluten-free, dairy-free, nut-free, etc.) that constrain recommendations
 - **FR-014**: System MUST generate 3-5 meal suggestions that prioritize using existing inventory items
 - **FR-015**: Each meal recommendation MUST include recipe name, description, estimated cooking time, difficulty level, and complete ingredient list
 - **FR-016**: System MUST clearly distinguish between ingredients the user has vs. ingredients they need to purchase in each recipe
@@ -194,7 +190,7 @@ All features MUST comply with constitutional principles:
 
 ### Key Entities *(include if feature involves data)*
 
-- **User**: Represents an authenticated user with profile information, dietary preferences, and settings. Each user has their own isolated inventory, meal plans, and grocery lists.
+- **User**: Represents an authenticated user with profile information and settings. Each user has their own isolated inventory, meal plans, and grocery lists.
 
 - **Ingredient**: Represents a food item with name, quantity, unit of measurement, category (Produce, Dairy, etc.), expiration date (optional), and nutritional information (optional). Can exist in user's inventory or as part of a recipe.
 
@@ -207,8 +203,6 @@ All features MUST comply with constitutional principles:
 - **GroceryList**: Collection of items needed for upcoming meal plans, aggregating ingredient requirements across multiple recipes, subtracting current non-expired inventory, and organizing by category. Can include manually added items.
 
 - **GroceryListItem**: Individual item on a grocery list with ingredient reference, quantity needed, category, estimated cost (optional), purchase status (needed/purchased), and notes.
-
-- **DietaryPreference**: User preferences and restrictions including diet type (omnivore/vegetarian/vegan/pescatarian), allergies, dislikes, calorie targets, and cuisine preferences. Used to filter meal recommendations.
 
 ## Success Criteria *(mandatory)*
 
@@ -252,9 +246,7 @@ The following assumptions have been made to fill gaps in the feature description
 
 3. **Recipe Scope**: LLM-generated meal recommendations include recipe name, ingredients, and basic instructions. Detailed step-by-step photos and video tutorials are out of scope for MVP.
 
-4. **Standard Dietary Restrictions**: Support for common dietary preferences (vegetarian, vegan, gluten-free, common allergies). Highly specialized medical diets (renal, low-FODMAP) are out of scope for initial version.
-
-5. **English Language Only**: MVP launches with English language support. Internationalization (i18n) is deferred.
+4. **English Language Only**: MVP launches with English language support. Internationalization (i18n) is deferred.
 
 6. **Ingredient Database**: System uses a curated ingredient database with standard categorizations. User-created custom ingredients are supported but may require manual categorization.
 

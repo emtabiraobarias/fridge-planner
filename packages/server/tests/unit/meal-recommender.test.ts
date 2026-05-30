@@ -84,28 +84,6 @@ describe('getMealRecommendations', () => {
     });
   });
 
-  it('includes dietary preferences in the message body', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        content: JSON.stringify([mockMeal]),
-        session_id: 'sess-1',
-        tool_calls: [],
-        tokens_used: { prompt_tokens: 100, completion_tokens: 200, total_tokens: 300 },
-        execution_time_ms: 200,
-      }),
-    });
-
-    await getMealRecommendations(
-      [{ name: 'rice', quantity: 1, unit: 'cup' }],
-      ['vegetarian', 'gluten-free'],
-    );
-
-    const body = JSON.parse((mockFetch.mock.calls[0] as [string, { body: string }])[1].body) as { message: string };
-    expect(body.message).toContain('vegetarian');
-    expect(body.message).toContain('gluten-free');
-  });
-
   it('throws on non-ok holodeck response', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,

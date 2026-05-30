@@ -62,7 +62,7 @@ function validate(state: FormState): FormErrors {
 
 function TextInput({ id, label, value, onChange, error }: {
   id: string; label: string; value: string;
-  onChange: (v: string) => void; error?: string;
+  onChange: (v: string) => void; error?: string | undefined;
 }): React.JSX.Element {
   return (
     <div>
@@ -83,7 +83,7 @@ function TextInput({ id, label, value, onChange, error }: {
 
 function NumberInput({ id, label, value, onChange, error }: {
   id: string; label: string; value: string;
-  onChange: (v: string) => void; error?: string;
+  onChange: (v: string) => void; error?: string | undefined;
 }): React.JSX.Element {
   return (
     <div>

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "holodeck": {
+      "source": "justinbarias/holodeck-samples",
+      "sourceType": "github",
+      "skillPath": "skills/holodeck/SKILL.md",
+      "computedHash": "a13b49db7ca623587484b97b40149176f92c868f5119cba55dea30e764b40cab"
+    }
+  }
+}

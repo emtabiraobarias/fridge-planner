@@ -71,7 +71,7 @@ fridge-planner/
 │   │   │   │   ├── grocery/          # AddGroceryItemForm, GroceryListHeader, GroceryListCategoryGroup,
 │   │   │   │   │                     # GroceryListItemRow, GroceryListSearchBar, CheckoutConfirmModal
 │   │   │   │   ├── inventory/        # InventoryForm, InventoryList
-│   │   │   │   ├── recommendations/  # RecommendationsPanel, MealCard, DraggableMealCard, DietaryPreferences
+│   │   │   │   ├── recommendations/  # RecommendationsPanel, MealCard, DraggableMealCard
 │   │   │   │   └── shared/
 │   │   │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
 │   │   │   ├── pages/                # CalendarPage, GroceryListPage
@@ -127,7 +127,7 @@ Base URL: `http://localhost:3001/api/v1`
 ### Recommendations
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/recommendations` | Get AI meal suggestions — body: `{ dietaryPreferences: string[] }` |
+| POST | `/recommendations` | Get AI meal suggestions (no body required) |
 
 Rate limit: **10 req/min** (vs 100/min for other endpoints)
 
@@ -331,25 +331,31 @@ it('shows expiring badge when ingredient expires soon', () => {
 - **Config:** `agents/meal-recommender/agent.yaml`
 - **Instructions:** `agents/meal-recommender/instructions/system-prompt.md`
 - **Model:** Claude Sonnet 4.6 (`claude-sonnet-4-6`)
-- **Temperature:** 0.5, **Max tokens:** 3000
+- **Temperature:** 0.5, **Max tokens:** 2000
 - **Auth:** OAuth token preferred (`CLAUDE_CODE_OAUTH_TOKEN`); falls back to `ANTHROPIC_API_KEY`
 
-The agent receives inventory data (sorted by expiry date) and dietary preferences, and returns a JSON array of `MealRecommendation` objects. It must **never** return markdown or prose — only raw JSON.
+The agent receives inventory data (sorted by expiry date) and returns a JSON array of `MealRecommendation` objects. It must **never** return markdown or prose — only raw JSON.
 
-**Evaluation metrics** (G-Eval, evaluated by Claude Sonnet 4.6 at temperature 0.0):
-- `ExpiryPrioritisation` — uses ingredients expiring soonest (threshold: 0.8)
-- `Practicality` — suggests meals achievable from available items (threshold: 0.75)
+**Evaluation metrics** (G-Eval, evaluated by Azure OpenAI at temperature 0.0 — separate from the inference model for independence):
+- `ExpiryPrioritisation` — uses ingredients expiring soonest (threshold: 0.8) — **active**
+- `Practicality`, `MissingIngredientMinimization`, `IngredientVariety`, `RecipeUrlConformance` — defined in `agent.yaml` but currently disabled (commented out)
 
-Test cases for both metrics are defined in `agent.yaml` under `test_cases`.
+One active test case ("Prioritise expiring chicken") is defined in `agent.yaml` under `test_cases`.
 
-**Caching:** `services/recommendations-cache.ts` caches results by `(userId, dietaryPreferences, ingredients)` key with a **15-minute TTL**. Cache is invalidated per-user (`invalidateUser(userId)`) on any inventory mutation.
+**Caching:** `services/recommendations-cache.ts` caches results by `(userId, ingredients)` key with a **15-minute TTL**. Cache is invalidated per-user (`invalidateUser(userId)`) on any inventory mutation.
+
+**Agent capabilities:** `WebSearch` and `WebFetch` are enabled — the agent looks up real recipes from approved domains (panlasangpinoy.com, recipetineats.com, kawalingpinoy.com, taste.com.au). `extended_thinking` is disabled. `claude.max_turns` is 15; `setting_sources: []` ensures no inheritance from local Claude settings.
+
+**Observability:** Full tracing enabled in `agent.yaml` — traces, metrics, and structured logs are exported via OTLP to `${OTLP_ENDPOINT}`. Evaluation results are saved to `agents/meal-recommender/results/`.
+
+**Deployment:** Agent is containerised for GCP Cloud Run (`linux/arm64`), published to `ghcr.io/emtabiraobarias/fridge-planner`.
 
 ---
 
 ## 10. Git Workflow
 
 - **Branch from `main`:** `feat/`, `fix/`, `refactor/`, `test/`, `docs/` prefixes for human work; Claude Code auto-generates `claude/<description>-<id>` branches
-- **Commit format:** Conventional Commits — `feat: add dietary filter to recommendations`
+- **Commit format:** Conventional Commits — `feat: add expiry-aware meal suggestions`
 - **Before pushing:** `npm run lint && npm test` must pass
 - **PRs require:** all tests green, zero lint warnings
 
