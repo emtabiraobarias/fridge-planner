@@ -24,8 +24,7 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
       prefetchedRef.current = true;
       void handleFetch();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.length > 0]);
+  }, [items.length > 0]); // dep is a boolean: fires only when inventory transitions from empty to non-empty
 
   async function handleFetch(): Promise<void> {
     const age = cachedAt !== null ? Date.now() - cachedAt : Infinity;

@@ -1,16 +1,21 @@
 FROM node:20-alpine AS builder
 
 WORKDIR /app
-COPY package.json tsconfig.json vite.config.ts tailwind.config.ts postcss.config.js index.html ./
+COPY package.json tsconfig.json next.config.ts tailwind.config.ts postcss.config.js ./
 RUN npm install
 COPY src/ src/
+COPY app/ app/
 
 RUN npm run build
 
-FROM nginx:alpine
+FROM node:20-alpine AS runner
 
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
 
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+EXPOSE 3000
+CMD ["node", "packages/client/server.js"]

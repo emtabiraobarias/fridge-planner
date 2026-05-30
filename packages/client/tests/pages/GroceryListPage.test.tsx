@@ -1,7 +1,7 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { GroceryList } from '../../src/types/grocery-list';
-import { GroceryListPage } from '../../src/pages/GroceryListPage';
+import { GroceryListPage } from '../../src/views/GroceryListPage';
 import { GroceryListProvider } from '../../src/context/GroceryListContext';
 import { MealPlanProvider } from '../../src/context/MealPlanContext';
 import { InventoryProvider } from '../../src/context/InventoryContext';

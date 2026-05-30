@@ -16,7 +16,7 @@ interface MealPlanContextValue {
   refresh: () => Promise<void>;
 }
 
-export { MealPlanContextValue };
+export type { MealPlanContextValue };
 export const MealPlanContext = createContext<MealPlanContextValue | null>(null);
 
 export function MealPlanProvider({ children }: { children: ReactNode }): React.JSX.Element {

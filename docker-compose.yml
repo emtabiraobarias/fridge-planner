@@ -49,6 +49,7 @@ services:
       AUTH_AUDIENCE: ${AUTH_AUDIENCE}
       AUTH_JWKS_URI: ${AUTH_JWKS_URI}
       LOG_LEVEL: info
+      CORS_ORIGIN: http://localhost:3000
     depends_on:
       mongodb:
         condition: service_healthy
@@ -61,7 +62,9 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "5173:80"
+      - "3000:3000"
+    environment:
+      BACKEND_URL: http://server:3001
     depends_on:
       - server
 

@@ -34,6 +34,18 @@ function stemPlural(word: string): string {
   return parts.join(' ');
 }
 
+function stripEsSuffix(w: string): string | null {
+  if (!w.endsWith('es') || w.length <= 4) return null;
+  const pre = w.slice(0, -2);
+  if (/(?:sh|ch|x|z|ss)$/.test(pre)) return pre;
+  if (pre.endsWith('to')) return pre; // "tomatoes" -> "tomato"
+  return null;
+}
+
+function endsWithPlainS(w: string): boolean {
+  return w.endsWith('s') && !w.endsWith('ss') && !w.endsWith('us') && !w.endsWith('is');
+}
+
 function stemWord(w: string): string {
   if (w.length <= 3) return w;
 
@@ -44,17 +56,11 @@ function stemWord(w: string): string {
   if (w.endsWith('ves') && w.length > 4) return w.slice(0, -3) + 'f';
 
   // -es ending: only strip if preceded by sh, ch, x, z, ss
-  if (w.endsWith('es') && w.length > 4) {
-    const pre = w.slice(0, -2);
-    if (/(?:sh|ch|x|z|ss)$/.test(pre)) return pre;
-    // "tomatoes" -> "tomato"
-    if (pre.endsWith('to')) return pre;
-  }
+  const stripped = stripEsSuffix(w);
+  if (stripped !== null) return stripped;
 
   // Trailing -s (but not -ss, -us, -is endings)
-  if (w.endsWith('s') && !w.endsWith('ss') && !w.endsWith('us') && !w.endsWith('is')) {
-    return w.slice(0, -1);
-  }
+  if (endsWithPlainS(w)) return w.slice(0, -1);
 
   return w;
 }
