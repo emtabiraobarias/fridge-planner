@@ -38,6 +38,8 @@ export async function getMealRecommendations(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
+    // 220 s — under the 240 s Next.js proxy ceiling so Express can return a proper error.
+    signal: AbortSignal.timeout(220_000),
   });
 
   if (!res.ok) {

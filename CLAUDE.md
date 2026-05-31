@@ -9,7 +9,7 @@ This file is the primary reference for AI assistants working in this repository.
 **Fridge Planner** is a full-stack TypeScript monorepo for meal planning. Users track fridge inventory (with expiration awareness), receive AI-powered meal suggestions, and assign meals to a drag-and-drop weekly calendar.
 
 **Tech Stack:**
-- **Frontend:** React 18 + Vite + Tailwind CSS (port 5173)
+- **Frontend:** React 18 + Next.js 15 (App Router) + Tailwind CSS (port 3000)
 - **Backend:** Express 4 + Mongoose + MongoDB (port 3001)
 - **AI Agent:** Holodeck with Claude Sonnet 4.6 (port 8001)
 - **Language:** TypeScript (strict mode throughout)
@@ -25,7 +25,7 @@ Run all commands from the **repo root** unless noted otherwise.
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start client + server concurrently |
-| `npm run client` | Client only (Vite, port 5173) |
+| `npm run client` | Client only (Next.js, port 3000) |
 | `npm run server` | Server only (tsx watch, port 3001) |
 | `npm run debug` | Client + server with Node inspector |
 
@@ -45,12 +45,12 @@ npm -w packages/server run build         # production build
 
 # Client
 npm -w packages/client run test          # all client tests
-npm -w packages/client run build         # production build (tsc + vite)
+npm -w packages/client run build         # production build (next build)
 ```
 
 ### Docker (full stack)
 ```bash
-docker compose up --build               # MongoDB + Holodeck + server + nginx/client
+docker compose up --build               # MongoDB + Holodeck + server + Next.js client
 docker compose rm -fs holodeck          # Stop and remove Holodeck 0-=container
 docker compose up -d --build holodeck   # Rebuild and restart Holodeck
 docker compose ps holodeck              # Verify if Holodeck is healthy
@@ -65,6 +65,13 @@ docker compose logs -f holodeck         # Check Holodeck logs
 fridge-planner/
 ├── packages/
 │   ├── client/
+│   │   ├── app/                      # Next.js App Router entrypoint
+│   │   │   ├── layout.tsx            # Root layout (fonts, global providers)
+│   │   │   ├── page.tsx              # / → InventoryPage
+│   │   │   ├── providers.tsx         # Client-side context providers wrapper
+│   │   │   ├── nav.tsx               # Top navigation bar
+│   │   │   ├── calendar/page.tsx     # /calendar route
+│   │   │   └── grocery/page.tsx      # /grocery route
 │   │   ├── src/
 │   │   │   ├── components/
 │   │   │   │   ├── calendar/         # WeeklyCalendar, CalendarSlot, CalendarMealCard, MealSlotCard, MealDetailModal
@@ -74,13 +81,11 @@ fridge-planner/
 │   │   │   │   ├── recommendations/  # RecommendationsPanel, MealCard, DraggableMealCard
 │   │   │   │   └── shared/
 │   │   │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
-│   │   │   ├── pages/                # CalendarPage, GroceryListPage
+│   │   │   ├── views/                # InventoryPage, CalendarPage, GroceryListPage (all 'use client')
 │   │   │   ├── services/             # inventory.ts, meal-plans.ts, grocery-lists.ts (API fetch wrappers)
 │   │   │   ├── types/                # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
-│   │   │   ├── lib/                  # date-utils.ts
-│   │   │   ├── App.tsx
-│   │   │   └── main.tsx
-│   │   └── tests/                    # Vitest — components/, context/, lib/, pages/
+│   │   │   └── lib/                  # date-utils.ts
+│   │   └── tests/                    # Vitest — components/, context/, lib/, views/, app/
 │   │
 │   └── server/
 │       ├── src/
@@ -230,7 +235,7 @@ Copy `.env.example` to `.env` before running locally.
 | `AUTH_JWKS_URI` | — | No (CR-001, production OIDC) |
 | `PORT` | `3001` | No |
 | `NODE_ENV` | `development` | No |
-| `CORS_ORIGIN` | `http://localhost:5173` | No |
+| `CORS_ORIGIN` | `http://localhost:3000` | No |
 | `LOG_LEVEL` | `info` | No |
 | `REDIS_URL` | `redis://localhost:6379` | No (P2+, not required for P1 MVP) |
 
@@ -306,6 +311,7 @@ describe('getExpirationStatus', () => {
 - **Location:** `packages/client/tests/`
 - **Coverage threshold:** 70%
 - Environment: `jsdom`; setup file at `tests/setup.ts`
+- `tests/setup.ts` mocks `next/navigation` and `next/link` — required for any component using Next.js router hooks
 - Services layer (`src/services/`) excluded from client coverage — covered by server integration tests
 - Test user interactions and rendered output — avoid testing implementation details
 - Mock all API calls (services layer)
@@ -440,6 +446,9 @@ After updating the spec, any existing code that no longer satisfies the revised 
 | File | Purpose |
 |------|---------|
 | `constitution.md` | Core principles and governance — source of truth |
+| `packages/client/app/` | Next.js App Router entrypoint — layout, routes, providers, nav |
+| `packages/client/next.config.ts` | Next.js build configuration |
+| `packages/client/src/views/` | Page-level view components (`InventoryPage`, `CalendarPage`, `GroceryListPage`) |
 | `specs/001-meal-planner/spec.md` | Feature requirements |
 | `specs/001-meal-planner/plan.md` | Implementation plan |
 | `agents/meal-recommender/agent.yaml` | Holodeck agent config — model, eval metrics, test cases |
@@ -472,3 +481,9 @@ The server uses `"moduleResolution": "NodeNext"` — imports must use `.js` even
 
 **Don't add state management libraries (Redux, Zustand, etc.).**
 All shared state uses React Context + custom hooks. Adding a third-party store would duplicate the existing pattern and violate the architecture constraint in `constitution.md`.
+
+**Don't revert to Vite or recreate `vite.config.ts` for the client.**
+The client was fully migrated to Next.js 15 App Router (commit `08c9e47`). `vite.config.ts` is gone; `vitest.config.ts` handles tests only. The dev server runs on port 3000 via `next dev --port 3000`, not Vite's 5173.
+
+**Don't create files under `src/pages/` in the client.**
+Next.js reserves `pages/` for the Pages Router. The App Router lives in `app/`; page-level view components live in `src/views/`. Using `src/pages/` will confuse both the framework and developers.

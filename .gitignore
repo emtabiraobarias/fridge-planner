@@ -8,3 +8,4 @@ packages/client/node_modules/.vite/
 .claude/*
 !.claude/commands/
 !.claude/commands/**
+.next/**
