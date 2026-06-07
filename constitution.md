@@ -8,15 +8,15 @@
 ## 2. Technology Stack
 ### Core
 *   **Language:** TypeScript (Strict Mode).
-*   **Frontend:** React 18 with Vite.
+*   **Frontend:** React 18 with Next.js 15 (App Router).
 *   **Backend:** Node.js + Express.
 *   **Database:** MongoDB with Mongoose ODM.
 *   **Styling:** Tailwind CSS.
-*   **State Management:** React Context + Hooks.
+*   **State Management:** React Context + Hooks. Client state lives in `'use client'` context providers mounted at the App Router root (`app/providers.tsx`); Server Components are not used for application state.
 
 ### Tooling
-*   **Build:** Vite (client), tsx (server).
-*   **Testing:** Vitest + React Testing Library (client), Jest (server).
+*   **Build:** Next.js (`next build`, standalone output for Docker) (client), tsx (server).
+*   **Testing:** Vitest + React Testing Library, decoupled from the build via `vitest.config.ts` (client); Jest (server).
 *   **Linting:** ESLint + TypeScript ESLint.
 
 ## 3. Core Principles
@@ -44,11 +44,12 @@
 *   **Visual Consistency:** Use a centralized theme/design tokens via Tailwind config.
 
 ### IV. Performance Requirements
-*   **Loading Speed:** First Contentful Paint (FCP) < 1.5s.
+*   **Loading Speed:** First Contentful Paint (FCP) < 1.5s, met via Next.js server rendering of route shells.
 *   **Responsiveness:** Interaction to Next Paint (INP) < 200ms.
 *   **Optimization:**
-    *   Code splitting for routes.
-    *   Lazy loading for images and heavy components.
+    *   Route-based code splitting via the App Router (automatic per-route bundles).
+    *   Lazy loading for images (`next/image`) and heavy components (`next/dynamic`).
+    *   Keep `'use client'` boundaries as narrow as practical so server-rendered content ships without unnecessary client JS.
     *   Memoization (`useMemo`, `useCallback`) only where profiling shows necessity.
 
 ### V. Data Model Principles
@@ -62,4 +63,4 @@
 *   **Code Review:** Focus on architectural fit, readability, and edge cases.
 *   **Documentation:** Complex logic must be documented. `README.md` must be up to date.
 
-**Version:** 2.0.0 | **Updated:** 2026-02-01
+**Version:** 3.0.0 | **Updated:** 2026-05-31

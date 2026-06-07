@@ -31,7 +31,7 @@ Build a full-stack meal planning web application with three priority tiers: (P1)
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x (strict); Node.js 20 LTS (backend); React 18 (frontend)
-**Primary Dependencies**: Express 4, Mongoose 8, Vite 5, Tailwind CSS 3, holodeck-agents (sidecar, Python-based CLI)
+**Primary Dependencies**: Express 4, Mongoose 8, Next.js 15 (App Router), React 18, Tailwind CSS 3, holodeck-agents (sidecar, Python-based CLI)
 **Storage**: MongoDB (primary datastore), Redis (caching — P2+)
 **Testing**: Vitest + React Testing Library (frontend), Jest (backend), holodeck built-in evaluation (agent)
 **Target Platform**: Web (desktop + mobile), Docker for dev/prod parity
@@ -165,19 +165,29 @@ specs/001-meal-planner/
 ```text
 fridge-planner/
 ├── packages/
-│   ├── client/                        # React 18 + Vite + TypeScript
+│   ├── client/                        # React 18 + Next.js 15 (App Router) + TypeScript
+│   │   ├── app/                       # App Router
+│   │   │   ├── layout.tsx
+│   │   │   ├── providers.tsx          # 'use client' context providers mounted at root
+│   │   │   ├── nav.tsx                # top-level navigation
+│   │   │   ├── page.tsx               # / (inventory + recommendations)
+│   │   │   ├── calendar/page.tsx      # /calendar (P2)
+│   │   │   └── grocery/page.tsx       # /grocery (P3)
 │   │   ├── src/
 │   │   │   ├── components/
 │   │   │   │   ├── inventory/         # Inventory list, add/edit forms
 │   │   │   │   ├── recommendations/   # AI recommendation panel
 │   │   │   │   ├── calendar/          # Weekly meal planning (P2)
-│   │   │   │   └── grocery/           # Grocery list (P3)
-│   │   │   ├── pages/
+│   │   │   │   ├── grocery/           # Grocery list (P3)
+│   │   │   │   └── shared/
+│   │   │   ├── views/                 # Page-level view components (migrated from pages/)
 │   │   │   ├── services/              # API client (fetch wrappers)
 │   │   │   ├── context/               # React Context for state
-│   │   │   └── main.tsx
+│   │   │   ├── types/                 # Client-side shared types
+│   │   │   └── lib/                   # date-utils etc.
 │   │   ├── tests/
-│   │   └── vite.config.ts
+│   │   ├── next.config.ts
+│   │   └── vitest.config.ts           # test runner, decoupled from the Next.js build
 │   │
 │   └── server/                        # Express + TypeScript + Mongoose
 │       ├── src/
@@ -397,9 +407,9 @@ Canonical base units:
 - [x] **Dependencies**: All dependencies declared in `package.json` (npm workspaces) and holodeck `agent.yaml`
 - [x] **Config**: `HOLODECK_URL`, `ANTHROPIC_API_KEY`, `MONGODB_URI`, `CORS_ORIGIN`, `LOG_LEVEL` via env vars
 - [x] **Backing Services**: MongoDB, holodeck sidecar all accessed via config URLs
-- [x] **Build/Release/Run**: Vite build (client), tsc (server), holodeck serve (agent) — separated
+- [x] **Build/Release/Run**: Next.js build (client, standalone output), tsc (server), holodeck serve (agent) — separated
 - [x] **Processes**: Express is stateless; no in-memory state
-- [x] **Port Binding**: Client (:5173 dev / :80 prod), Server (:3001), holodeck (:8001) — all configurable
+- [x] **Port Binding**: Client (:3000 dev / :3000 prod standalone), Server (:3001), holodeck (:8001) — all configurable
 - [x] **Concurrency**: Horizontally scalable Express processes; holodeck sidecar independent
 - [x] **Disposability**: Express SIGTERM/SIGINT handlers; graceful shutdown with mongoose disconnect
 - [x] **Dev/Prod Parity**: docker-compose for all backing services in dev

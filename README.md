@@ -5,7 +5,7 @@ AI-powered meal planning application that helps you track fridge and pantry inve
 ## Architecture
 
 ```
-packages/client   — React 18 + Vite + Tailwind CSS (port 5173 / 80)
+packages/client   — React 18 + Next.js 15 (App Router) + Tailwind CSS (port 3000)
 packages/server   — Express + TypeScript + Mongoose  (port 3001)
 agents/meal-recommender — Holodeck AI agent, Claude Sonnet 4.6 (port 8001)
 ```
@@ -84,15 +84,15 @@ docker compose up holodeck -d
 npm run dev
 ```
 
-This starts both the Express API server (port 3001) and the Vite dev server (port 5173) concurrently. The Vite dev server proxies `/api` requests to the Express backend.
+This starts both the Express API server (port 3001) and the Next.js dev server (port 3000) concurrently. The Next.js dev server proxies `/api` requests to the Express backend.
 
-Open **http://localhost:5173** in your browser.
+Open **http://localhost:3000** in your browser.
 
 ### Individual services
 
 ```bash
 npm run server    # Express API only (port 3001)
-npm run client    # Vite dev server only (port 5173)
+npm run client    # Next.js dev server only (port 3000)
 ```
 
 ### Running tests
@@ -141,7 +141,7 @@ This starts four containers:
 | `mongodb` | 27017 | MongoDB 7 database |
 | `holodeck` | 8001 | AI meal recommendation agent |
 | `server` | 3001 | Express API |
-| `client` | 5173 → 80 | Nginx serving the React SPA |
+| `client` | 3000 | Next.js standalone server (App Router) |
 
 ### 3. Verify
 
@@ -154,10 +154,10 @@ curl http://localhost:3001/health
 # → {"status":"ok"}
 
 # Test the client
-curl -s http://localhost:5173 | head -5
+curl -s http://localhost:3000 | head -5
 ```
 
-Open **http://localhost:5173** in your browser.
+Open **http://localhost:3000** in your browser.
 
 ### 4. View logs
 
@@ -179,7 +179,8 @@ docker compose down -v            # stop containers and delete volumes
 ```
 fridge-planner/
 ├── packages/
-│   ├── client/                 # React frontend
+│   ├── client/                 # React frontend (Next.js 15 App Router)
+│   │   ├── app/                    # App Router: layout, providers, nav, routes (/, /calendar, /grocery)
 │   │   ├── src/
 │   │   │   ├── components/
 │   │   │   │   ├── calendar/       # WeeklyCalendar, CalendarSlot, CalendarMealCard, MealSlotCard, MealDetailModal
@@ -189,13 +190,13 @@ fridge-planner/
 │   │   │   │   ├── recommendations/ # RecommendationsPanel, MealCard, DraggableMealCard
 │   │   │   │   └── shared/
 │   │   │   ├── context/            # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
-│   │   │   ├── pages/              # CalendarPage, GroceryListPage
+│   │   │   ├── views/              # InventoryPage, CalendarPage, GroceryListPage
 │   │   │   ├── services/           # inventory.ts, meal-plans.ts, grocery-lists.ts (API fetch wrappers)
 │   │   │   ├── types/              # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
 │   │   │   └── lib/                # date-utils.ts
 │   │   ├── tests/
-│   │   ├── Dockerfile
-│   │   └── nginx.conf
+│   │   ├── next.config.ts
+│   │   └── Dockerfile
 │   └── server/                 # Express backend
 │       ├── src/
 │       │   ├── api/v1/             # inventory.ts, recommendations.ts, meal-plans.ts, grocery-lists.ts
@@ -255,7 +256,7 @@ Base URL: `http://localhost:3001/api/v1`
 | `AUTH_AUDIENCE` | — | No | OIDC audience (CR-001, production only) |
 | `AUTH_JWKS_URI` | — | No | OIDC JWKS endpoint (CR-001, production only) |
 | `PORT` | `3001` | No | Express server port |
-| `CORS_ORIGIN` | `http://localhost:5173` | No | Allowed CORS origin |
+| `CORS_ORIGIN` | `http://localhost:3000` | No | Allowed CORS origin |
 | `LOG_LEVEL` | `info` | No | Pino log level |
 | `NODE_ENV` | `development` | No | Environment mode |
 | `REDIS_URL` | `redis://localhost:6379` | No | Redis cache (P2+, not required for P1 MVP) |
