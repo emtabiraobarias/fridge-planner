@@ -40,6 +40,20 @@ Build a full-stack meal planning web application with three priority tiers: (P1)
 **Constraints**: WCAG 2.1 AA; 80% backend coverage; 70% frontend coverage; twelve-factor config; OAuth 2.0/OIDC
 **Scale/Scope**: Single-household to small family use; ~100 concurrent users initially
 
+## Stack Realization (impl/nextjs)
+
+> Pins the items the shared `constitution.md` §2 marks *(per-branch)* to this branch's concrete stack. The constitution holds the shared principles; this section holds the *how*.
+
+| Constitution per-branch item | `impl/nextjs` realization |
+|---|---|
+| Frontend build/SSR toolchain | **React 18 + Next.js 15 (App Router)**. Client dev server on `:3000` (`next dev --port 3000`); production via `next build` standalone output for Docker. |
+| Client state mounting point | `'use client'` context providers mounted at the App Router root (`app/providers.tsx`); Server Components are not used for application state. |
+| Server API mechanism & process model | **Today:** standalone Express service on `:3001`, split-origin (requires `CORS_ORIGIN`). **Phase C-bis (this branch only):** API migrates into **Next.js Route Handlers** (`app/api/**`), same-origin, one Node process, `CORS_ORIGIN` dropped. See ROADMAP Phase C-bis (Cb0–Cb6). |
+| Server runtime/build | `tsx` runs the Express server today; folds into the Next.js build once Route Handlers replace Express. |
+| FCP mechanism (<1.5s) | Next.js server rendering of route shells; route-based code splitting via the App Router; `next/image` + `next/dynamic` for lazy loading. |
+
+Shared and unchanged from the constitution: TypeScript (strict), MongoDB + Mongoose, Tailwind CSS, React Context + Hooks, Vitest + RTL (client) / Jest (server).
+
 ## AI Recommendation Component — holodeck-agents Integration
 
 ### Architecture
