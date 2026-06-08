@@ -3,15 +3,15 @@
 > Working log for the post-migration reconciliation + polish roadmap.
 > Update the **two lines at the top** at the end of every session. That's the whole system.
 
-**▶ NEXT ACTION:** Establish `main → impl/*` sync discipline (strategy step 3), then start Phase B verification on `impl/nextjs`. The shared contract (spec.md, checklists, genericized constitution v3.1.0, BRANCHING_STRATEGY.md, this roadmap) now lives on `main`; `impl/vite` and `impl/nextjs` should each merge `main` in to receive it — expect a constitution.md conflict on both (their stack-specific copies vs main's genericized one; resolve by taking main's and moving stack specifics into each branch's `plan.md` "Stack Realization" section).
-**⏸ LAST LEFT OFF:** 2026-06-08 — Executed the two-implementation branching strategy in Claude Code: verified topology (§6 — `001-meal-planner`=Vite, nextj-migrate=Next.js, main was scaffold-only); landed shared spec.md + checklists + genericized constitution (3.0.0→3.1.0) + BRANCHING_STRATEGY.md + this roadmap on `main`; renamed branches to `impl/vite` + `impl/nextjs` (local + origin); reconciled CLAUDE.md §8 conflicts on `impl/nextjs`. `001-meal-planner-agent-refinement` left as-is.
+**▶ NEXT ACTION:** **Phase B — verify "complete" claims on `impl/nextjs`.** Start the app (`npm run dev`; client :3000 + Express :3001), pick ONE feature area (suggest inventory first), and walk its acceptance scenarios from `spec.md`. Log each failure as **bug** (violates an existing FR → fix on the branch where it occurs) vs **spec-gap** (no FR covers it → fix on `main`, both impls inherit on next sync). Triage only — don't fix mid-discovery. The two-impl branching strategy (§5 steps 1–3) is fully landed; both impl branches now carry the shared contract.
+**⏸ LAST LEFT OFF:** 2026-06-08 — Completed branching-strategy steps 1–3 in Claude Code. Steps 1–2 (prior): topology verified, shared contract + genericized constitution v3.1.0 on `main`, branches renamed to `impl/vite`+`impl/nextjs` (local+origin), CLAUDE.md §8 reconciled on `impl/nextjs`. Step 3 (this turn): genericized the constitution backend too (Express vs Route Handlers now per-branch); merged `main` into BOTH impl branches (constitution→main's, spec.md tightening propagated to `impl/vite`, README/.gitignore kept per-branch); added "Stack Realization" sections to each `plan.md`. Also reconciled `origin/main`'s disjoint-history skeleton (LICENSE+README) via `--allow-unrelated-histories`.
 
 ---
 
 ## The roadmap at a glance
 
 - **Phase A — Reconcile migration with the spec** (spec-tweak cascade) ✅ DONE
-- **Branching strategy — two-impl model (Vite + Next.js)** ✅ DONE (2026-06-08; steps 1–2 of §5 sequence)
+- **Branching strategy — two-impl model (Vite + Next.js)** ✅ DONE (2026-06-08; §5 steps 1–3: shared contract on `main`, branches renamed, both impls synced)
 - **Phase B — Verify "complete" claims, triage rough edges** (bug vs spec-gap) ◀ NEXT
 - **Phase C — Polish pass** (work the Phase B list, 1 issue/session)
 - **Phase C-bis — Retire Express into Next Route Handlers** (optional architectural change; sequenced against `002`) — not started, `impl/nextjs`-only
@@ -25,8 +25,8 @@ See `specs/BRANCHING_STRATEGY.md` for the full model. Recommended sequence (§5)
 
 - [x] Step 1 — Shared spec content on `main` (spec.md + checklists/requirements.md verbatim; constitution.md genericized to v3.1.0; BRANCHING_STRATEGY.md + ROADMAP_PROGRESS.md as shared coordination layer).
 - [x] Step 2 — Rename branches: `001-meal-planner`→`impl/vite`, `001-meal-planner-nextj-migrate`→`impl/nextjs` (local + origin; old remote branches deleted). `001-meal-planner-agent-refinement` left untouched (already merged via PR #4).
-- [ ] Step 3 — Establish `main → impl/*` sync discipline: merge `main` into both impl branches so they receive the shared contract. **Known conflict:** constitution.md (genericized on main vs stack-specific on each branch) — resolve by taking main's version and recording the concrete stack in each branch's `plan.md` "Stack Realization" section (not yet created).
-- [ ] Step 4 — `impl/nextjs` proceeds to Phase B (verify) BEFORE C-bis changes the API topology.
+- [x] Step 3 — `main → impl/*` sync done (2026-06-08): merged `main` into both impl branches. Resolutions: constitution.md→main's genericized v3.1.0; spec.md→main's (propagated the A5 tightening to `impl/vite`); README.md + .gitignore kept per-branch; LICENSE+BRANCHING_STRATEGY+ROADMAP added. "Stack Realization" sections added to both `plan.md`s. **Sync convention going forward:** `main` is canonical for shared files; impl branches `git merge main` and resolve per-branch files (README, .gitignore) with `--ours`, shared files (spec, constitution) with `--theirs`.
+- [ ] Step 4 — `impl/nextjs` proceeds to Phase B (verify) BEFORE C-bis changes the API topology. ◀ NEXT
 - [ ] Step 5 — Phase B/C/D against the shared spec; route fixes per strategy §5 (spec-gap→`main`, bug→the branch where it occurs).
 
 **Decisions carried (do not re-litigate, from §9):** shared = spec + criteria + checklist + constitution principles on `main`; per-branch = `plan.md` + code + concrete stack; C-bis is `impl/nextjs`-only; `002` auth spec stays topology-agnostic; merge to `main` of impl code deferred until all migration phases complete.
@@ -66,13 +66,14 @@ See `specs/BRANCHING_STRATEGY.md` for the full model. Recommended sequence (§5)
 - **README cascade table** step 6 still points at `.specify/memory/constitution.md` (stale — **root `constitution.md` is canonical**). Separate doc cleanup, not migration scope.
 - **`.env.local` undocumented (found in A4):** docker-compose.yml references `.env.local` as an optional `env_file` for the holodeck service, but it's not in `.env.example` or documented in the README. Document or remove — triage in Phase B.
 - **CLAUDE.md §11 cascade** still points at `.specify/memory/constitution.md` for the spec-tweak cascade; root `constitution.md` is canonical. Pre-existing drift (per-branch CLAUDE.md, so fix on each `impl/*`).
-- **ROADMAP duplication:** a stale committed copy of this file remains on `impl/nextjs` history (pre-strategy). This `main` copy is now canonical; the impl copy resolves on the step-3 `main→impl` sync.
+- **ROADMAP duplication (resolved 2026-06-08):** both impl branches now carry a copy synced from `main`. **This `main` copy is canonical** — update it here; impl copies will lag until their next `git merge main` (acceptable for a working log). Don't hand-edit the impl copies.
 
 ## Session log (newest first)
 
 | Date | Phase/Task | What changed | Next |
 |------|-----------|--------------|------|
-| 2026-06-08 | branching strategy (exec) | verified §6 topology; landed shared spec+checklists+genericized constitution (3.1.0)+strategy+roadmap on `main`; renamed branches→`impl/vite`+`impl/nextjs` (local+origin); reconciled CLAUDE.md §8 on `impl/nextjs` | step 3 sync discipline, then Phase B |
+| 2026-06-08 | strategy step 3 (sync) | genericized constitution backend (Express vs Route Handlers→per-branch); merged `main`→both impl branches (spec tightening propagated to `impl/vite`); added "Stack Realization" to both plan.md; reconciled disjoint `origin/main` (LICENSE/README) via `--allow-unrelated-histories` | Phase B verify on `impl/nextjs` |
+| 2026-06-08 | strategy steps 1–2 | verified §6 topology; landed shared spec+checklists+genericized constitution (3.1.0)+strategy+roadmap on `main`; renamed branches→`impl/vite`+`impl/nextjs` (local+origin); reconciled CLAUDE.md §8 on `impl/nextjs` | step 3 sync discipline |
 | 2026-06-07 | branching strategy (design) | designed two-impl model; wrote specs/BRANCHING_STRATEGY.md handoff; linked in CLAUDE.md | Claude Code executes |
 | 2026-06-07 | A5 | committed Phase A docs + analyze'd spec on branch, tagged `migration-docs-reconciled` (not merged) | Phase B (verify claims) |
 | 2026-06-07 | analyze | `/speckit.analyze` run; spec.md tightened (FR-013 removed, FR-034/35 deferred, FR-003/028 clarified) | A5 commit |
