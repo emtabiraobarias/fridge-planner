@@ -108,6 +108,7 @@ fridge-planner/
 │   └── instructions/             # Claude system prompt
 │
 ├── specs/001-meal-planner/       # spec.md, plan.md, checklists/
+│   BRANCHING_STRATEGY.md          # Two-impl (Vite + Next.js) branching model — canonical on `main`; READ FOR BRANCH WORK
 ├── docker-compose.yml
 ├── .env.example                  # All required env vars documented here
 ├── constitution.md               # Core principles (source of truth)
@@ -360,7 +361,10 @@ One active test case ("Prioritise expiring chicken") is defined in `agent.yaml` 
 
 ## 10. Git Workflow
 
-- **Branch from `main`:** `feat/`, `fix/`, `refactor/`, `test/`, `docs/` prefixes for human work; Claude Code auto-generates `claude/<description>-<id>` branches
+> **Two-implementation model:** This repo keeps two long-lived implementation branches — `impl/vite` and `impl/nextjs` — against one shared spec on `main`. *Implementation* work happens on the `impl/*` branch (this is `impl/nextjs`); *spec/contract* changes are authored on `main` and merged down. See `specs/BRANCHING_STRATEGY.md` (canonical on `main`) before any branch operation.
+
+- **Spec/contract work:** branch short-lived `feat/`, `fix/`, `docs/` branches off `main`, merge back to `main`; both impls inherit on next sync.
+- **Implementation work:** commit on the long-lived `impl/*` branch directly (or `claude/<description>-<id>` branches off it that merge back to `impl/*`, not `main`).
 - **Commit format:** Conventional Commits — `feat: add expiry-aware meal suggestions`
 - **Before pushing:** `npm run lint && npm test` must pass
 - **PRs require:** all tests green, zero lint warnings
@@ -482,8 +486,8 @@ The server uses `"moduleResolution": "NodeNext"` — imports must use `.js` even
 **Don't add state management libraries (Redux, Zustand, etc.).**
 All shared state uses React Context + custom hooks. Adding a third-party store would duplicate the existing pattern and violate the architecture constraint in `constitution.md`.
 
-**Don't revert to Vite or recreate `vite.config.ts` for the client.**
-The client was fully migrated to Next.js 15 App Router (commit `08c9e47`). `vite.config.ts` is gone; `vitest.config.ts` handles tests only. The dev server runs on port 3000 via `next dev --port 3000`, not Vite's 5173.
+**Don't revert THIS branch (`impl/nextjs`) to Vite or recreate `vite.config.ts` for the client.**
+This rule is **branch-scoped**: the Vite implementation lives on its own long-lived `impl/vite` branch and is kept alive deliberately — do not delete or "fix" it from here. On `impl/nextjs`, the client was fully migrated to Next.js 15 App Router (commit `08c9e47`): `vite.config.ts` is gone; `vitest.config.ts` handles tests only; the dev server runs on port 3000 via `next dev --port 3000`, not Vite's 5173.
 
 **Don't create files under `src/pages/` in the client.**
 Next.js reserves `pages/` for the Pages Router. The App Router lives in `app/`; page-level view components live in `src/views/`. Using `src/pages/` will confuse both the framework and developers.
