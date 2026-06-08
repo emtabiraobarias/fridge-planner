@@ -6,17 +6,20 @@
 *   **Primary Use Case:** Organize daily meals (Breakfast, Lunch, Dinner) across Day, Week, Month, and Year views.
 
 ## 2. Technology Stack
+
+> **Per-branch realization.** This repository maintains two long-lived implementation branches against this one shared constitution (see `specs/BRANCHING_STRATEGY.md`). The items below marked *(per-branch)* are realized differently on each — specifically the frontend build/SSR toolchain and the server API mechanism — and are pinned in each branch's `specs/<feature>/plan.md` "Stack Realization" section (currently: a Vite SPA + standalone Express service on `impl/vite`; the Next.js 15 App Router on `impl/nextjs`, with the API moving from Express to Next.js Route Handlers under Phase C-bis). Everything else here is **shared** and binding on both implementations.
+
 ### Core
 *   **Language:** TypeScript (Strict Mode).
-*   **Frontend:** React 18 with Vite.
-*   **Backend:** Node.js + Express.
+*   **Frontend:** React 18 with a modern build/SSR toolchain *(per-branch — concrete framework in `plan.md`)*.
+*   **Backend:** Node.js, exposing an HTTP API over the data layer. The concrete server framework and process model are *(per-branch — e.g. a standalone Express service vs Next.js Route Handlers post-C-bis, specified in `plan.md`)*.
 *   **Database:** MongoDB with Mongoose ODM.
 *   **Styling:** Tailwind CSS.
-*   **State Management:** React Context + Hooks.
+*   **State Management:** React Context + Hooks. Client state lives in context providers mounted at the application root; the concrete mounting point *(per-branch — e.g. an App Router `app/providers.tsx` vs an SPA root)* is specified in `plan.md`. Application state is not held in server-rendered components.
 
 ### Tooling
-*   **Build:** Vite (client), tsx (server).
-*   **Testing:** Vitest + React Testing Library (client), Jest (server).
+*   **Build:** Client build/bundler *(per-branch — e.g. `next build` standalone output vs Vite, specified in `plan.md`)*; server runtime/build *(per-branch — e.g. tsx for a standalone Express service; folded into the Next.js build once Route Handlers replace Express)*.
+*   **Testing:** Vitest + React Testing Library, decoupled from the build via `vitest.config.ts` (client); Jest (server).
 *   **Linting:** ESLint + TypeScript ESLint.
 
 ## 3. Core Principles
@@ -44,11 +47,12 @@
 *   **Visual Consistency:** Use a centralized theme/design tokens via Tailwind config.
 
 ### IV. Performance Requirements
-*   **Loading Speed:** First Contentful Paint (FCP) < 1.5s.
+*   **Loading Speed:** First Contentful Paint (FCP) < 1.5s. *(The mechanism is per-branch — e.g. server rendering of route shells on `impl/nextjs` vs an optimized SPA bundle on `impl/vite`.)*
 *   **Responsiveness:** Interaction to Next Paint (INP) < 200ms.
 *   **Optimization:**
-    *   Code splitting for routes.
+    *   Route-based code splitting (per-route bundles); concrete mechanism per-branch in `plan.md`.
     *   Lazy loading for images and heavy components.
+    *   Keep client-JS boundaries as narrow as practical so above-the-fold content ships without unnecessary JS.
     *   Memoization (`useMemo`, `useCallback`) only where profiling shows necessity.
 
 ### V. Data Model Principles
@@ -58,8 +62,8 @@
 *   **Date Indexing:** Efficient queries for calendar date ranges.
 
 ## 4. Governance
-*   **Git Workflow:** Feature branches off `main`. Conventional Commits (`feat:`, `fix:`, `refactor:`).
+*   **Git Workflow:** Two long-lived implementation branches (`impl/vite`, `impl/nextjs`) share one spec + this constitution on `main`. *Spec/contract* changes are authored on `main` (or short-lived `feat:`/`fix:`/`docs:` branches merged to `main`) and inherited by both impls on sync; *implementation* work happens on the relevant `impl/*` branch. Conventional Commits (`feat:`, `fix:`, `refactor:`). See `specs/BRANCHING_STRATEGY.md`.
 *   **Code Review:** Focus on architectural fit, readability, and edge cases.
 *   **Documentation:** Complex logic must be documented. `README.md` must be up to date.
 
-**Version:** 2.0.0 | **Updated:** 2026-02-01
+**Version:** 3.1.0 | **Updated:** 2026-06-08

@@ -40,6 +40,20 @@ Build a full-stack meal planning web application with three priority tiers: (P1)
 **Constraints**: WCAG 2.1 AA; 80% backend coverage; 70% frontend coverage; twelve-factor config; OAuth 2.0/OIDC
 **Scale/Scope**: Single-household to small family use; ~100 concurrent users initially
 
+## Stack Realization (impl/vite)
+
+> Pins the items the shared `constitution.md` §2 marks *(per-branch)* to this branch's concrete stack. The constitution holds the shared principles; this section holds the *how*.
+
+| Constitution per-branch item | `impl/vite` realization |
+|---|---|
+| Frontend build/SSR toolchain | **React 18 + Vite 5 SPA** (`vite.config.ts`). Dev server on `:5173`; production is a static client bundle. No SSR. |
+| Client state mounting point | React Context providers mounted at the SPA root (`src/main.tsx` → `src/context/`). |
+| Server API mechanism & process model | **Standalone Express service on `:3001`**, split-origin (requires `CORS_ORIGIN`). Phase C-bis does **not** apply to this branch — Express stays the API here. |
+| Server runtime/build | `tsx` runs the Express server. |
+| FCP mechanism (<1.5s) | Client-side render of an optimized Vite SPA bundle; route-based code splitting via dynamic `import()`; lazy image/component loading. No server route-shell rendering. |
+
+Shared and unchanged from the constitution: TypeScript (strict), MongoDB + Mongoose, Tailwind CSS, React Context + Hooks, Vitest + RTL (client) / Jest (server).
+
 ## AI Recommendation Component — holodeck-agents Integration
 
 ### Architecture

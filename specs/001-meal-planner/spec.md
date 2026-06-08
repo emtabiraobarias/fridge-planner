@@ -25,6 +25,8 @@ As a home cook, I want to track what ingredients I have in my fridge and pantry 
 
 4. **Given** my inventory has perishable items nearing expiration, **When** I request recommendations, **Then** the AI prioritizes meals that use soon-to-expire ingredients
 
+5. *(removed)*
+
 6. **Given** I use an ingredient in a planned meal, **When** I view my inventory, **Then** the system updates quantities to reflect the ingredient consumption
 
 7. **Given** I have an ingredient with an expiration date tomorrow (before midnight), **When** I view my inventory, **Then** the item is highlighted in yellow with a visual indicator
@@ -110,7 +112,7 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 **Inventory Management**:
 - **FR-001**: Users MUST be able to add ingredients to their inventory with name, quantity, unit, category, and optional expiration date
 - **FR-002**: Users MUST be able to edit or delete inventory items with immediate reflection in meal recommendations
-- **FR-003**: System MUST categorize ingredients automatically into standard categories (Produce, Dairy, Meat, Seafood, Grains, Pantry, Condiments, Frozen, Other)
+- **FR-003**: System MUST provide standard categories (Produce, Dairy, Meat, Seafood, Grains, Pantry, Condiments, Frozen, Other) for user selection when adding inventory items; keyword-based auto-categorization is applied to grocery list aggregation only
 - **FR-004**: Users MUST be able to search and filter their inventory by category, name, or expiration status
 - **FR-005**: System MUST track ingredient quantities and update them when ingredients are used in planned meals
 
@@ -126,6 +128,7 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 
 **AI-Powered Meal Recommendations**:
 - **FR-012**: System MUST integrate with an LLM agent via API to generate meal recommendations based on current inventory (excluding expired items)
+- ~~**FR-013**~~: *(removed — consolidated into FR-012 prior to implementation)*
 - **FR-014**: System MUST generate 3-5 meal suggestions that prioritize using existing inventory items
 - **FR-015**: Each meal recommendation MUST include recipe name, description, estimated cooking time, difficulty level, and complete ingredient list
 - **FR-016**: System MUST clearly distinguish between ingredients the user has vs. ingredients they need to purchase in each recipe
@@ -144,7 +147,7 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 - **FR-025**: System MUST automatically generate a grocery list based on all planned meals for the week
 - **FR-026**: System MUST aggregate quantities of the same ingredient across multiple recipes (e.g., 3 recipes need onions → total onions needed)
 - **FR-027**: System MUST subtract existing inventory quantities from grocery list totals, excluding expired items (show net amount needed)
-- **FR-028**: System MUST normalize units for aggregation (convert cups to ml, lbs to kg, etc.) and display in user-preferred units
+- **FR-028**: System MUST normalize units for aggregation (convert cups to ml, lbs to kg, etc.) and display in SI units by default for MVP; user-configurable unit preferences (metric/imperial toggle) are deferred to Phase 2+ (see Assumption 11)
 - **FR-029**: System MUST categorize grocery list items by department/category for efficient shopping
 - **FR-030**: Users MUST be able to manually add, edit, or remove items from the grocery list
 - **FR-031**: Users MUST be able to check off items as purchased during shopping
@@ -152,8 +155,8 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 
 **Data Persistence and Sync**:
 - **FR-033**: System MUST persist all user data (inventory, preferences, meal plans, grocery lists) with automatic saving
-- **FR-034**: System MUST sync data across devices for the same user account in real-time or near real-time
-- **FR-035**: System MUST maintain data integrity when users access the application from multiple devices concurrently
+- **FR-034**: *(Deferred — MVP targets single-household, single-device use; multi-device real-time sync requires WebSocket/SSE infrastructure beyond MVP scope. Revisit when full authentication is implemented — see CR-001.)*
+- **FR-035**: *(Deferred — dependent on FR-034 multi-device sync. Current behavior is last-write-wins via MongoDB atomic operations; optimistic locking deferred to Phase 2+.)*
 
 ### Constitutional Requirements (MANDATORY)
 
@@ -210,7 +213,7 @@ All features MUST comply with constitutional principles:
 
 - **SC-001**: Users can add 10 inventory items in under 3 minutes using the inventory management interface
 
-- **SC-002**: AI meal recommendations are generated within 5 seconds of user request with a success rate of 95%+
+- **SC-002**: AI meal recommendations are generated within 5 seconds of user request with a success rate of 95%+ (denominator: requests where inventory contains ≥1 non-expired item)
 
 - **SC-003**: 80% of recommended meals use at least 60% of ingredients from the user's current non-expired inventory
 
@@ -247,6 +250,8 @@ The following assumptions have been made to fill gaps in the feature description
 3. **Recipe Scope**: LLM-generated meal recommendations include recipe name, ingredients, and basic instructions. Detailed step-by-step photos and video tutorials are out of scope for MVP.
 
 4. **English Language Only**: MVP launches with English language support. Internationalization (i18n) is deferred.
+
+5. *(removed)*
 
 6. **Ingredient Database**: System uses a curated ingredient database with standard categorizations. User-created custom ingredients are supported but may require manual categorization.
 
