@@ -3,8 +3,10 @@
 > Working log for the post-migration reconciliation + polish roadmap.
 > Update the **two lines at the top** at the end of every session. That's the whole system.
 
-**▶ NEXT ACTION:** Phase A Session 5 (A5) — commit, do NOT merge. Confirm you're on `001-meal-planner-nextj-migrate`, stage all the Phase A doc edits (constitution.md, plan.md, README.md, .env.example, the skill), commit, and tag the commit (e.g. `migration-docs-reconciled`) as a checkpoint. Leave the branch unmerged — merge to `main` happens only after ALL migration phases are complete. Then `rmdir .claude/weekly-drift-check` if it's still there.
-**⏸ LAST LEFT OFF:** 2026-06-07 — A4 complete: swept repo for `5173`/nginx/vite — all gone except legitimate "Vitest" test-runner mentions; spec.md confirmed stack-agnostic. Added missing `CORS_ORIGIN=http://localhost:3000` to `.env.example` (matches compose + README). Logged `.env.local` undocumented-env-file finding for Phase B.
+**▶ NEXT ACTION:** Phase B Session 1 — verify the "complete" claims against the running app. Start the app (`npm run dev`, client :3000 + server :3001), pick ONE feature area (suggest inventory first), and walk its acceptance scenarios from spec.md. Log each failure as bug (has FR) vs spec-gap (no FR). Triage only — don't fix mid-discovery.
+**⏸ LAST LEFT OFF:** 2026-06-07 — A5 complete: Phase A doc edits + analyze'd spec committed on `001-meal-planner-nextj-migrate` and tagged `migration-docs-reconciled` (NOT merged — deferred per merge condition). Phase A (migration reconciliation) fully done.
+
+> **⚠ A5 commit is run by the user** (no git tool available here). If the commit/tag hasn't been run yet, that's the actual next physical step before Phase B — see the command block handed over in chat on 2026-06-07.
 
 ---
 
@@ -24,7 +26,7 @@
 - [x] A2 — `specs/001-meal-planner/plan.md`: Technical Context, ports, architecture
 - [x] A3 — `README.md`: ports (5173→3000), architecture diagram, client container, structure tree
 - [x] A4 — `.env.example` + spec sweep for `5173`/Nginx refs; run `/speckit.analyze`
-- [ ] A5 — Commit Phase A doc edits on `001-meal-planner-nextj-migrate` + tag checkpoint. **Do NOT merge to `main` yet** — merge deferred until all migration phases complete.
+- [x] A5 — Commit Phase A doc edits on `001-meal-planner-nextj-migrate` + tag checkpoint `migration-docs-reconciled`. **Not merged** — merge deferred until all migration phases complete. *(commit run by user)*
 
 ## Phase C-bis — Retire Express into Next Route Handlers
 
@@ -52,14 +54,16 @@
 - **holodeck image name (found in A3):** docker-compose.yml `holodeck` service uses image `ghcr.io/emtabiraobarias/fridge-planner:latest` — odd that the agent shares the app's image repo name. Glance during Phase B.
 - **README cascade table** step 6 still points at `.specify/memory/constitution.md` (stale location — root is canonical). Separate doc cleanup, not migration scope.
 - **`.env.local` undocumented (found in A4):** docker-compose.yml references `.env.local` as an optional `env_file` for the holodeck service, but it's not in `.env.example` or documented in the README. Document or remove — triage in Phase B.
-- **`/speckit.analyze` not run for A4:** it's a Claude Code slash command, not invocable here. The equivalent sweep (5173/nginx/vite) was done manually + the new `weekly-drift-check` skill covers this logic going forward. Run `/speckit.analyze` yourself in Claude Code before tagging the A5 checkpoint as the formal check.
+- **`/speckit.analyze` RUN 2026-06-07 (provenance for spec move):** formal analyze pass executed in Claude Code before the A5 checkpoint; it edited `spec.md` — removed FR-013 (consolidated into FR-012), marked FR-034/FR-035 deferred with rationale, removed US1 scenario 5, clarified FR-003 (auto-categorization is grocery-aggregation-only) and FR-028 (SI units default, metric/imperial toggle deferred). Spec is internally consistent post-pass. These edits are part of the A5 commit.
 - Constitution edits logically belong **on the migration branch** so the doc cascade ships with the code.
 
 ## Session log (newest first)
 
 | Date | Phase/Task | What changed | Next |
 |------|-----------|--------------|------|
-| 2026-06-07 | A4 | swept 5173/nginx/vite (clean); added CORS_ORIGIN to .env.example | A5 (merge) |
+| 2026-06-07 | A5 | committed Phase A docs + analyze'd spec on branch, tagged `migration-docs-reconciled` (not merged) | Phase B (verify claims) |
+| 2026-06-07 | analyze | `/speckit.analyze` run; spec.md tightened (FR-013 removed, FR-034/35 deferred, FR-003/028 clarified) | A5 commit |
+| 2026-06-07 | A4 | swept 5173/nginx/vite (clean); added CORS_ORIGIN to .env.example | A5 (commit, no merge) |
 | 2026-06-07 | A3 + skill fix | README.md → Next.js (verified vs disk); moved skill to `.claude/skills/weekly-drift-check/` | A4 (.env.example sweep + analyze) |
 | 2026-06-07 | A2 | plan.md → Next.js; source tree verified vs disk | A3 (README.md) |
 | 2026-05-31 | A1 | constitution.md → Next.js + v3.0.0 | Commit on branch; then A2 (plan.md) |

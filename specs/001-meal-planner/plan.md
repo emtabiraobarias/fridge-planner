@@ -195,8 +195,8 @@ fridge-planner/
 │       │   │   ├── v1/
 │       │   │   │   ├── inventory.ts   # CRUD routes
 │       │   │   │   ├── recommendations.ts  # calls holodeck sidecar
-│       │   │   │   ├── meals.ts       # meal plan CRUD (P2)
-│       │   │   │   └── grocery.ts     # grocery list (P3)
+│       │   │   │   ├── meal-plans.ts  # meal plan CRUD (P2)
+│       │   │   │   └── grocery-lists.ts  # grocery list (P3)
 │       │   ├── models/                # Mongoose schemas
 │       │   ├── services/
 │       │   │   └── meal-recommender.ts  # holodeck HTTP client
@@ -248,7 +248,7 @@ fridge-planner/
 - [x] AI recommendation panel with structured `MealRecommendation[]` state
 - [x] Meal card UI with cuisine badge, prep time, expiring/missing ingredient pills
 - [x] Inventory context provider with shared state management
-- [x] App.tsx integration with responsive two-column layout
+- [x] `app/page.tsx` + `app/providers.tsx` integration with responsive two-column layout (Next.js App Router; `App.tsx` does not exist post-migration)
 - [x] Frontend tests passing (RecommendationsPanel + MealCard), >70% coverage
 
 #### Future Improvements (Phase 1 follow-up)
@@ -310,11 +310,12 @@ Implemented as designed. The grocery list feature is built on top of Phases 1 & 
 - `packages/client/src/components/grocery/GroceryListItemRow.tsx`
 - `packages/client/src/components/grocery/AddGroceryItemForm.tsx`
 - `packages/client/src/components/grocery/CheckoutConfirmModal.tsx`
-- `packages/client/src/pages/GroceryListPage.tsx`
+- `packages/client/src/views/GroceryListPage.tsx`
 
 **Modified files:**
 - `packages/server/src/app.ts` — mount `groceryListsRouter` at `/api/v1/grocery-lists`
-- `packages/client/src/App.tsx` — add "Grocery List" tab; wrap `GroceryListPage` in `GroceryListProvider` (inside `MealPlanProvider` scope)
+- `packages/client/app/providers.tsx` — add `GroceryListProvider` wrapping (inside `MealPlanProvider` scope)
+- `packages/client/app/grocery/page.tsx` — new `/grocery` route pointing to `GroceryListPage` view
 
 #### API Endpoints
 
@@ -396,7 +397,7 @@ Canonical base units:
 10. `GroceryListContext.tsx` + context tests
 11. Grocery components + component tests
 12. `GroceryListPage.tsx` + page tests
-13. Add Grocery tab in `App.tsx`
+13. Wire up `/grocery` route in `app/grocery/page.tsx`; add `GroceryListProvider` to `app/providers.tsx` (inside `MealPlanProvider` scope)
 
 ---
 

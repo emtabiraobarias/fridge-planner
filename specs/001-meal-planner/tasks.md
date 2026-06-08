@@ -41,6 +41,7 @@
 - [x] T014 [P] Configure API versioning structure at `/api/v1/` in `packages/server/src/app.ts`
 - [x] T015 [P] Configure structured JSON logging to stdout/stderr in `packages/server/src/index.ts`
 - [x] T016 Set up `packages/server/src/index.ts` entry point with Mongoose connect, graceful SIGTERM/SIGINT shutdown, and server start
+- [ ] T093 Add `GET /health` and `GET /ready` endpoints in `packages/server/src/app.ts` (constitution Principle IX; required for Docker healthchecks and process orchestration)
 
 **Checkpoint**: Foundation ready — user story implementation can begin
 
@@ -97,7 +98,7 @@
 - [x] T041 [US2] Implement ingredient consumption logic in `packages/server/src/lib/ingredient-consumption.ts` (non-blocking inventory decrement/delete on meal assignment, matched by name)
 - [x] T042 [US2] Implement Meal Plans CRUD API in `packages/server/src/api/v1/meal-plans.ts` (GET by `weekStart`, POST entry, PUT bulk replace, DELETE entry by `slotId`)
 - [x] T043 [P] [US2] Integration tests for meal plans in `packages/server/tests/integration/meal-plans.test.ts`
-- [x] T044 [P] [US2] Unit tests for ingredient consumption in `packages/server/tests/unit/` (verify decrement logic edge cases)
+- [x] T044 [P] [US2] Unit tests for ingredient consumption in `packages/server/tests/unit/ingredient-consumption.test.ts` (verify decrement logic edge cases)
 
 ### Frontend — US2
 
@@ -162,18 +163,24 @@
 
 **Purpose**: Deferred constitutional requirements, observability, and hardening not needed for local MVP
 
+> **⚠️ ADR Required**: Tasks T081–T085, T092, T094–T097 defer constitution MUST obligations (OAuth/OIDC, RBAC, Redis, PWA, webhooks, CDN, audit logging). Before this project ships to production, each deferral MUST be documented as an Architectural Decision Record (ADR) per the Governance → Amendment Procedure in `constitution.md`. An undocumented deferral is a constitution violation.
+
 - [ ] T081 Implement full OAuth 2.0/OIDC authentication in `packages/server/src/middleware/auth.ts` (replace `X-User-Id` stub; validate JWT with `AUTH_JWKS_URI`; enforce `AUTH_ISSUER` + `AUTH_AUDIENCE` — CR-001, CR-002)
 - [ ] T082 [P] Enforce HTTPS/TLS 1.3 minimum at infrastructure/reverse-proxy layer (CR-003)
 - [ ] T083 [P] Write OpenAPI 3.0 specification for all `/api/v1/` endpoints (CR-013; defer until API shape stabilizes post-Phase 3)
 - [ ] T084 [P] Set up GitHub Actions CI/CD pipeline (lint → test → coverage gates → build) in `.github/workflows/ci.yml`
 - [ ] T085 [P] Configure Redis-backed recommendations cache via `REDIS_URL` in `packages/server/src/services/recommendations-cache.ts` (replace in-memory cache)
-- [ ] T086 [P] Write E2E tests covering critical user journeys: inventory → recommendations → calendar → grocery list checkout
-- [ ] T087 [P] Benchmark API p95 latency (target < 200ms for synchronous endpoints — CR-008, SC-002)
+- [ ] T086 [P] Write E2E tests in `packages/client/tests/e2e/` using Playwright covering: inventory add → recommendations → calendar drag-and-drop → grocery list checkout (constitution Testing MUST)
+- [ ] T087 [P] Benchmark API p95 latency and load test at 1000 concurrent users (target: p95 < 200ms under load — CR-008, SC-002; constitution Performance MUST)
 - [ ] T088 [P] Benchmark frontend Time to Interactive on 3G (target < 3s — CR-009, SC-007)
 - [ ] T089 [P] Expand meal-recommender G-Eval test cases in `agents/meal-recommender/agent.yaml` (tune temperature/max_tokens based on evaluation results; activate disabled metrics)
 - [ ] T090 [P] Run WCAG 2.1 AA accessibility audit across all pages and remediate findings (CR-011)
 - [ ] T091 [P] Add database seed/migration npm scripts as admin processes (twelve-factor factor XI)
 - [ ] T092 [P] Add PWA service worker for offline access to cached meal plans and grocery lists (spec assumption 10)
+- [ ] T094 Implement role-based access control (RBAC) with granular permissions in `packages/server/src/middleware/auth.ts` after T081 (OAuth/OIDC) is complete — constitution Security MUST
+- [ ] T095 [P] Evaluate and implement webhook support for asynchronous operations (e.g., recommendation-complete event) in `packages/server/src/api/v1/` — constitution API-First MUST; amend constitution with ADR if excluded from product scope
+- [ ] T096 [P] Configure CDN for static asset delivery with cache headers (Vercel Edge / CloudFront) — constitution Performance MUST
+- [ ] T097 Implement auth event audit logging in `packages/server/src/middleware/auth.ts` (log userId, endpoint, HTTP method, timestamp, and auth outcome on every request — constitution Security MUST: "Audit all authentication and authorization events")
 
 ---
 
@@ -244,11 +251,16 @@ T077: CheckoutConfirmModal.tsx
 ### Remaining Work (Phase 6 — Deferred to Post-MVP)
 
 Priority order for Phase 6:
-1. **T084** — CI/CD pipeline (unblocks safe continuous delivery)
-2. **T081** — OAuth 2.0/OIDC (production readiness)
-3. **T083** — OpenAPI 3.0 (API consumers / external integrations)
-4. **T085** — Redis cache (scale beyond single-node)
-5. **T086** — E2E tests (raise confidence ceiling above unit + integration)
+1. **T093** — Health check endpoints (low effort; unblocks Docker orchestration)
+2. **T097** — Audit logging (low effort; constitution Security MUST)
+3. **T084** — CI/CD pipeline (unblocks safe continuous delivery)
+4. **T081** — OAuth 2.0/OIDC (production readiness; T094 RBAC depends on this)
+5. **T094** — RBAC (after T081 OAuth complete)
+6. **T083** — OpenAPI 3.0 (API consumers / external integrations)
+7. **T085** — Redis cache (scale beyond single-node)
+8. **T086** — E2E tests (raise confidence ceiling above unit + integration)
+9. **T095** — Webhooks (or file ADR scoping them out)
+10. **T096** — CDN (infrastructure; coordinate with deployment platform)
 
 ---
 
@@ -257,6 +269,7 @@ Priority order for Phase 6:
 - `[x]` = completed; `[ ]` = pending/deferred
 - `[P]` = can run in parallel (operates on different files, no shared state dependency)
 - `[US1/US2/US3]` = maps task to specific user story for full traceability
+- **TDD sequence** (constitution requirement): for future phases, test tasks MUST be written and run to failure BEFORE the corresponding implementation task starts (Red-Green-Refactor). The `[P]` marker permits parallel execution with other `[P]` tasks, not permission to skip the write-fail step.
 - Do NOT manually set `expirationStatus` in `findOneAndUpdate` — the Mongoose `pre('findOneAndUpdate')` hook in `models/inventory-item.ts` manages it automatically
 - `GroceryListProvider` must be rendered inside `MealPlanProvider` (reads `currentWeekStart` via `useMealPlan()`)
 - Agent auth MUST use `auth_provider: oauth_token` in `agent.yaml` — never `api_key` (reverted in commit `da0f65f`)
