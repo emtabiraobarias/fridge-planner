@@ -3,7 +3,7 @@
 > Working log for the post-migration reconciliation + polish roadmap.
 > Update the **two lines at the top** at the end of every session. That's the whole system.
 
-**▶ NEXT ACTION:** **Phase B — verify "complete" claims on `impl/nextjs`.** Start the app (`npm run dev`; client :3000 + Express :3001), pick ONE feature area (suggest inventory first), and walk its acceptance scenarios from `spec.md`. Log each failure as **bug** (violates an existing FR → fix on the branch where it occurs) vs **spec-gap** (no FR covers it → fix on `main`, both impls inherit on next sync). Triage only — don't fix mid-discovery. The two-impl branching strategy (§5 steps 1–3) is fully landed; both impl branches now carry the shared contract.
+**▶ NEXT ACTION:** **Phase B — verify "complete" claims (applies to BOTH impls).** Pick ONE feature area (suggest inventory first) and walk the shared checklist [`checklists/acceptance-scenarios.md`](specs/001-meal-planner/checklists/acceptance-scenarios.md) against the running app **on each branch** — `impl/nextjs` (client :3000 + Express :3001) and `impl/vite` (client :5173 + Express :3001). Record pass/fail + bugs per branch in that branch's `specs/001-meal-planner/verification-findings.md` (reference scenario IDs). Route per the table below: **spec-gap** (no scenario/FR) → `spec.md` on `main`; **frontend bug** → the one branch; **backend bug** → both branches (Express is duplicated). Triage only — don't fix mid-discovery. Suggested start: `impl/nextjs` (verify before C-bis moves the API).
 **⏸ LAST LEFT OFF:** 2026-06-08 — Completed branching-strategy steps 1–3 in Claude Code. Steps 1–2 (prior): topology verified, shared contract + genericized constitution v3.1.0 on `main`, branches renamed to `impl/vite`+`impl/nextjs` (local+origin), CLAUDE.md §8 reconciled on `impl/nextjs`. Step 3 (this turn): genericized the constitution backend too (Express vs Route Handlers now per-branch); merged `main` into BOTH impl branches (constitution→main's, spec.md tightening propagated to `impl/vite`, README/.gitignore kept per-branch); added "Stack Realization" sections to each `plan.md`. Also reconciled `origin/main`'s disjoint-history skeleton (LICENSE+README) via `--allow-unrelated-histories`.
 
 ---
@@ -12,10 +12,12 @@
 
 - **Phase A — Reconcile migration with the spec** (spec-tweak cascade) ✅ DONE
 - **Branching strategy — two-impl model (Vite + Next.js)** ✅ DONE (2026-06-08; §5 steps 1–3: shared contract on `main`, branches renamed, both impls synced)
-- **Phase B — Verify "complete" claims, triage rough edges** (bug vs spec-gap) ◀ NEXT
-- **Phase C — Polish pass** (work the Phase B list, 1 issue/session)
-- **Phase C-bis — Retire Express into Next Route Handlers** (optional architectural change; sequenced against `002`) — not started, `impl/nextjs`-only
-- **Phase D — Spec `002` (authentication / real auth)** — not started
+- **Phase B — Verify "complete" claims, triage rough edges** (bug vs spec-gap) — **both impls** ◀ NEXT
+- **Phase C — Polish pass** (work the Phase B list, 1 issue/session) — **both impls**
+- **Phase C-bis — Retire Express into Next Route Handlers** (optional architectural change; sequenced against `002`) — not started, **`impl/nextjs`-only**
+- **Phase D — Spec `002` (authentication / real auth)** — not started — **both impls** (shared spec, per-branch enforcement)
+
+> **Phases B/C/D are spec-level → they apply to BOTH `impl/vite` and `impl/nextjs`** (per `BRANCHING_STRATEGY.md` §5). C-bis is the lone exception (plan-level, `impl/nextjs`-only). See the "Phase B/C/D — both-implementation tracking" section below for the model + status matrix.
 
 ---
 
@@ -25,11 +27,48 @@ See `specs/BRANCHING_STRATEGY.md` for the full model. Recommended sequence (§5)
 
 - [x] Step 1 — Shared spec content on `main` (spec.md + checklists/requirements.md verbatim; constitution.md genericized to v3.1.0; BRANCHING_STRATEGY.md + ROADMAP_PROGRESS.md as shared coordination layer).
 - [x] Step 2 — Rename branches: `001-meal-planner`→`impl/vite`, `001-meal-planner-nextj-migrate`→`impl/nextjs` (local + origin; old remote branches deleted). `001-meal-planner-agent-refinement` left untouched (already merged via PR #4).
-- [x] Step 3 — `main → impl/*` sync done (2026-06-08): merged `main` into both impl branches. Resolutions: constitution.md→main's genericized v3.1.0; spec.md→main's (propagated the A5 tightening to `impl/vite`); README.md + .gitignore kept per-branch; LICENSE+BRANCHING_STRATEGY+ROADMAP added. "Stack Realization" sections added to both `plan.md`s. **Sync convention going forward:** `main` is canonical for shared files; impl branches `git merge main` and resolve per-branch files (README, .gitignore) with `--ours`, shared files (spec, constitution) with `--theirs`.
+- [x] Step 3 — `main → impl/*` sync done (2026-06-08): merged `main` into both impl branches. Resolutions: constitution.md→main's genericized v3.1.0; spec.md→main's (propagated the A5 tightening to `impl/vite`); README.md + .gitignore kept per-branch; LICENSE+BRANCHING_STRATEGY+ROADMAP added. "Stack Realization" sections added to both `plan.md`s. **Sync convention going forward:** `main` is canonical for shared files; impl branches `git merge main` and resolve **per-branch files** (`README.md`, `.gitignore`, `plan.md`, `CLAUDE.md`, `verification-findings.md`) with `--ours`, **shared files** (`spec.md`, `constitution.md`, `checklists/*`, `ROADMAP_PROGRESS.md`) with `--theirs`.
 - [ ] Step 4 — `impl/nextjs` proceeds to Phase B (verify) BEFORE C-bis changes the API topology. ◀ NEXT
 - [ ] Step 5 — Phase B/C/D against the shared spec; route fixes per strategy §5 (spec-gap→`main`, bug→the branch where it occurs).
 
 **Decisions carried (do not re-litigate, from §9):** shared = spec + criteria + checklist + constitution principles on `main`; per-branch = `plan.md` + code + concrete stack; C-bis is `impl/nextjs`-only; `002` auth spec stays topology-agnostic; merge to `main` of impl code deferred until all migration phases complete.
+
+---
+
+## Phase B/C/D — both-implementation tracking
+
+Phases B (verify), C (polish), D (`002` auth) are **spec-level**, so each runs against **both** `impl/vite` and `impl/nextjs`. The model (decided 2026-06-08):
+
+- **Shared layer (on `main`):** one canonical scenario list — [`checklists/acceptance-scenarios.md`](specs/001-meal-planner/checklists/acceptance-scenarios.md) with stable IDs (`US1-S4`, `EC-08`, `SC-014`, …) — plus the **spec-gap register** below. Both impls inherit on `git merge main`.
+- **Per-branch layer (on each `impl/*`):** `specs/001-meal-planner/verification-findings.md` — that branch's pass/fail + bug log, referencing scenario IDs. Per-branch file (kept with `--ours` on sync).
+
+**Finding-routing rule:**
+
+| Finding | Fix where | Why |
+|---|---|---|
+| No scenario/FR covers it (**spec-gap**) | `spec.md` on `main` (+ add scenario to the shared checklist) | Contract gap — both impls owe it; inherited on sync |
+| **Frontend** bug | the one branch where it occurs | Vite SPA vs Next SSR genuinely differ |
+| **Backend / shared-logic** bug | **both** branches | `packages/server` (Express) is duplicated today → fix on one, cherry-pick to the other (until C-bis retires Express on `impl/nextjs`) |
+
+**Tip:** walk the same feature area on both branches back-to-back — a failure on both is usually a spec-gap or a shared backend bug; a failure on one is usually frontend-specific.
+
+### Phase status matrix
+
+| Phase | `impl/vite` | `impl/nextjs` | Shared artifact |
+|---|---|---|---|
+| B — Verify | ☐ not started | ☐ not started | scenario checklist + spec-gap register |
+| C — Polish | ☐ not started | ☐ not started | (works the B findings) |
+| D — `002` auth | ☐ not started | ☐ not started | `002` spec (topology-agnostic) on `main` |
+
+*(Status legend: ☐ not started · ◐ in progress · ☑ done. Update per cell as each branch progresses.)*
+
+### Spec-gap register (shared — fix on `main`, both inherit)
+
+Findings with **no** covering scenario/FR. File the spec change on `main`, add the new scenario ID to the shared checklist, then check the box.
+
+| ID | Found on | Description | Spec change | Status |
+|----|----------|-------------|-------------|--------|
+| _(none yet — populate during Phase B)_ | | | | |
 
 ---
 
