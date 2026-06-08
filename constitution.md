@@ -7,18 +7,18 @@
 
 ## 2. Technology Stack
 
-> **Per-branch realization.** This repository maintains two long-lived implementation branches against this one shared constitution (see `specs/BRANCHING_STRATEGY.md`). The items below marked *(per-branch)* are realized differently on each — the concrete frontend build/SSR toolchain is specified in each branch's `specs/<feature>/plan.md` "Stack Realization" section (currently: a Vite SPA on `impl/vite`, the Next.js 15 App Router on `impl/nextjs`). Everything else here is **shared** and binding on both implementations.
+> **Per-branch realization.** This repository maintains two long-lived implementation branches against this one shared constitution (see `specs/BRANCHING_STRATEGY.md`). The items below marked *(per-branch)* are realized differently on each — specifically the frontend build/SSR toolchain and the server API mechanism — and are pinned in each branch's `specs/<feature>/plan.md` "Stack Realization" section (currently: a Vite SPA + standalone Express service on `impl/vite`; the Next.js 15 App Router on `impl/nextjs`, with the API moving from Express to Next.js Route Handlers under Phase C-bis). Everything else here is **shared** and binding on both implementations.
 
 ### Core
 *   **Language:** TypeScript (Strict Mode).
 *   **Frontend:** React 18 with a modern build/SSR toolchain *(per-branch — concrete framework in `plan.md`)*.
-*   **Backend:** Node.js + Express.
+*   **Backend:** Node.js, exposing an HTTP API over the data layer. The concrete server framework and process model are *(per-branch — e.g. a standalone Express service vs Next.js Route Handlers post-C-bis, specified in `plan.md`)*.
 *   **Database:** MongoDB with Mongoose ODM.
 *   **Styling:** Tailwind CSS.
 *   **State Management:** React Context + Hooks. Client state lives in context providers mounted at the application root; the concrete mounting point *(per-branch — e.g. an App Router `app/providers.tsx` vs an SPA root)* is specified in `plan.md`. Application state is not held in server-rendered components.
 
 ### Tooling
-*   **Build:** Client build/bundler *(per-branch — e.g. `next build` standalone output vs Vite, specified in `plan.md`)*; tsx (server).
+*   **Build:** Client build/bundler *(per-branch — e.g. `next build` standalone output vs Vite, specified in `plan.md`)*; server runtime/build *(per-branch — e.g. tsx for a standalone Express service; folded into the Next.js build once Route Handlers replace Express)*.
 *   **Testing:** Vitest + React Testing Library, decoupled from the build via `vitest.config.ts` (client); Jest (server).
 *   **Linting:** ESLint + TypeScript ESLint.
 
