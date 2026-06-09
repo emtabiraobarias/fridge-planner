@@ -159,10 +159,50 @@ Pre-existing drift, logged in `ROADMAP_PROGRESS.md`.
 - C-bis is Next.js-only, plan-level.
 - `002` auth spec stays topology-agnostic.
 
-**Pending (must verify/decide before acting):**
-- [ ] Confirm `001-meal-planner` = Vite impl, and the true fork points (§6).
-- [ ] Confirm whether `main` already contains the Vite implementation or is behind.
-- [ ] Choose Phase A split approach: (a) cherry-pick vs (b) author-fresh on `main` (§7). Recommend (b).
-- [ ] Decide the role of `001-meal-planner-agent-refinement` (rename, fold in, or leave).
-- [ ] Reconcile the two `CLAUDE.md` conflicts (§8).
-- [ ] Decide the merge condition wording so an undecided/declined C-bis doesn't block `main` forever.
+**Pending — ALL RESOLVED 2026-06-08** (executed in Claude Code; see `ROADMAP_PROGRESS.md`):
+- [x] Confirmed `001-meal-planner` = Vite impl; fork points verified (§6). `main` was scaffold-only (disjoint origin skeleton reconciled via `--allow-unrelated-histories`).
+- [x] Confirmed `main` was behind (no Vite impl) → shared contract authored fresh on `main` (approach (b)).
+- [x] Phase A split: author-fresh on `main` (b).
+- [x] `001-meal-planner-agent-refinement` left as-is (already merged via PR #4).
+- [x] Both `CLAUDE.md` conflicts reconciled on `impl/nextjs` (§8).
+- [x] Merge condition: deferred until all migration phases complete (decided; in `ROADMAP_PROGRESS.md`).
+
+## 10. Conflict-free sync (Tier 1/2 — implemented 2026-06-08)
+
+The `main → impl/*` sync is made **conflict-free by construction** so it needs no per-file judgment
+and can be run as a one-liner. The mechanism: classify every path into exactly one bucket.
+
+| Bucket | Examples | Behaviour on `git merge main` |
+|---|---|---|
+| **Shared, byte-identical on every branch** | `spec.md`, `constitution.md`, `checklists/*`, `ROADMAP_PROGRESS.md`, `README.md`, `.gitignore`, `LICENSE`, `BRANCHING_STRATEGY.md` | Only `main` edits them; impl copies stay identical → **auto-merges clean** |
+| **Per-branch, never on `main`** | `plan.md`, `docs/DEVELOPMENT.md`, `CLAUDE.md`, `verification-findings.md`, app code | Absent from `main` → **never collide** |
+
+The two files that *used* to collide were eliminated, not automated around:
+- **`README.md`** — rewritten **branch-agnostic** (every sentence true on `main`, `impl/vite`, and
+  `impl/nextjs`) and kept identical on all branches. Branch-specific setup/run instructions moved to
+  **`docs/DEVELOPMENT.md`** (a per-branch file `main` doesn't have).
+- **`.gitignore`** — **unified** into one file (covers both Vite `.vite/` and Next `.next/`) and kept
+  identical on all branches.
+
+> **Invariant:** never give `main` and an impl branch divergent content at the same path. If a file
+> must differ per branch, it lives only on the impl branches (and is named so `main` never holds it).
+> A merge conflict during sync means this invariant broke — fix the file taxonomy, don't just resolve.
+
+### Sync runbook
+
+```bash
+# one-liner (preferred): from a clean working tree, on any branch
+bash scripts/sync-impls.sh          # main -> impl/vite, impl/nextjs; pushes both
+
+# or manually, per impl branch:
+git checkout impl/nextjs && git merge --no-edit main && git push   # then repeat for impl/vite
+```
+
+`scripts/sync-impls.sh` is one-way only (**`main → impl/*`, never the reverse** — the impl→main merge
+stays deferred per the merge condition) and **aborts** on any unexpected conflict rather than guessing.
+
+### Drift backstop (read-only)
+
+The `weekly-drift-check` skill reports — but never performs — sync lag: it flags when an impl branch is
+behind `main` on a shared path (`git rev-list --count impl/<x>..main -- specs constitution.md`) and
+recommends running the sync. Detection (read) and remediation (write) stay cleanly separated.
