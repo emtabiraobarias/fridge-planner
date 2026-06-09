@@ -4,8 +4,12 @@ coverage/
 .env
 *.local
 .DS_Store
+
+# Client build/cache dirs (both implementations — Vite SPA and Next.js)
 packages/client/node_modules/.vite/
+packages/client/.next/
+
+# Local Claude tooling (keep tracked slash-commands only)
 .claude/*
 !.claude/commands/
 !.claude/commands/**
-packages/client/.next/
