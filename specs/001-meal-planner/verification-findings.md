@@ -77,6 +77,23 @@ Live call: `POST /api/v1/recommendations` → **HTTP 200, 4 meals**, all from ap
 
 **Minor note:** the app supports a 4th meal type **Snack** (in `MEAL_TYPES`) not mentioned in spec US2-S1 / constitution §V ("B/L/D"). Additive, not a violation — flag as doc drift.
 
+### Grocery-list area — walked 2026-06-11 (live + code)
+
+Live: 3 meals (onion×3, garlic×1, soy-sauce×1) → `GET /grocery-lists/<week>` returned 3 items.
+
+| Scenario ID | Area | Result | Type | Fix location | Notes |
+|-------------|------|--------|------|--------------|-------|
+| US3-S1 | Grocery | ◐ partial | — | — | Aggregates + groups: `Onion qty=3` with `sourceMealNames=[A,B,C]` ✓ — but quantity is a **meal count**, `unit='servings'`, not "3 onions" |
+| US3-S2 | Grocery | ✗ fail | missing-feature (data-model gap) | both branches | **No unit normalization.** All items `unit='servings'`; "1 cup+2 cups+500 ml → common unit" impossible — `missingIngredients` is `string[]` with no qty/unit. → BUG #8 / SG-03 |
+| US3-S3 | Grocery | ✗ fail | missing-feature | both branches | **No inventory deduction.** Generator comment: subtraction is a "future enhancement"; servings vs real units are `canSubtract=false`, so "Eggs: 4 needed (6−2)" never happens. → BUG #8 |
+| US3-S4 | Grocery | ☑ pass | — | — | Items categorized (`Onion/Garlic→Produce`, `Soy Sauce→Pantry`) via keyword `inferCategory` + sorted by category (matches FR-003 "auto-categorization is grocery-only") |
+| US3-S5 | Grocery | ◐ code-ok | — | — | `PATCH …/items/:id {isPurchased}` exists; UI check-off not driven this pass |
+| US3-S6 | Grocery | ☑ code-ok | — | — | `POST …/complete` builds `new InventoryItem(...)` per purchased item → adds to inventory |
+| US3-S7 | Grocery | ◐ code-ok | — | — | `GroceryListSearchBar` component exists (filter/search); UI not driven this pass |
+| US1-S11 | Grocery | ◐ plausible | — | — | Expired-owned ingredient → LLM puts it in `missingIngredients` (US1-S9) → appears on list; inventory query is non-expired-only so it can't offset. Holds, but moot while deduction is off |
+| SC-005 | Grocery | ✗ fail | — | both branches | "100% unit-conversion accuracy" unreachable — normalization not applied (servings). → BUG #8 |
+| (positive) | Grocery | ☑ | — | — | Grocery routes **userId-scoped** — BUG #1 audit complete: inventory ✗, recs ✗, meal-plans ✓, grocery ✓ |
+
 ## Open bugs (this branch)
 
 | # | Scenario ID(s) | Description | Severity | Status |
@@ -88,6 +105,7 @@ Live call: `POST /api/v1/recommendations` → **HTTP 200, 4 meals**, all from ap
 | 5 | EC-01 | **No popular-recipe fallback on empty inventory.** Route returns `{recommendations:[]}` when no active items; spec wants "suggest popular recipes + prompt to add items". (UI prompt-to-add may exist; the popular-recipes half does not.) | MED | open — backend, both branches |
 | 6 | US1-S7/S8/S9, SC-014, EC-04/EC-05 | **`expirationStatus` goes stale.** It's persisted and only recomputed in the Mongoose `pre('save')`/`pre('findOneAndUpdate')` hooks — never on read. So an item that crosses an expiry boundary keeps its old status until re-saved. Confirmed live: `S7-tomorrow` (expiry 2026-06-11) still stored `expiring-soon` on 2026-06-11 when it is actually `expired`. Impact: (a) UI shows stale yellow / no red, edit-delete stay enabled; (b) the recs `$ne:'expired'` filter **fails to exclude it → expired food fed to the LLM**, breaking SC-014 "100%". **Reconfirmed 2026-06-11** (data authored 06-10): stored=`expiring-soon` vs correct=`expired`; item is NOT in `?status=expired` (so recs include it); a PUT of `quantity` only leaves it stale, while a PUT writing `expiresAt` recomputes to `expired` — so it never self-corrects on a time boundary. **Fix direction:** derive status on read (or scheduled re-eval), don't persist a time-derived field. | **MED–HIGH** (food-safety) | open — backend (model/read path), both branches |
 | 7 | US1-S6, US2-S3/S5 | **Consumption is one-way / non-idempotent → inventory drift.** `POST …/entries` calls `consumeIngredients` (−1 per `usesIngredients`), but `DELETE …/entries/:slotId` only `$pull`s the entry — it **never restores** inventory. So removing a meal, **moving** it (delete+add re-consumes), or adding the same meal twice permanently over-decrements. Also: consumption is fire-and-forget (`void`, not awaited) and decrements a flat −1 ignoring recipe quantity/unit; and it filters `$ne:'expired'` so inherits BUG #6 staleness. | MED | open — backend, both branches (spec is silent on restore → confirm intended behaviour; companion spec-gap candidate) |
+| 8 | US3-S2, US3-S3, SC-005 | **Grocery aggregation is count-of-meals, not quantity-aware.** Generated items use `quantity = #meals` and `unit='servings'`; no unit normalization and no inventory deduction (generator explicitly defers subtraction as a "future enhancement"). **Root cause:** `MealRecommendation.missingIngredients` is `string[]` — the agent never returns ingredient quantities/units — so US3-S2 ("1 cup+2 cups+500 ml → common unit"), US3-S3 ("Eggs: 4 needed (6−2)"), and SC-005 ("100% conversion accuracy") cannot be met. Aggregation/grouping/categorization (US3-S1/S4) DO work. | MED | open — both branches; needs SG-03 decision (extend the meal model vs revise the scenarios) |
 
 ## Spec-gaps raised from this branch
 
@@ -98,3 +116,4 @@ Cross-reference; the authoritative register is in `ROADMAP_PROGRESS.md` on `main
 | per-user data isolation | 2026-06-08 | No FR/CR explicitly requires inventory (and meal-plans/grocery) to be scoped to the authenticated user — it's only *implied* by "my/their inventory" + CR-001 (auth). The bug above shows why this should be an explicit, testable requirement. Consider adding an FR. | proposed — discuss before editing `spec.md` on `main` |
 | EC-03 merge prompt | 2026-06-08 | EC-03 *is* in the spec (edge case), so the gap is implementation, not spec — logged as BUG #2, not a spec-gap. Listed here only as a pointer. | n/a |
 | SC-002 cold vs cached | 2026-06-11 | SC-002's flat "within 5 s" doesn't distinguish a **cached** hit (achievable) from a **cold, web-researched** recommendation (measured 142 s) — unrealistic for the chosen web-searching agent. Companion to BUG #3: the spec owner must decide whether to re-architect for 5 s or revise SC-002 (e.g. split cached `<5 s` vs fresh `<N s`). | proposed (SG-02) — decide before editing `spec.md`/SC-002 on `main` |
+| grocery quantity model | 2026-06-11 | US3-S2/S3 + SC-005 assume meals carry **ingredient quantities/units** (e.g. "milk 1 cup", "6 eggs"), but `MealRecommendation` only returns ingredient **names**. So quantity-aware aggregation/deduction is impossible by design (BUG #8). Decide: (a) extend the meal model — agent returns `{name, quantity, unit}` per ingredient — to meet US3-S2/S3/SC-005, or (b) revise those scenarios to the servings/count model. | proposed (SG-03) — decide before editing `spec.md` on `main` |
