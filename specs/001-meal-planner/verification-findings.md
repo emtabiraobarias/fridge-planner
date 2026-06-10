@@ -43,12 +43,34 @@ npm run dev                         # Express :3001 + Next.js :3000
 
 **Legend:** ☑ pass · ✗ fail · ◐ partial · ☐ deferred (cross-feature, verify in that area's walk).
 
+### Recommendations area — walked 2026-06-11 (live holodeck agent + code)
+
+Live call: `POST /api/v1/recommendations` → **HTTP 200, 4 meals**, all from approved recipe domains.
+
+| Scenario ID | Area | Result | Type | Fix location | Notes |
+|-------------|------|--------|------|--------------|-------|
+| US1-S2 | Recs | ☑ pass | — | — | 4 meals returned (3–5 ✓); all primarily use existing ingredients (chicken breast/carrots/rice/salt) |
+| US1-S3 | Recs | ☑ pass | — | — | `usesIngredients` (owned) vs `missingIngredients` (e.g. onion, ginger) distinguishes owned from to-buy |
+| US1-S4 | Recs | ◐ inconclusive | — | — | Only expiring item was a junk fixture (`S7-tomorrow`); agent reasonably ignored it. Retest with a *real* expiring ingredient. (Agent has an `ExpiryPrioritisation` eval.) |
+| US1-S9 | Recs | ◐ caveated | — | — | Excludes items **stored** as `expired`, BUT stale status (BUG #6) lets a truly-expired item leak in. Not robust → ties to SC-014 |
+| EC-01 | Recs | ✗ fail | missing-feature | both branches | Empty/all-expired inventory → route returns `{recommendations:[]}`; **no "popular recipes" fallback** per spec. → BUG #5 |
+| EC-02 | Recs | ☐ not tested | — | — | Insufficient-ingredients → minimal-addition recipes — needs a sparse inventory fixture |
+| EC-08 | Recs | ✗ fail | missing-feature | both branches | Agent down/timeout → service throws → route `next(err)` → **500**; cache only checked *before* the call, so no cached/popular fallback. → BUG #4 (also SC-010) |
+| SC-002 | Recs | ✗ **FAIL** | bug (spec-tension) | both branches | Cold call **142 s** vs **5 s** target (~28×). Inherent to web-searching agent (`WebSearch`+`WebFetch`, `max_turns:15`). → BUG #3 + spec-gap SG-02 |
+| SC-003 | Recs | ◐ not measured | — | — | Meals heavily use owned ingredients; ≥60%/80% not precisely computed |
+| SC-014 | Recs | ✗ fail | bug | both branches | "Expired excluded 100%" breaks under stale status (BUG #6): a now-expired item with stale stored status is fed to the LLM |
+| (bonus) RecipeUrlConformance | Recs | ☑ pass | — | — | All `recipeUrl`s from approved domains (recipetineats/kawalingpinoy/panlasangpinoy) |
+
 ## Open bugs (this branch)
 
 | # | Scenario ID(s) | Description | Severity | Status |
 |---|----------------|-------------|----------|--------|
-| 1 | US1-S1/S5 area (all "my inventory" scenarios) | **Cross-user data leak.** `GET /api/v1/inventory` builds its filter from only `category`/`status` — **never `userId`** — so it returns every user's items, and `summary` counts are global. `PUT`/`DELETE /:id` key on `_id` alone, so any user can edit/delete any item. Confirmed live: `userB` sees `userA`'s `USERA-SECRET-ITEM`. | **HIGH** (privacy / multi-tenant isolation; ties to CR-001 auth) | open — **backend bug → fix on both branches** (cherry-pick); likely also in recommendations/meal-plan/grocery queries — audit all |
+| 1 | US1-S1/S5 area (all "my inventory" scenarios) | **Cross-user data leak.** `GET /api/v1/inventory` builds its filter from only `category`/`status` — **never `userId`** — so it returns every user's items, and `summary` counts are global. `PUT`/`DELETE /:id` key on `_id` alone, so any user can edit/delete any item. Confirmed live: `userB` sees `userA`'s `USERA-SECRET-ITEM`. | **HIGH** (privacy / multi-tenant isolation; ties to CR-001 auth) | open — **backend bug → fix on both branches** (cherry-pick); **CONFIRMED also in `recommendations.ts`** (its `InventoryItem.find` has no `userId` filter → the LLM receives *every* user's ingredients); still need to audit meal-plan/grocery |
 | 2 | EC-03 | Duplicate ingredient silently creates a new row (POST→201); no merge/choose prompt in client or server. | LOW–MED | open — both branches (client + server) |
+| 3 | SC-002 | **Recommendation latency ~28× over budget** — cold call measured **142 s** vs the **5 s** SC-002 target. Root cause is the deliberate web-searching agent (`WebSearch`+`WebFetch`, `max_turns:15`). Cache (15 min TTL) only helps identical repeat calls; any inventory mutation invalidates it, so normal use is mostly cold. | **HIGH** | open — shared agent → **both branches**. **Resolution contested** (perf re-architecture vs revise SC-002 — see SG-02); needs spec-owner decision |
+| 4 | EC-08 / SC-010 | **No graceful degradation.** Agent down/timeout → `getMealRecommendations` throws → route `next(err)` → HTTP 500. Spec wants a fallback to cached/popular recipes; cache is only read *before* the agent call, never as a failure fallback. | MED | open — backend, both branches |
+| 5 | EC-01 | **No popular-recipe fallback on empty inventory.** Route returns `{recommendations:[]}` when no active items; spec wants "suggest popular recipes + prompt to add items". (UI prompt-to-add may exist; the popular-recipes half does not.) | MED | open — backend, both branches |
+| 6 | US1-S7/S8/S9, SC-014, EC-04/EC-05 | **`expirationStatus` goes stale.** It's persisted and only recomputed in the Mongoose `pre('save')`/`pre('findOneAndUpdate')` hooks — never on read. So an item that crosses an expiry boundary keeps its old status until re-saved. Confirmed live: `S7-tomorrow` (expiry 2026-06-11) still stored `expiring-soon` on 2026-06-11 when it is actually `expired`. Impact: (a) UI shows stale yellow / no red, edit-delete stay enabled; (b) the recs `$ne:'expired'` filter **fails to exclude it → expired food fed to the LLM**, breaking SC-014 "100%". | **MED–HIGH** (food-safety) | open — backend (model/read path), both branches |
 
 ## Spec-gaps raised from this branch
 
@@ -58,3 +80,4 @@ Cross-reference; the authoritative register is in `ROADMAP_PROGRESS.md` on `main
 |--------------|--------|-------------|--------|
 | per-user data isolation | 2026-06-08 | No FR/CR explicitly requires inventory (and meal-plans/grocery) to be scoped to the authenticated user — it's only *implied* by "my/their inventory" + CR-001 (auth). The bug above shows why this should be an explicit, testable requirement. Consider adding an FR. | proposed — discuss before editing `spec.md` on `main` |
 | EC-03 merge prompt | 2026-06-08 | EC-03 *is* in the spec (edge case), so the gap is implementation, not spec — logged as BUG #2, not a spec-gap. Listed here only as a pointer. | n/a |
+| SC-002 cold vs cached | 2026-06-11 | SC-002's flat "within 5 s" doesn't distinguish a **cached** hit (achievable) from a **cold, web-researched** recommendation (measured 142 s) — unrealistic for the chosen web-searching agent. Companion to BUG #3: the spec owner must decide whether to re-architect for 5 s or revise SC-002 (e.g. split cached `<5 s` vs fresh `<N s`). | proposed (SG-02) — decide before editing `spec.md`/SC-002 on `main` |
