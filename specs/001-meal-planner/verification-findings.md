@@ -61,6 +61,22 @@ Live call: `POST /api/v1/recommendations` → **HTTP 200, 4 meals**, all from ap
 | SC-014 | Recs | ✗ fail | bug | both branches | "Expired excluded 100%" breaks under stale status (BUG #6): a now-expired item with stale stored status is fed to the LLM |
 | (bonus) RecipeUrlConformance | Recs | ☑ pass | — | — | All `recipeUrl`s from approved domains (recipetineats/kawalingpinoy/panlasangpinoy) |
 
+### Calendar / meal-plan area — walked 2026-06-11 (running app + API + code)
+
+| Scenario ID | Area | Result | Type | Fix location | Notes |
+|-------------|------|--------|------|--------------|-------|
+| US2-S1 | Calendar | ☑ pass | — | — | 7-day grid (Mon–Sun) with Breakfast/Lunch/Dinner **+ Snack** rows. (Spec/constitution name only B/L/D; Snack is an extra meal type — see minor note below) |
+| US2-S2 | Calendar | ◐ not auto-verified | — | — | Drag rec card → slot. **Known intermittent drag-drop bug** (CLAUDE.md §12 / CalendarPage). HTML5 DnD not reliably automatable → **manual check needed** |
+| US2-S3 | Calendar | ◐ not auto-verified | — | — | Drag a planned meal to another slot. Same DnD caveat. **Also see BUG #7** — a move (delete+add) would re-consume ingredients |
+| US2-S4 | Calendar | ☑ pass | — | — | Multiple planned meals render organized by day column × meal-type row (e.g. Chicken Tinola @ Wed lunch, Arroz Caldo @ Fri dinner) |
+| US2-S5 | Calendar | ☑ pass | — | — | "Remove meal" per filled cell; `DELETE …/entries/:slotId` removes it (API-verified) |
+| US2-S6 | Calendar | ◐ partial | — | — | Empty vs filled visible per slot, but **no day-level "fully planned" indicator** (column headers are just dates) — overview is scan-only |
+| US1-S6 | Calendar↔Inventory | ☑ pass | — | — | Adding a meal consumes ingredients: `testbeef` 5→4 (API-verified). (But see notes: fire-and-forget, −1 flat, one-way → BUG #7) |
+| US1-S10 | Calendar | ◐ indirect | — | — | No direct "add expired item to plan" path — expired items are excluded from recs (US1-S9) and inventory rows aren't draggable; so prevention is indirect (and weakened by BUG #6 stale status) |
+| (positive) | Calendar | ☑ | — | — | **meal-plan routes ARE scoped by `userId`** (GET/POST/DELETE/PUT) — BUG #1 does **not** extend here (confirmed: other user's GET → `null`) |
+
+**Minor note:** the app supports a 4th meal type **Snack** (in `MEAL_TYPES`) not mentioned in spec US2-S1 / constitution §V ("B/L/D"). Additive, not a violation — flag as doc drift.
+
 ## Open bugs (this branch)
 
 | # | Scenario ID(s) | Description | Severity | Status |
@@ -71,6 +87,7 @@ Live call: `POST /api/v1/recommendations` → **HTTP 200, 4 meals**, all from ap
 | 4 | EC-08 / SC-010 | **No graceful degradation.** Agent down/timeout → `getMealRecommendations` throws → route `next(err)` → HTTP 500. Spec wants a fallback to cached/popular recipes; cache is only read *before* the agent call, never as a failure fallback. | MED | open — backend, both branches |
 | 5 | EC-01 | **No popular-recipe fallback on empty inventory.** Route returns `{recommendations:[]}` when no active items; spec wants "suggest popular recipes + prompt to add items". (UI prompt-to-add may exist; the popular-recipes half does not.) | MED | open — backend, both branches |
 | 6 | US1-S7/S8/S9, SC-014, EC-04/EC-05 | **`expirationStatus` goes stale.** It's persisted and only recomputed in the Mongoose `pre('save')`/`pre('findOneAndUpdate')` hooks — never on read. So an item that crosses an expiry boundary keeps its old status until re-saved. Confirmed live: `S7-tomorrow` (expiry 2026-06-11) still stored `expiring-soon` on 2026-06-11 when it is actually `expired`. Impact: (a) UI shows stale yellow / no red, edit-delete stay enabled; (b) the recs `$ne:'expired'` filter **fails to exclude it → expired food fed to the LLM**, breaking SC-014 "100%". **Reconfirmed 2026-06-11** (data authored 06-10): stored=`expiring-soon` vs correct=`expired`; item is NOT in `?status=expired` (so recs include it); a PUT of `quantity` only leaves it stale, while a PUT writing `expiresAt` recomputes to `expired` — so it never self-corrects on a time boundary. **Fix direction:** derive status on read (or scheduled re-eval), don't persist a time-derived field. | **MED–HIGH** (food-safety) | open — backend (model/read path), both branches |
+| 7 | US1-S6, US2-S3/S5 | **Consumption is one-way / non-idempotent → inventory drift.** `POST …/entries` calls `consumeIngredients` (−1 per `usesIngredients`), but `DELETE …/entries/:slotId` only `$pull`s the entry — it **never restores** inventory. So removing a meal, **moving** it (delete+add re-consumes), or adding the same meal twice permanently over-decrements. Also: consumption is fire-and-forget (`void`, not awaited) and decrements a flat −1 ignoring recipe quantity/unit; and it filters `$ne:'expired'` so inherits BUG #6 staleness. | MED | open — backend, both branches (spec is silent on restore → confirm intended behaviour; companion spec-gap candidate) |
 
 ## Spec-gaps raised from this branch
 
