@@ -40,8 +40,8 @@
 ## US3 — Smart Grocery List with Aggregation (P3)
 
 - **US3-S1** — 3 meals each needing 1 onion → grocery list shows "Onions: 3 total" as one line.
-- **US3-S2** — Meals need milk 1 cup + 2 cups + 500ml → normalized to a common unit (e.g. "3.5 cups ≈ 840ml").
-- **US3-S3** — Inventory has 2 eggs, meals need 6 → list shows "Eggs: 4 needed (6 required − 2 in inventory)".
+- **US3-S2** — 3 meals each requiring milk → one aggregated line item "Milk ×3" (servings count). *(Quantity/unit normalization deferred — FR-028.)*
+- **US3-S3** — Meals require eggs and inventory has eggs → eggs appear as a needed line item. *(Net deduction "4 (6−2)" deferred — FR-027.)*
 - **US3-S4** — Grocery list grouped by category (Produce, Dairy, Meat, Pantry, …).
 - **US3-S5** — Check off an item → marked purchased, crossed out / moved to completed.
 - **US3-S6** — Confirm purchased items → added to inventory with purchased quantities.
@@ -66,10 +66,10 @@
 Verify where observable in-app; survey/ops-only criteria are noted.
 
 - **SC-001** — Add 10 inventory items in < 3 min.
-- **SC-002** — Recommendations within 5s, 95%+ success (inventory has ≥1 non-expired item).
+- **SC-002** — Immediate non-blocking feedback (<1s loading state); async delivery. Cached <5s; cold/web-researched delivered when ready (target <3 min), 95%+ success (inventory has ≥1 non-expired item). Async-exempt from CR-008.
 - **SC-003** — 80% of recommended meals use ≥60% of current non-expired inventory.
 - **SC-004** — Plan 21 meals (full week) in < 10 min via drag-and-drop.
-- **SC-005** — 100% accuracy on standard unit-conversion aggregation.
+- **SC-005** — 100% **grouping** accuracy (every occurrence of an ingredient → one line item with accurate servings count). *(Quantity/unit-conversion accuracy deferred — FR-028.)*
 - **SC-006** — First full workflow (inventory → recommend → plan → grocery) in < 15 min.
 - **SC-007** — Loads + interactive in < 3s on 3G.
 - **SC-008** — 90% plan ≥1 meal on first visit without help docs. *(usability)*
