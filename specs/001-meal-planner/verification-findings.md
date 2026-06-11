@@ -49,7 +49,7 @@ All `impl/nextjs` bugs **confirmed present on `impl/vite`** (numbering matches `
 
 | # | Confirmed how | Severity | Status |
 |---|---------------|----------|--------|
-| 1 | `inventory.ts` + `recommendations.ts` byte-identical → cross-user data leak reproduces | HIGH | open — backend (fix both branches vs new **FR-036**) |
+| 1 | `inventory.ts` + `recommendations.ts` byte-identical → cross-user data leak reproduces | HIGH | **✔ FIXED 2026-06-11 (`29d2e89`, this branch led; cherry-picked to `impl/nextjs` `532e198`)** — `userId` scoping on inventory GET/PUT/DELETE + recs query; **FR-036**; `tests/integration/isolation.test.ts` (5, red→green); 174/174 pass |
 | 2 | No duplicate/merge handling in Vite client either → EC-03 reproduces | LOW–MED | open |
 | 3 | Shared agent (142s); now reframed async (SC-002). Vite client also needs the async UX | HIGH→spec | open — per-branch UX |
 | 4 | `recommendations.ts` identical (no fallback) **and** `meal-recommender.ts` here **lacks** the 220s timeout → **worse** (hangs indefinitely) | MED (worse) | open — backend |
