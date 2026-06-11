@@ -74,6 +74,8 @@ Findings with **no** covering scenario/FR. File the spec change on `main`, add t
 
 > **Phase B bugs are logged per-branch** in each branch's `verification-findings.md` (not here). The register above is only for *spec-gaps* (shared, fixed on `main`). Open bugs on `impl/nextjs` (all backend → expected on **both** branches; confirm on `impl/vite`): **#1** cross-user data leak (HIGH; GET/PUT/DELETE + recommendations ignore `userId`), **#2** EC-03 no duplicate-merge prompt, **#3** SC-002 latency 142s vs 5s (HIGH; spec-tension w/ SG-02), **#4** EC-08/SC-010 no agent-failure fallback (→500), **#5** EC-01 no popular-recipe fallback on empty inventory, **#6** `expirationStatus` stale (only recomputed on save → breaks SC-014 expired-exclusion + stale UI highlighting; MED–HIGH), **#7** consumption one-way/non-idempotent (DELETE doesn't restore inventory; move/remove/duplicate over-decrements; MED), **#8** grocery is count-of-meals not quantity-aware (US3-S2/S3 + SC-005 unimplemented; MED; w/ SG-03).
 
+> **SG-01/02/03 spec edits APPLIED to `spec.md` + `acceptance-scenarios.md` (2026-06-11):** added **FR-036** (data isolation); deferred **FR-027/FR-028** to Phase 2+; **FR-026** + **US3-S2/S3** + **SC-005** → servings model; **FR-012** + **SC-002** → async (exempt from CR-008). **Effect on bugs:** **#8 now matches spec** (servings is the contract → reclassify as Phase-2+ enhancement, not a bug). **Remaining code follow-ups (Phase C, per branch):** fix **#1** against the new FR-036 (both branches); build the **async recommendation UX** for SC-002 (per-branch client).
+
 ---
 
 ## Phase A — task checklist

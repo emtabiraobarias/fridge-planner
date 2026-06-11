@@ -77,9 +77,9 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 
 1. **Given** I have planned 3 meals that each require onions (1 onion each), **When** I view my grocery list, **Then** I see "Onions: 3 total" aggregated as a single line item
 
-2. **Given** I have planned meals requiring "milk 1 cup", "milk 2 cups", and "milk 500ml", **When** I view my grocery list, **Then** the system converts to a common unit and shows "Milk: 3.5 cups (approximately 840ml)" or similar normalized quantity
+2. **Given** I have planned 3 meals that each require milk, **When** I view my grocery list, **Then** milk appears as a single aggregated line item with a servings count ("Milk ×3"). *(Quantity/unit normalization — e.g. summing 1 cup + 500 ml — is deferred to Phase 2+; see FR-028.)*
 
-3. **Given** I have ingredients in my inventory (e.g., 2 eggs), and my planned meals need 6 eggs total, **When** I view my grocery list, **Then** I see "Eggs: 4 needed (6 required - 2 in inventory)"
+3. **Given** my planned meals require eggs and I have eggs in inventory, **When** I view my grocery list, **Then** eggs appear as a needed line item. *(Net-amount deduction of owned quantities — "4 needed (6−2)" — is deferred to Phase 2+; see FR-027.)*
 
 4. **Given** I view my grocery list, **When** I look at the categorized sections, **Then** ingredients are grouped by category (Produce, Dairy, Meat, Pantry, etc.) for easier shopping
 
@@ -127,7 +127,7 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 - **FR-011**: System MUST keep expired items visible in inventory with red flagging until user manually removes them (no automatic deletion)
 
 **AI-Powered Meal Recommendations**:
-- **FR-012**: System MUST integrate with an LLM agent via API to generate meal recommendations based on current inventory (excluding expired items)
+- **FR-012**: System MUST integrate with an LLM agent via API to generate meal recommendations based on current inventory (excluding expired items); recommendation generation is performed **asynchronously** (the request returns immediately with a pending/loading state and results are delivered when ready) — it is not a synchronous <200ms endpoint (see SC-002, CR-008)
 - ~~**FR-013**~~: *(removed — consolidated into FR-012 prior to implementation)*
 - **FR-014**: System MUST generate 3-5 meal suggestions that prioritize using existing inventory items
 - **FR-015**: Each meal recommendation MUST include recipe name, description, estimated cooking time, difficulty level, and complete ingredient list
@@ -145,9 +145,9 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 
 **Smart Grocery List**:
 - **FR-025**: System MUST automatically generate a grocery list based on all planned meals for the week
-- **FR-026**: System MUST aggregate quantities of the same ingredient across multiple recipes (e.g., 3 recipes need onions → total onions needed)
-- **FR-027**: System MUST subtract existing inventory quantities from grocery list totals, excluding expired items (show net amount needed)
-- **FR-028**: System MUST normalize units for aggregation (convert cups to ml, lbs to kg, etc.) and display in SI units by default for MVP; user-configurable unit preferences (metric/imperial toggle) are deferred to Phase 2+ (see Assumption 11)
+- **FR-026**: System MUST aggregate the same ingredient across multiple planned meals into a single grocery line item, where the quantity is the **number of meals requiring it** (a "servings" count) — e.g. 3 meals needing onion → "Onion ×3". Precise per-recipe quantity summation is deferred (see FR-028)
+- **FR-027**: *(Deferred to Phase 2+ — net-amount deduction of owned inventory from grocery totals requires per-recipe ingredient quantities the recommendation model does not yet return; see FR-028. Expired-but-owned ingredients still appear as new purchases per FR-008.)*
+- **FR-028**: *(Deferred to Phase 2+ — unit normalization/conversion requires per-recipe ingredient quantities + units, which the meal recommendation model does not yet provide; grocery items currently use a "servings" count per FR-026. SI-unit display and the user-configurable metric/imperial toggle remain Phase 2+ — see Assumption 11.)*
 - **FR-029**: System MUST categorize grocery list items by department/category for efficient shopping
 - **FR-030**: Users MUST be able to manually add, edit, or remove items from the grocery list
 - **FR-031**: Users MUST be able to check off items as purchased during shopping
@@ -157,6 +157,9 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 - **FR-033**: System MUST persist all user data (inventory, preferences, meal plans, grocery lists) with automatic saving
 - **FR-034**: *(Deferred — MVP targets single-household, single-device use; multi-device real-time sync requires WebSocket/SSE infrastructure beyond MVP scope. Revisit when full authentication is implemented — see CR-001.)*
 - **FR-035**: *(Deferred — dependent on FR-034 multi-device sync. Current behavior is last-write-wins via MongoDB atomic operations; optimistic locking deferred to Phase 2+.)*
+
+**Data Isolation**:
+- **FR-036**: System MUST scope every data operation — inventory, meal plans, grocery lists, and the ingredient set sent to the recommendation agent — to the authenticated user. A user MUST NOT be able to read, modify, or delete another user's data. *(Makes the isolation asserted in Key Entities → User and CR-001 explicit and testable.)*
 
 ### Constitutional Requirements (MANDATORY)
 
@@ -213,13 +216,13 @@ All features MUST comply with constitutional principles:
 
 - **SC-001**: Users can add 10 inventory items in under 3 minutes using the inventory management interface
 
-- **SC-002**: AI meal recommendations are generated within 5 seconds of user request with a success rate of 95%+ (denominator: requests where inventory contains ≥1 non-expired item)
+- **SC-002**: Requesting recommendations gives immediate, non-blocking UI feedback (a loading state appears in <1s) and the request is served **asynchronously**. Cached/repeat results return in <5s; a cold result that requires live recipe research is delivered when ready (target <3 minutes) with a 95%+ success rate (denominator: requests where inventory contains ≥1 non-expired item). Recommendation generation is a long-running async operation and is **exempt from CR-008's <200ms synchronous-endpoint target**
 
 - **SC-003**: 80% of recommended meals use at least 60% of ingredients from the user's current non-expired inventory
 
 - **SC-004**: Users can plan a full week of meals (21 meals across 7 days) in under 10 minutes using the drag-and-drop calendar
 
-- **SC-005**: Grocery list ingredient aggregation achieves 100% accuracy for standard unit conversions (cups, tablespoons, ounces, grams, etc.)
+- **SC-005**: Grocery list aggregation correctly groups every occurrence of the same ingredient across planned meals into one line item with an accurate meal/servings count (100% grouping accuracy). *(Quantity/unit-conversion accuracy is deferred with FR-028.)*
 
 - **SC-006**: Users complete their first full workflow (add inventory → get recommendations → plan meals → generate grocery list) within 15 minutes on their first session
 
