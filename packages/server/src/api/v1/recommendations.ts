@@ -9,8 +9,9 @@ export const recommendationsRouter = Router();
 // POST /api/v1/recommendations
 recommendationsRouter.post('/', async (req, res, next) => {
   try {
-    // FR-007: exclude expired items from LLM input
+    // FR-036: scope to the authenticated user; FR-007: exclude expired items from LLM input
     const activeItems = await InventoryItem.find({
+      userId: req.userId,
       expirationStatus: { $ne: 'expired' },
     });
 

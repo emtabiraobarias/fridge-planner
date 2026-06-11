@@ -27,7 +27,7 @@ inventoryRouter.get('/', async (req, res, next) => {
     const { category, status } = req.query as Record<string, string | undefined>;
     const page = Math.max(1, parseInt(req.query['page'] as string, 10) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(req.query['limit'] as string, 10) || 50));
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = { userId: req.userId };
     if (category) filter['category'] = category;
     if (status) filter['expirationStatus'] = status;
 
@@ -86,8 +86,8 @@ inventoryRouter.put('/:id', async (req, res, next) => {
     const update: Record<string, unknown> = { ...data };
     if (data.expiresAt) update['expiresAt'] = new Date(data.expiresAt);
 
-    const item = await InventoryItem.findByIdAndUpdate(
-      req.params['id'],
+    const item = await InventoryItem.findOneAndUpdate(
+      { _id: req.params['id'], userId: req.userId },
       update,
       { new: true, runValidators: true },
     );
@@ -109,7 +109,7 @@ inventoryRouter.delete('/:id', async (req, res, next) => {
       problemJson(res, 400, 'Invalid ID', 'ID is not a valid ObjectId');
       return;
     }
-    const item = await InventoryItem.findByIdAndDelete(req.params['id']);
+    const item = await InventoryItem.findOneAndDelete({ _id: req.params['id'], userId: req.userId });
     if (!item) {
       problemJson(res, 404, 'Not Found', 'Inventory item not found');
       return;
