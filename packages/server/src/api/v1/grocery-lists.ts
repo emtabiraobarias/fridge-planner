@@ -10,6 +10,26 @@ import { GROCERY_CATEGORIES } from '../../types/grocery-list.js';
 
 export const groceryListsRouter = Router();
 
+type PatchItemData = {
+  displayName?: string;
+  quantity?: number;
+  unit?: string;
+  category?: string;
+  isPurchased?: boolean;
+  notes?: string;
+};
+
+function buildItemSetFields(data: PatchItemData): Record<string, unknown> {
+  const setFields: Record<string, unknown> = {};
+  if (data.displayName !== undefined) setFields['items.$.displayName'] = data.displayName;
+  if (data.quantity !== undefined) setFields['items.$.quantity'] = data.quantity;
+  if (data.unit !== undefined) setFields['items.$.unit'] = data.unit;
+  if (data.category !== undefined) setFields['items.$.category'] = data.category;
+  if (data.isPurchased !== undefined) setFields['items.$.isPurchased'] = data.isPurchased;
+  if (data.notes !== undefined) setFields['items.$.notes'] = data.notes;
+  return setFields;
+}
+
 const categoryEnum = z.enum(GROCERY_CATEGORIES as unknown as [string, ...string[]]);
 
 const addItemSchema = z.object({
@@ -192,15 +212,7 @@ groceryListsRouter.patch('/:weekStart/items/:itemId', async (req, res, next) => 
       return;
     }
 
-    // Build positional update
-    const setFields: Record<string, unknown> = {};
-    const data = parsed.data;
-    if (data.displayName !== undefined) setFields['items.$.displayName'] = data.displayName;
-    if (data.quantity !== undefined) setFields['items.$.quantity'] = data.quantity;
-    if (data.unit !== undefined) setFields['items.$.unit'] = data.unit;
-    if (data.category !== undefined) setFields['items.$.category'] = data.category;
-    if (data.isPurchased !== undefined) setFields['items.$.isPurchased'] = data.isPurchased;
-    if (data.notes !== undefined) setFields['items.$.notes'] = data.notes;
+    const setFields = buildItemSetFields(parsed.data);
 
     const list = await GroceryList.findOneAndUpdate(
       {

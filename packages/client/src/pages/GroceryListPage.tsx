@@ -93,6 +93,60 @@ export function GroceryListPage(): React.JSX.Element {
     );
   }
 
+  // Extracted so the conditional list markup counts against this helper's
+  // cyclomatic complexity rather than the component's (lint: complexity <= 10).
+  function renderBody(): React.JSX.Element {
+    if (items.length === 0) {
+      return (
+        <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center">
+          <p className="text-sm text-gray-500">No grocery items yet.</p>
+          <p className="mt-1 text-xs text-gray-400">
+            Plan meals for this week and click Regenerate, or add items manually below.
+          </p>
+        </div>
+      );
+    }
+    return (
+      <>
+        {items.length >= 5 && (
+          <GroceryListSearchBar value={search} onChange={setSearch} />
+        )}
+
+        {filteredItems.length === 0 && search.trim() && (
+          <p className="py-4 text-center text-sm text-gray-400">
+            No items match &ldquo;{search}&rdquo;
+          </p>
+        )}
+
+        {categoriesWithItems.map((cat) => (
+          <GroceryListCategoryGroup
+            key={cat}
+            category={cat as GroceryCategory}
+            items={filteredItems.filter((i) => i.category === cat) as GroceryListItem[]}
+            onTogglePurchased={(id, cur) => { void handleTogglePurchased(id, cur); }}
+            onUpdate={(id, payload) => { void handleUpdateItem(id, payload); }}
+            onRemove={(id) => { void handleRemoveItem(id); }}
+          />
+        ))}
+
+        {purchasedItems.length > 0 && (
+          <div className="mt-4">
+            {completeError && (
+              <p role="alert" className="mb-2 text-sm text-red-600">{completeError}</p>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="w-full rounded-lg bg-green-600 py-2 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Complete Shopping ({purchasedItems.length} items)
+            </button>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div>
       <GroceryListHeader
@@ -103,52 +157,7 @@ export function GroceryListPage(): React.JSX.Element {
         generating={generating}
       />
 
-      {items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center">
-          <p className="text-sm text-gray-500">No grocery items yet.</p>
-          <p className="mt-1 text-xs text-gray-400">
-            Plan meals for this week and click Regenerate, or add items manually below.
-          </p>
-        </div>
-      ) : (
-        <>
-          {items.length >= 5 && (
-            <GroceryListSearchBar value={search} onChange={setSearch} />
-          )}
-
-          {filteredItems.length === 0 && search.trim() && (
-            <p className="py-4 text-center text-sm text-gray-400">
-              No items match &ldquo;{search}&rdquo;
-            </p>
-          )}
-
-          {categoriesWithItems.map((cat) => (
-            <GroceryListCategoryGroup
-              key={cat}
-              category={cat as GroceryCategory}
-              items={filteredItems.filter((i) => i.category === cat) as GroceryListItem[]}
-              onTogglePurchased={(id, cur) => { void handleTogglePurchased(id, cur); }}
-              onUpdate={(id, payload) => { void handleUpdateItem(id, payload); }}
-              onRemove={(id) => { void handleRemoveItem(id); }}
-            />
-          ))}
-
-          {purchasedItems.length > 0 && (
-            <div className="mt-4">
-              {completeError && (
-                <p role="alert" className="mb-2 text-sm text-red-600">{completeError}</p>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowModal(true)}
-                className="w-full rounded-lg bg-green-600 py-2 text-sm font-medium text-white hover:bg-green-700"
-              >
-                Complete Shopping ({purchasedItems.length} items)
-              </button>
-            </div>
-          )}
-        </>
-      )}
+      {renderBody()}
 
       <AddGroceryItemForm onAdd={(payload) => { void handleAddItem(payload); }} />
 

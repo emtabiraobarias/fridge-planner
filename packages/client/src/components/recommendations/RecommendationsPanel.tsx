@@ -24,7 +24,7 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
       prefetchedRef.current = true;
       void handleFetch();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally keyed on the empty->non-empty transition only (not full deps).
   }, [items.length > 0]);
 
   async function handleFetch(): Promise<void> {
