@@ -23,15 +23,40 @@ npm run dev                         # Express :3001 + Vite :5173
 
 ## Phase B — verification results
 
-| Scenario ID | Area | Result | Type (bug/spec-gap) | Fix location | Notes |
-|-------------|------|--------|---------------------|--------------|-------|
-| _(none yet — populate during Phase B; e.g. `US1-S4`)_ | | ☐ | | | |
+### Confirmation vs `impl/nextjs` — 2026-06-11
+
+**Method:** rather than re-run every scenario, confirmed by **code comparison** (`git diff impl/vite impl/nextjs`).
+The backend (`packages/server`) is duplicated; the buggy files are **byte-identical**, so backend findings
+reproduce by identity. Frontend findings confirmed by **equivalent component logic** in the Vite SPA.
+
+**Backend files driving #1/#4/#5/#6/#7 — `git diff` = IDENTICAL:** `inventory.ts`, `recommendations.ts`,
+`inventory-item.ts`, `expiration.ts`, `ingredient-consumption.ts`, `meal-plans.ts`, `grocery-list-generator.ts`.
+
+**Only server deltas vs `impl/nextjs`:** `meal-recommender.ts` (impl/vite **lacks** the 220s `AbortSignal.timeout` → **#4 is worse here**), `ingredient-matcher.ts` (pure refactor, same logic), `grocery-lists.ts` route (minor; servings generator identical).
+
+| Scenario ID | Area | Result | Notes (impl/vite) |
+|-------------|------|--------|-------------------|
+| US1-S7/S8 | Inventory | ☑ pass (same) | `InventoryList.tsx`: `bg-yellow-50` / `bg-red-50` + `disabled={status==='expired'}` — identical behaviour (and same #6 staleness) |
+| US1-S1/S9, EC-04/EC-11, SC-013 | Inventory | ☑ pass (same) | server identical; Vite UI equivalent |
+| US1-S2/S3 | Recs | ☑ pass (same) | `MealCard.tsx` renders uses/missing; shared agent |
+| US2-S1/S4/S5, US1-S6 | Calendar | ☑ pass (same) | meal-plan server identical (userId-scoped); `WeeklyCalendar.tsx` grid |
+| US2-S2/S3 | Calendar | ◐ **manual** | Drag-drop — **the flakiness originated on this Vite impl** (CLAUDE.md). Priority manual check here |
+| US3-S1/S4/S6 | Grocery | ☑ pass (same) | generator identical (servings); grocery components present |
 
 ## Open bugs (this branch)
 
-| # | Scenario ID(s) | Description | Severity | Status |
-|---|----------------|-------------|----------|--------|
-| _(none yet)_ | | | | |
+All `impl/nextjs` bugs **confirmed present on `impl/vite`** (numbering matches `impl/nextjs`):
+
+| # | Confirmed how | Severity | Status |
+|---|---------------|----------|--------|
+| 1 | `inventory.ts` + `recommendations.ts` byte-identical → cross-user data leak reproduces | HIGH | open — backend (fix both branches vs new **FR-036**) |
+| 2 | No duplicate/merge handling in Vite client either → EC-03 reproduces | LOW–MED | open |
+| 3 | Shared agent (142s); now reframed async (SC-002). Vite client also needs the async UX | HIGH→spec | open — per-branch UX |
+| 4 | `recommendations.ts` identical (no fallback) **and** `meal-recommender.ts` here **lacks** the 220s timeout → **worse** (hangs indefinitely) | MED (worse) | open — backend |
+| 5 | `recommendations.ts` identical → empty inventory returns `[]`, no popular-recipe fallback | MED | open — backend |
+| 6 | `inventory-item.ts` + `expiration.ts` identical → stale `expirationStatus`; Vite UI reads it → stale yellow/red + recs leak | MED–HIGH | open — backend |
+| 7 | `meal-plans.ts` + `ingredient-consumption.ts` identical → one-way consumption | MED | open — backend |
+| ~~8~~ | `grocery-list-generator.ts` identical (servings) — **now matches spec** (SG-03) → not a bug | — | n/a (Phase 2+) |
 
 ## Spec-gaps raised from this branch
 
