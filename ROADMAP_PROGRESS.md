@@ -57,7 +57,7 @@ Phases B (verify), C (polish), D (`002` auth) are **spec-level**, so each runs a
 | Phase | `impl/vite` | `impl/nextjs` | Shared artifact |
 |---|---|---|---|
 | B — Verify | ☑ **confirmed** (2026-06-11, code-identity) | ☑ **all 4 areas done** (inventory/recs/calendar/grocery, 2026-06-08/11); **8 bugs, 3 spec-gaps** | scenario checklist + spec-gap register |
-| C — Polish | ◐ #1 ✔ (`29d2e89`, led) | ◐ #1 ✔ (`532e198`, cherry-pick) | (works the B findings) |
+| C — Polish | ◐ #1 ✔ (`29d2e89`, led) | ◐ #1 ✔ (`532e198`, cherry-pick; full server suite re-verified **174/174** 2026-06-11) | #1 closed: FR-036 added to `acceptance-scenarios.md` |
 | D — `002` auth | ☐ not started | ☐ not started | `002` spec (topology-agnostic) on `main` |
 
 *(Status legend: ☐ not started · ◐ in progress · ☑ done. Update per cell as each branch progresses.)*
