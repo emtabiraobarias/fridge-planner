@@ -79,3 +79,7 @@ Verify where observable in-app; survey/ops-only criteria are noted.
 - **SC-012** — Previously planned meals + lists accessible within 2s on return.
 - **SC-013** — 95% of users identify expiring/expired items within 2s. *(usability)*
 - **SC-014** — Expired items excluded from LLM 100% of the time (food-safety). *(overlaps US1-S9, EC-04)*
+
+## Cross-cutting requirements
+
+- **FR-036** (per-user data isolation) — a user cannot read, modify, or delete another user's inventory / meal-plans / grocery lists, and the recommendation agent receives only the requester's ingredients. ☑ **Verified 2026-06-11** — `packages/server/tests/integration/isolation.test.ts` (5 cases, both impls; BUG #1 fixed: `impl/vite` `29d2e89` → cherry-pick `impl/nextjs` `532e198`).
