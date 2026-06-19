@@ -91,7 +91,7 @@ describe('Per-user data isolation (FR-036)', () => {
       .set('X-User-Id', 'userB')
       .send({});
     expect(res.status).toBe(200);
-    expect(res.body.recommendations).toEqual([]); // userB has nothing
+    expect(res.body.fallback).toBe('popular'); // userB has nothing → fallback, not userA's data
     expect(mockGet).not.toHaveBeenCalled(); // agent never asked with another user's items
   });
 });

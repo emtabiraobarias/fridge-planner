@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { InventoryItem } from '../../models/inventory-item.js';
 import { getMealRecommendations } from '../../services/meal-recommender.js';
-import { buildCacheKey, getCached, setCached } from '../../services/recommendations-cache.js';
+import { buildCacheKey, getCached, getStale, setCached } from '../../services/recommendations-cache.js';
 import { notExpiredQuery } from '../../lib/expiration.js';
+import { POPULAR_RECIPES } from '../../lib/popular-recipes.js';
 import type { MealRecommendation } from '../../types/meal-recommendation.js';
 
 export const recommendationsRouter = Router();
@@ -17,8 +18,9 @@ recommendationsRouter.post('/', async (req, res, next) => {
       ...notExpiredQuery(),
     });
 
+    // EC-01: nothing to recommend from → popular recipes (the "prompt to add items" lives client-side).
     if (activeItems.length === 0) {
-      res.json({ recommendations: [] as MealRecommendation[] });
+      res.json({ recommendations: POPULAR_RECIPES, fallback: 'popular' });
       return;
     }
 
@@ -36,7 +38,21 @@ recommendationsRouter.post('/', async (req, res, next) => {
       return;
     }
 
-    const recommendations = await getMealRecommendations(ingredients);
+    // EC-08 / SC-010: if the agent is unavailable (down, timeout, malformed), degrade
+    // gracefully — last-known-good cache if we have one, otherwise popular recipes — rather
+    // than failing the request with a 500.
+    let recommendations: MealRecommendation[];
+    try {
+      recommendations = await getMealRecommendations(ingredients);
+    } catch (err) {
+      console.warn('recommendations: agent unavailable, serving fallback', err);
+      const stale = getStale(cacheKey);
+      res.json({
+        recommendations: stale ?? POPULAR_RECIPES,
+        fallback: stale ? 'cache' : 'popular',
+      });
+      return;
+    }
 
     setCached(cacheKey, recommendations);
     res.json({ recommendations });
