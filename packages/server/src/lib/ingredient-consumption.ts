@@ -1,5 +1,6 @@
 import { logger } from '../app.js';
 import { InventoryItem } from '../models/inventory-item.js';
+import { notExpiredQuery } from './expiration.js';
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -10,7 +11,7 @@ async function consumeOne(userId: string, ingredientName: string): Promise<void>
   const item = await InventoryItem.findOne({
     userId,
     name: pattern,
-    expirationStatus: { $ne: 'expired' },
+    ...notExpiredQuery(),
   });
 
   if (!item) return;

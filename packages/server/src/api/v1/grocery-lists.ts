@@ -6,6 +6,7 @@ import { MealPlan } from '../../models/meal-plan.js';
 import { InventoryItem, CATEGORIES, LOCATIONS } from '../../models/inventory-item.js';
 import { problemJson } from '../../lib/errors.js';
 import { generateGroceryList } from '../../lib/grocery-list-generator.js';
+import { notExpiredQuery } from '../../lib/expiration.js';
 import { GROCERY_CATEGORIES } from '../../types/grocery-list.js';
 
 export const groceryListsRouter = Router();
@@ -90,7 +91,7 @@ groceryListsRouter.get('/:weekStart', async (req, res, next) => {
 
     const inventory = await InventoryItem.find({
       userId: req.userId,
-      expirationStatus: { $ne: 'expired' },
+      ...notExpiredQuery(),
     });
 
     const { items, generatedAt } = generateGroceryList(mealPlan, inventory);
@@ -122,7 +123,7 @@ groceryListsRouter.post('/:weekStart/generate', async (req, res, next) => {
 
     const inventory = await InventoryItem.find({
       userId: req.userId,
-      expirationStatus: { $ne: 'expired' },
+      ...notExpiredQuery(),
     });
 
     const { items: generatedItems, generatedAt } = generateGroceryList(mealPlan, inventory);

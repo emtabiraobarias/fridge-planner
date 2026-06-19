@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { InventoryItem, CATEGORIES, LOCATIONS } from '../../models/inventory-item.js';
 import { invalidateUser } from '../../services/recommendations-cache.js';
 import { problemJson } from '../../lib/errors.js';
+import { getExpirationStatus, expirationStatusQuery } from '../../lib/expiration.js';
 
 export const inventoryRouter = Router();
 
@@ -29,14 +30,22 @@ inventoryRouter.get('/', async (req, res, next) => {
     const limit = Math.min(200, Math.max(1, parseInt(req.query['limit'] as string, 10) || 50));
     const filter: Record<string, unknown> = { userId: req.userId };
     if (category) filter['category'] = category;
-    if (status) filter['expirationStatus'] = status;
+    // Status is DERIVED from expiresAt at query time (the persisted expirationStatus
+    // can go stale once an item ages past a boundary — BUG #6). Same for the counts below.
+    if (status) Object.assign(filter, expirationStatusQuery(status));
 
-    const [items, total, expired, expiringSoon] = await Promise.all([
+    const [docs, total, expired, expiringSoon] = await Promise.all([
       InventoryItem.find(filter).sort({ expiresAt: 1, name: 1 }).skip((page - 1) * limit).limit(limit),
       InventoryItem.countDocuments(filter),
-      InventoryItem.countDocuments({ ...filter, expirationStatus: 'expired' }),
-      InventoryItem.countDocuments({ ...filter, expirationStatus: 'expiring-soon' }),
+      InventoryItem.countDocuments({ ...filter, ...expirationStatusQuery('expired') }),
+      InventoryItem.countDocuments({ ...filter, ...expirationStatusQuery('expiring-soon') }),
     ]);
+
+    // Recompute expirationStatus on read so responses never serve a stale value.
+    const items = docs.map((d) => ({
+      ...d.toObject(),
+      expirationStatus: getExpirationStatus(d.expiresAt),
+    }));
 
     res.json({
       items,
