@@ -38,6 +38,9 @@ export async function getMealRecommendations(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
+    // 220 s ceiling so a hung agent aborts (→ caught as a failure → graceful fallback)
+    // rather than hanging the request indefinitely. Matches impl/nextjs.
+    signal: AbortSignal.timeout(220_000),
   });
 
   if (!res.ok) {
