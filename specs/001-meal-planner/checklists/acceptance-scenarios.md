@@ -78,7 +78,7 @@ Verify where observable in-app; survey/ops-only criteria are noted.
 - **SC-011** — No layout breakage at 320 / 768 / 1920px.
 - **SC-012** — Previously planned meals + lists accessible within 2s on return.
 - **SC-013** — 95% of users identify expiring/expired items within 2s. *(usability)*
-- **SC-014** — Expired items excluded from LLM 100% of the time (food-safety). *(overlaps US1-S9, EC-04)*
+- **SC-014** — Expired items excluded from LLM 100% of the time (food-safety). *(overlaps US1-S9, EC-04)* ☑ **Verified 2026-06-19** — exclusion is **date-derived** (`notExpiredQuery()`), robust to stale stored status (BUG #6 fixed: `impl/vite` `95afbe5` → `impl/nextjs` `41e9881`).
 
 ## Cross-cutting requirements
 
