@@ -79,7 +79,7 @@ describe('Expiration status is derived on read (BUG #6 / FR-006/007, SC-014)', (
     await createStaleExpired(); // only inventory item is truly expired
     const res = await request(app).post('/api/v1/recommendations').set('X-User-Id', U).send({});
     expect(res.status).toBe(200);
-    expect(res.body.recommendations).toEqual([]); // nothing non-expired → no agent call
+    expect(res.body.fallback).toBe('popular'); // nothing non-expired → fallback, not the expired item
     expect(mockGet).not.toHaveBeenCalled();
   });
 

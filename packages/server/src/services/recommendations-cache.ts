@@ -23,11 +23,16 @@ export function buildCacheKey(
 export function getCached(key: string): MealRecommendation[] | null {
   const entry = cache.get(key);
   if (!entry) return null;
-  if (Date.now() - entry.cachedAt > TTL_MS) {
-    cache.delete(key);
-    return null;
-  }
+  // Past TTL the entry is no longer "fresh", but we keep it so getStale() can serve it
+  // as a last-known-good fallback when the agent is unavailable (EC-08). It is cleared on
+  // any inventory mutation via invalidateUser(), so it never outlives the inventory it described.
+  if (Date.now() - entry.cachedAt > TTL_MS) return null;
   return entry.result;
+}
+
+/** Last-known-good result for a key, ignoring TTL. Used as an agent-failure fallback (EC-08). */
+export function getStale(key: string): MealRecommendation[] | null {
+  return cache.get(key)?.result ?? null;
 }
 
 export function setCached(key: string, result: MealRecommendation[]): void {

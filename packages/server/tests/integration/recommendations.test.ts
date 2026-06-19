@@ -81,10 +81,11 @@ describe('POST /api/v1/recommendations', () => {
     expect(names).not.toContain('Old Milk');
   });
 
-  it('returns empty array when inventory is empty (no holodeck call)', async () => {
+  it('returns popular-recipe fallback when inventory is empty (no holodeck call; EC-01)', async () => {
     const res = await request(app).post('/api/v1/recommendations').send({});
     expect(res.status).toBe(200);
     expect(mockGetRecommendations).not.toHaveBeenCalled();
-    expect(res.body.recommendations).toEqual([]);
+    expect(res.body.fallback).toBe('popular');
+    expect(res.body.recommendations.length).toBeGreaterThan(0);
   });
 });
