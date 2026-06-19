@@ -54,7 +54,7 @@ All `impl/nextjs` bugs **confirmed present on `impl/vite`** (numbering matches `
 | 3 | Shared agent (142s); now reframed async (SC-002). Vite client also needs the async UX | HIGH→spec | open — per-branch UX |
 | 4 | `recommendations.ts` identical (no fallback) **and** `meal-recommender.ts` here **lacks** the 220s timeout → **worse** (hangs indefinitely) | MED (worse) | open — backend |
 | 5 | `recommendations.ts` identical → empty inventory returns `[]`, no popular-recipe fallback | MED | open — backend |
-| 6 | `inventory-item.ts` + `expiration.ts` identical → stale `expirationStatus`; Vite UI reads it → stale yellow/red + recs leak | MED–HIGH | open — backend |
+| 6 | `inventory-item.ts` + `expiration.ts` identical → stale `expirationStatus`; Vite UI reads it → stale yellow/red + recs leak | MED–HIGH | **✔ FIXED (led here) 2026-06-19** — `95afbe5`: date-derived on read (`expiration.ts` query builders + GET recompute; recs/consumption/grocery now date-based). Vite SPA reads the corrected status from the API → highlighting self-corrects. TDD `expiration-staleness.test.ts`; 179/179. Cherry-picked to `impl/nextjs` `41e9881`. |
 | 7 | `meal-plans.ts` + `ingredient-consumption.ts` identical → one-way consumption | MED | open — backend |
 | ~~8~~ | `grocery-list-generator.ts` identical (servings) — **now matches spec** (SG-03) → not a bug | — | n/a (Phase 2+) |
 
