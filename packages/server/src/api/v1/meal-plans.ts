@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { MealPlan } from '../../models/meal-plan.js';
-import { consumeIngredients } from '../../lib/ingredient-consumption.js';
+import { consumeIngredients, restoreIngredients } from '../../lib/ingredient-consumption.js';
 import { problemJson } from '../../lib/errors.js';
 import { MEAL_TYPES } from '../../types/meal-plan.js';
 
@@ -70,8 +70,9 @@ mealPlansRouter.post('/:weekStart/entries', async (req, res, next) => {
       { upsert: true, new: true },
     );
 
-    // Best-effort ingredient consumption (non-blocking)
-    void consumeIngredients(req.userId, parsed.data.meal.usesIngredients);
+    // Consume the meal's ingredients — awaited so the response reflects the new quantities,
+    // and reversed on removal/replace (see DELETE and PUT). FR-005, BUG #7.
+    await consumeIngredients(req.userId, parsed.data.meal.usesIngredients);
 
     res.status(201).json({ plan });
   } catch (err) {
@@ -99,12 +100,16 @@ mealPlansRouter.delete('/:weekStart/entries/:slotId', async (req, res, next) => 
       problemJson(res, 404, 'Not Found', `No entry with slotId "${slotId}" found`);
       return;
     }
+    const removed = existing.entries.find((e) => e.slotId === slotId);
 
     const plan = await MealPlan.findOneAndUpdate(
       { userId: req.userId, weekStart },
       { $pull: { entries: { slotId } } },
       { new: true },
     );
+
+    // Restore the removed meal's ingredients to inventory (BUG #7, FR-005).
+    if (removed) await restoreIngredients(req.userId, removed.meal.usesIngredients);
 
     res.json({ plan });
   } catch (err) {
@@ -130,11 +135,20 @@ mealPlansRouter.put('/:weekStart', async (req, res, next) => {
       date: new Date(e.date),
     }));
 
+    // Net-diff inventory: restore the previous plan's ingredients, then consume the new set,
+    // so a replace (e.g. a drag-move) doesn't double-consume (BUG #7, FR-005).
+    const before = await MealPlan.findOne({ userId: req.userId, weekStart });
+    const oldUses = (before?.entries ?? []).flatMap((e) => e.meal.usesIngredients);
+    const newUses = parsed.data.entries.flatMap((e) => e.meal.usesIngredients);
+
     const plan = await MealPlan.findOneAndUpdate(
       { userId: req.userId, weekStart },
       { $set: { entries } },
       { upsert: true, new: true },
     );
+
+    await restoreIngredients(req.userId, oldUses);
+    await consumeIngredients(req.userId, newUses);
 
     res.json({ plan });
   } catch (err) {

@@ -8,6 +8,7 @@ import type { Application } from 'express';
 // (we verify it's called, not that it works — that's covered by unit tests)
 jest.unstable_mockModule('../../src/lib/ingredient-consumption.js', () => ({
   consumeIngredients: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  restoreIngredients: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 }));
 
 const { createApp } = await import('../../src/app.js');
