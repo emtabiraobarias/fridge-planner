@@ -21,7 +21,7 @@
 - **US1-S3** — View a recommended meal → owned ingredients are marked separately from to-purchase ones.
 - **US1-S4** — Perishables nearing expiry → recommendations prioritize soon-to-expire ingredients.
 - *(US1-S5 removed in spec — intentionally skipped; do not renumber.)*
-- **US1-S6** — Use an ingredient in a planned meal → inventory quantities update to reflect consumption.
+- **US1-S6** — Use an ingredient in a planned meal → inventory quantities update to reflect consumption. ☑ **Verified 2026-06-20** (BUG #7, `7dca07a`) — reversible: removing/replacing a meal restores quantities (FR-005).
 - **US1-S7** — Ingredient expiring tomorrow (before midnight) → highlighted **yellow** with indicator.
 - **US1-S8** — Ingredient expired today or earlier (midnight cutoff) → highlighted **red**, interaction disabled.
 - **US1-S9** — Expired items present → LLM agent does **not** receive expired items as available.
