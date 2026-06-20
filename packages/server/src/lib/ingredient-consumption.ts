@@ -34,3 +34,28 @@ export async function consumeIngredients(
     logger.error({ err }, 'ingredient-consumption: unexpected error');
   }
 }
+
+async function restoreOne(userId: string, ingredientName: string): Promise<void> {
+  const pattern = new RegExp(`^${escapeRegex(ingredientName)}$`, 'i');
+  const item = await InventoryItem.findOne({ userId, name: pattern, ...notExpiredQuery() });
+  // Known limitation: an item consumed down to deletion can't be faithfully recreated here
+  // (its unit/category/location are gone), so restore is a no-op in that case.
+  if (!item) return;
+  item.quantity += 1;
+  await item.save();
+}
+
+/**
+ * Inverse of consumeIngredients — increments matching inventory by 1 per name. Used to keep
+ * inventory in sync with the plan when a planned meal is removed or replaced (BUG #7, FR-005).
+ */
+export async function restoreIngredients(
+  userId: string,
+  ingredientNames: string[],
+): Promise<void> {
+  try {
+    await Promise.all(ingredientNames.map((name) => restoreOne(userId, name)));
+  } catch (err) {
+    logger.error({ err }, 'ingredient-consumption: unexpected restore error');
+  }
+}
