@@ -49,14 +49,14 @@
 
 ## Edge Cases
 
-- **EC-01** — Empty inventory on recommend → suggests popular recipes + prompts to add items.
+- **EC-01** — Empty inventory on recommend → suggests popular recipes + prompts to add items. ☑ **Verified 2026-06-19** (BUG #5, `3cc068d`) — returns `POPULAR_RECIPES` + `fallback:'popular'`.
 - **EC-02** — Insufficient ingredients (e.g. only condiments) → recommends minimal-addition recipes.
 - **EC-03** — Duplicate ingredient added with different quantities → prompt to merge / choose.
 - **EC-04** — Expired items present → red-flagged + excluded from LLM input.
 - **EC-05** — Fresh + expired versions of same ingredient → distinguished; only non-expired counted.
 - **EC-06** — Ambiguous units on aggregation ("1 large onion" + "200g") → conservative estimate + flag for review.
 - **EC-07** — Same meal planned twice in one day → allowed, with a confirmation prompt.
-- **EC-08** — LLM service down/timeout → fallback to cached/popular recipes.
+- **EC-08** — LLM service down/timeout → fallback to cached/popular recipes. ☑ **Verified 2026-06-19** (BUG #4/SC-010, `3cc068d`) — agent failure → 200 with stale-cache→popular fallback.
 - **EC-09** — Offline → show cached plans + lists with a "new recommendations need connectivity" notice.
 - **EC-10** — Concurrent editing across devices → sync changes, refresh recommendations.
 - **EC-11** — Missing expiration dates → shown as normal (no highlight), included in recommendations.
