@@ -114,7 +114,7 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 - **FR-002**: Users MUST be able to edit or delete inventory items with immediate reflection in meal recommendations
 - **FR-003**: System MUST provide standard categories (Produce, Dairy, Meat, Seafood, Grains, Pantry, Condiments, Frozen, Other) for user selection when adding inventory items; keyword-based auto-categorization is applied to grocery list aggregation only
 - **FR-004**: Users MUST be able to search and filter their inventory by category, name, or expiration status
-- **FR-005**: System MUST track ingredient quantities and update them when ingredients are used in planned meals
+- **FR-005**: System MUST track ingredient quantities and update them when ingredients are used in planned meals. Consumption is **reversible**: quantities are decremented when a meal is added to the plan and **restored when that meal is removed or replaced** (so a remove/move does not permanently over-decrement). *(Future model — consuming only at grocery-checkout / "mark cooked" time rather than at planning time — is deferred to Phase 2+; see ROADMAP.)*
 
 **Expiration Tracking and Visual Indicators**:
 - **FR-006**: System MUST visually highlight inventory items based on expiration status using midnight cutoff for date calculations:
