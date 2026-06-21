@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { fetchRecommendations as fetchRecommendationsService } from '../../services/inventory';
-import type { MealRecommendation } from '../../types/meal-recommendation';
+import { fetchRecommendations as fetchRecommendationsService, type RecommendationsResult } from '../../services/inventory';
 import { useRecommendations } from '../../context/RecommendationsContext';
 import { useInventory } from '../../context/InventoryContext';
 import { MealCard, MealCardSkeleton } from './MealCard';
@@ -8,13 +7,18 @@ import { DraggableMealCard } from './DraggableMealCard';
 
 const CLIENT_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
+const FALLBACK_NOTICE: Record<'popular' | 'cache', string> = {
+  popular: 'Personalised AI suggestions are unavailable right now — showing popular recipes. Add inventory items and try again for tailored picks.',
+  cache: 'Showing your most recent suggestions — the AI is taking a while to refresh.',
+};
+
 interface Props {
-  fetchRecommendations?: () => Promise<MealRecommendation[]>;
+  fetchRecommendations?: () => Promise<RecommendationsResult>;
   draggable?: boolean;
 }
 
 export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchRecommendationsService, draggable = false }: Props): React.JSX.Element {
-  const { state, meals, error, cachedAt, setLoading, setMeals, setError } = useRecommendations();
+  const { state, meals, error, cachedAt, fallback, setLoading, setMeals, setError } = useRecommendations();
   const { items } = useInventory();
   const prefetchedRef = useRef(false);
 
@@ -38,7 +42,7 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
     if (meals.length > 0 && age >= CLIENT_CACHE_TTL_MS) {
       try {
         const result = await fetchFn();
-        setMeals(result);
+        setMeals(result.recommendations, result.fallback ?? null);
       } catch {
         // Silently ignore background revalidation errors; stale data remains visible
       }
@@ -49,10 +53,48 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
     setLoading();
     try {
       const result = await fetchFn();
-      setMeals(result);
+      setMeals(result.recommendations, result.fallback ?? null);
     } catch {
       setError('Could not load recommendations. Please try again.');
     }
+  }
+
+  // Extracted so the result-state branches count against this helper's complexity, not the component's.
+  function renderResults(): React.JSX.Element | null {
+    if (state === 'loading') {
+      return (
+        <ul className="mt-4 space-y-3" aria-label="Loading meal recommendations">
+          <MealCardSkeleton />
+          <MealCardSkeleton />
+          <MealCardSkeleton />
+        </ul>
+      );
+    }
+    if (state === 'error') {
+      return (
+        <p role="alert" className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</p>
+      );
+    }
+    if (state !== 'success') return null;
+    return (
+      <>
+        {fallback && (
+          <p role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            {FALLBACK_NOTICE[fallback]}
+          </p>
+        )}
+        {meals.length === 0 && (
+          <p className="mt-4 text-sm text-gray-500">No suggestions returned — try adding more ingredients.</p>
+        )}
+        {meals.length > 0 && (
+          <ul className="mt-4 space-y-3">
+            {meals.map((meal, i) =>
+              draggable ? <DraggableMealCard key={i} meal={meal} index={i} /> : <MealCard key={i} meal={meal} />,
+            )}
+          </ul>
+        )}
+      </>
+    );
   }
 
   return (
@@ -67,37 +109,7 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
         {state === 'loading' ? 'Thinking…' : 'Get Recommendations'}
       </button>
 
-      {state === 'loading' && (
-        <ul className="mt-4 space-y-3" aria-label="Loading meal recommendations">
-          <MealCardSkeleton />
-          <MealCardSkeleton />
-          <MealCardSkeleton />
-        </ul>
-      )}
-
-      {state === 'error' && (
-        <p role="alert" className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3">
-          {error}
-        </p>
-      )}
-
-      {state === 'success' && meals.length === 0 && (
-        <p className="mt-4 text-sm text-gray-500">
-          No suggestions returned — try adding more ingredients.
-        </p>
-      )}
-
-      {state === 'success' && meals.length > 0 && (
-        <ul className="mt-4 space-y-3">
-          {meals.map((meal, i) =>
-            draggable ? (
-              <DraggableMealCard key={i} meal={meal} index={i} />
-            ) : (
-              <MealCard key={i} meal={meal} />
-            ),
-          )}
-        </ul>
-      )}
+      {renderResults()}
     </section>
   );
 }
