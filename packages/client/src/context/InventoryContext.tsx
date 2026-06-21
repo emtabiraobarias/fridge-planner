@@ -74,3 +74,8 @@ export function useInventory(): InventoryContextValue {
   if (!ctx) throw new Error('useInventory must be used within an InventoryProvider');
   return ctx;
 }
+
+/** Non-throwing variant — returns null when used outside a provider (e.g. presentational tests). */
+export function useInventoryOptional(): InventoryContextValue | null {
+  return useContext(InventoryContext);
+}
