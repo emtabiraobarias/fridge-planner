@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import type { InventoryItem, Category, Location } from '../../services/inventory';
+import { useInventoryOptional } from '../../context/InventoryContext';
+
+type NewItemData = Omit<InventoryItem, '_id' | 'expirationStatus'>;
 
 const CATEGORIES: Category[] = ['Produce', 'Dairy', 'Meat', 'Seafood', 'Grains', 'Pantry', 'Condiments', 'Frozen', 'Other'];
 const LOCATIONS: Location[] = ['fridge', 'freezer', 'pantry'];
@@ -108,9 +111,32 @@ export function InventoryForm({ item, onSubmit, onCancel }: Props): React.JSX.El
   const [state, setState] = useState<FormState>(() => initialState(item));
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const inventory = useInventoryOptional();
+  const [duplicate, setDuplicate] = useState<{ data: NewItemData; existing: InventoryItem } | null>(null);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]): void {
     setState((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function buildData(): NewItemData {
+    return {
+      name: state.name.trim(),
+      quantity: Number(state.quantity),
+      unit: state.unit.trim(),
+      category: state.category,
+      location: state.location,
+      ...(state.expiresAt ? { expiresAt: new Date(state.expiresAt).toISOString() } : {}),
+    };
+  }
+
+  async function submitNew(data: NewItemData): Promise<void> {
+    setSubmitting(true);
+    try {
+      await onSubmit(data);
+      if (!item) setState(initialState());
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
@@ -119,25 +145,45 @@ export function InventoryForm({ item, onSubmit, onCancel }: Props): React.JSX.El
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
+    const data = buildData();
+    // EC-03: when ADDING an ingredient that already exists, prompt to merge or add separately.
+    const existing = item
+      ? undefined
+      : inventory?.items.find((i) => i.name.trim().toLowerCase() === data.name.toLowerCase());
+    if (existing) {
+      setDuplicate({ data, existing });
+      return;
+    }
+    await submitNew(data);
+  }
+
+  async function confirmMerge(): Promise<void> {
+    if (!duplicate || !inventory) return;
+    const { data, existing } = duplicate;
     setSubmitting(true);
     try {
-      await onSubmit({
-        name: state.name.trim(),
-        quantity: Number(state.quantity),
-        unit: state.unit.trim(),
-        category: state.category,
-        location: state.location,
-        ...(state.expiresAt ? { expiresAt: new Date(state.expiresAt).toISOString() } : {}),
-      });
-      if (!item) setState(initialState());
+      await inventory.editItem(existing._id, { quantity: existing.quantity + data.quantity });
+      setState(initialState());
+      setDuplicate(null);
     } finally {
       setSubmitting(false);
     }
   }
 
+  async function confirmSeparate(): Promise<void> {
+    if (!duplicate) return;
+    const { data } = duplicate;
+    setDuplicate(null);
+    await submitNew(data);
+  }
+
   const isEdit = Boolean(item);
+  const unitsMatch = duplicate
+    ? duplicate.existing.unit.trim().toLowerCase() === duplicate.data.unit.toLowerCase()
+    : false;
 
   return (
+    <>
     <form onSubmit={(e): void => { void handleSubmit(e); }} aria-label={isEdit ? 'Edit ingredient' : 'Add ingredient'} className="rounded-xl border border-gray-200 bg-white p-4">
       <h2 className="text-lg font-semibold text-gray-900 mb-3">{isEdit ? 'Edit Ingredient' : 'Add Ingredient'}</h2>
 
@@ -184,5 +230,36 @@ export function InventoryForm({ item, onSubmit, onCancel }: Props): React.JSX.El
         )}
       </div>
     </form>
+
+    {duplicate && (
+      <div role="dialog" aria-label="Duplicate ingredient" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-4">
+        <p className="text-sm text-gray-800">
+          <strong>{duplicate.existing.name}</strong> is already in your inventory ({duplicate.existing.quantity}{' '}
+          {duplicate.existing.unit}). Merge the quantities, or add this as a separate entry?
+        </p>
+        {!unitsMatch && (
+          <p className="mt-1 text-xs text-amber-700">
+            Units differ ({duplicate.existing.unit} vs {duplicate.data.unit}) — they can&rsquo;t be merged; add separately instead.
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {unitsMatch && (
+            <button type="button" disabled={submitting} onClick={(): void => { void confirmMerge(); }}
+              className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60">
+              Merge (&rarr; {duplicate.existing.quantity + duplicate.data.quantity} {duplicate.existing.unit})
+            </button>
+          )}
+          <button type="button" disabled={submitting} onClick={(): void => { void confirmSeparate(); }}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60">
+            Add separately
+          </button>
+          <button type="button" disabled={submitting} onClick={(): void => setDuplicate(null)}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
