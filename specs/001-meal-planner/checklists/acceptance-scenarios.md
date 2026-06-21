@@ -66,7 +66,7 @@
 Verify where observable in-app; survey/ops-only criteria are noted.
 
 - **SC-001** — Add 10 inventory items in < 3 min.
-- **SC-002** — Immediate non-blocking feedback (<1s loading state); async delivery. Cached <5s; cold/web-researched delivered when ready (target <3 min), 95%+ success (inventory has ≥1 non-expired item). Async-exempt from CR-008.
+- **SC-002** — Immediate non-blocking feedback (<1s loading state); async delivery. Cached <5s; cold/web-researched delivered when ready (target <3 min), 95%+ success (inventory has ≥1 non-expired item). Async-exempt from CR-008. ☑ **Verified 2026-06-22** (SG-02, `9a2c33e`) — client shows immediate `Thinking…`/skeletons + a fallback notice; meals render when ready.
 - **SC-003** — 80% of recommended meals use ≥60% of current non-expired inventory.
 - **SC-004** — Plan 21 meals (full week) in < 10 min via drag-and-drop.
 - **SC-005** — 100% **grouping** accuracy (every occurrence of an ingredient → one line item with accurate servings count). *(Quantity/unit-conversion accuracy deferred — FR-028.)*
