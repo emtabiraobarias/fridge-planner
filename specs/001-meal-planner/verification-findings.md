@@ -50,7 +50,7 @@ All `impl/nextjs` bugs **confirmed present on `impl/vite`** (numbering matches `
 | # | Confirmed how | Severity | Status |
 |---|---------------|----------|--------|
 | 1 | `inventory.ts` + `recommendations.ts` byte-identical → cross-user data leak reproduces | HIGH | **✔ FIXED 2026-06-11 (`29d2e89`, this branch led; cherry-picked to `impl/nextjs` `532e198`)** — `userId` scoping on inventory GET/PUT/DELETE + recs query; **FR-036**; `tests/integration/isolation.test.ts` (5, red→green); 174/174 pass |
-| 2 | No duplicate/merge handling in Vite client either → EC-03 reproduces | LOW–MED | open |
+| 2 | No duplicate/merge handling in Vite client either → EC-03 reproduces | LOW–MED | **✔ FIXED (led here) 2026-06-21** — `7ba9c59`: `InventoryForm` prompts Merge / Add separately / Cancel on a same-name add (shared component; `useInventoryOptional`). Cherry-picked to `impl/nextjs` `abf3088`. Client 113/113. |
 | 3 | Shared agent (142s); now reframed async (SC-002). Vite client also needs the async UX | HIGH→spec | open — per-branch UX |
 | 4 | `recommendations.ts` identical (no fallback) **and** `meal-recommender.ts` here **lacked** the 220s timeout → was **worse** (hung indefinitely) | MED (worse) | **✔ FIXED (led here) 2026-06-19** — graceful fallback `edfb0a9` (stale-cache→popular, no 500) **+ added the missing 220s timeout** `2f01313`. Cherry-picked to `impl/nextjs` `3cc068d`. 182/182. |
 | 5 | `recommendations.ts` identical → empty inventory returns `[]`, no popular-recipe fallback | MED | **✔ FIXED (led here) 2026-06-19** — empty/all-expired → `POPULAR_RECIPES` + `fallback:'popular'` (`edfb0a9`). |
