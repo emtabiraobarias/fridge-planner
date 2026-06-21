@@ -51,7 +51,7 @@
 
 - **EC-01** — Empty inventory on recommend → suggests popular recipes + prompts to add items. ☑ **Verified 2026-06-19** (BUG #5, `3cc068d`) — returns `POPULAR_RECIPES` + `fallback:'popular'`.
 - **EC-02** — Insufficient ingredients (e.g. only condiments) → recommends minimal-addition recipes.
-- **EC-03** — Duplicate ingredient added with different quantities → prompt to merge / choose.
+- **EC-03** — Duplicate ingredient added with different quantities → prompt to merge / choose. ☑ **Verified 2026-06-21** (BUG #2, `abf3088`) — same-name add prompts Merge / Add separately / Cancel.
 - **EC-04** — Expired items present → red-flagged + excluded from LLM input.
 - **EC-05** — Fresh + expired versions of same ingredient → distinguished; only non-expired counted.
 - **EC-06** — Ambiguous units on aggregation ("1 large onion" + "200g") → conservative estimate + flag for review.
