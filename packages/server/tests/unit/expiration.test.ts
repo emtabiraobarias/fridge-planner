@@ -1,5 +1,9 @@
 import { describe, it, expect } from '@jest/globals';
-import { getExpirationStatus } from '../../src/lib/expiration.js';
+import {
+  getExpirationStatus,
+  expirationStatusQuery,
+  notExpiredQuery,
+} from '../../src/lib/expiration.js';
 
 /**
  * Midnight cutoff rules (FR-006):
@@ -39,5 +43,39 @@ describe('getExpirationStatus', () => {
 
   it('returns "normal" for an item expiring far in the future', () => {
     expect(getExpirationStatus(daysFromNow(30))).toBe('normal');
+  });
+});
+
+describe('expirationStatusQuery', () => {
+  it('selects items before tomorrow midnight for "expired"', () => {
+    const q = expirationStatusQuery('expired') as { expiresAt: { $lt: Date } };
+    expect(q.expiresAt.$lt).toBeInstanceOf(Date);
+  });
+
+  it('selects exactly tomorrow for "expiring-soon" (lower < upper bound)', () => {
+    const q = expirationStatusQuery('expiring-soon') as { expiresAt: { $gte: Date; $lt: Date } };
+    expect(q.expiresAt.$gte.getTime()).toBeLessThan(q.expiresAt.$lt.getTime());
+  });
+
+  it('selects day-after-tomorrow onward for "normal"', () => {
+    const q = expirationStatusQuery('normal') as { expiresAt: { $gte: Date } };
+    expect(q.expiresAt.$gte).toBeInstanceOf(Date);
+  });
+
+  it('selects items with no expiry date for "none"', () => {
+    expect(expirationStatusQuery('none')).toEqual({ expiresAt: null });
+  });
+
+  it('returns an empty filter for an unknown status', () => {
+    expect(expirationStatusQuery('bogus')).toEqual({});
+  });
+});
+
+describe('notExpiredQuery', () => {
+  it('matches items with no expiry OR an expiry not yet reached', () => {
+    const q = notExpiredQuery() as { $or: Array<Record<string, unknown>> };
+    expect(q.$or).toHaveLength(2);
+    expect(q.$or[0]).toEqual({ expiresAt: null });
+    expect(q.$or[1]).toHaveProperty('expiresAt');
   });
 });
