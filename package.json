@@ -7,12 +7,9 @@
     "packages/server"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "debug": "concurrently \"npm run server:debug\" \"npm run client\"",
+    "dev": "npm run client",
     "client": "npm -w packages/client run dev",
-    "server": "npm -w packages/server run dev",
-    "server:debug": "npm -w packages/server run debug",
-    "build": "npm -w packages/server run build && npm -w packages/client run build",
+    "build": "npm -w packages/client run build",
     "test": "npm -w packages/server run test && npm -w packages/client run test",
     "lint": "eslint 'packages/*/src/**/*.{ts,tsx}' --max-warnings 0",
     "format": "prettier --write 'packages/*/src/**/*.{ts,tsx,css}'"
