@@ -11,12 +11,11 @@ const nextConfig: NextConfig = {
   // Phase C-bis migration: endpoints handled by Next.js Route Handlers are omitted
   // from this list. Everything still served by Express is proxied explicitly, so a
   // catch-all rewrite can't shadow the app-router dynamic routes (e.g. /inventory/[id]).
-  // Migrated so far: inventory.
+  // Migrated so far: inventory, grocery-lists.
   async rewrites() {
     return [
       { source: '/api/v1/recommendations/:path*', destination: `${backendUrl}/api/v1/recommendations/:path*` },
       { source: '/api/v1/meal-plans/:path*', destination: `${backendUrl}/api/v1/meal-plans/:path*` },
-      { source: '/api/v1/grocery-lists/:path*', destination: `${backendUrl}/api/v1/grocery-lists/:path*` },
     ];
   },
 };
