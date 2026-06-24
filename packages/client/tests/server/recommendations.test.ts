@@ -46,6 +46,8 @@ beforeEach(async () => {
   await mongoose.connection.dropDatabase();
   getMealRecommendations.mockReset();
   invalidateUser(USER);
+  // Reset the in-memory rate-limit windows so per-test call counts start fresh.
+  (globalThis as unknown as { _rateLimitBuckets?: Map<string, unknown> })._rateLimitBuckets?.clear();
 });
 
 function req(userId = USER): Request {
@@ -119,5 +121,15 @@ describe('POST /api/v1/recommendations', () => {
     const body = (await res.json()) as RecResponse;
     expect(body.fallback).toBe('popular');
     expect(body.recommendations.length).toBeGreaterThan(0);
+  });
+
+  it('rate-limits to 10 requests/minute per user (429 on the 11th)', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 11; i++) {
+      const res = await POST(req('rate-test-user'));
+      statuses.push(res.status);
+    }
+    expect(statuses.slice(0, 10).every((s) => s === 200)).toBe(true);
+    expect(statuses[10]).toBe(429);
   });
 });
