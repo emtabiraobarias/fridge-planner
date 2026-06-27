@@ -16,12 +16,13 @@
 #
 # Env / flags:
 #   BASE        API base URL          (default http://localhost:3000/api/v1)
-#   USER        X-User-Id header      (default smoke-user)
+#   SMOKE_USER  X-User-Id header      (default smoke-user)
 #   AGENT=0     or  --no-agent        skip the non-deterministic live-agent step (step 8)
 #
 set -u
 BASE="${BASE:-http://localhost:3000/api/v1}"
-U="${USER:-smoke-user}"
+# Note: NOT named USER — that's the ubiquitous shell login-name env var and would clobber the default.
+U="${SMOKE_USER:-smoke-user}"
 AGENT="${AGENT:-1}"
 for a in "$@"; do [ "$a" = "--no-agent" ] && AGENT=0; done
 
