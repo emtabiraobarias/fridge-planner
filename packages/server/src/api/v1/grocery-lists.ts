@@ -11,14 +11,10 @@ import { GROCERY_CATEGORIES } from '../../types/grocery-list.js';
 
 export const groceryListsRouter = Router();
 
-type PatchItemData = {
-  displayName?: string;
-  quantity?: number;
-  unit?: string;
-  category?: string;
-  isPurchased?: boolean;
-  notes?: string;
-};
+// Derived from the Zod schema (below) rather than hand-written: under
+// exactOptionalPropertyTypes a hand-written `displayName?: string` rejects Zod's
+// `string | undefined` output, breaking `tsc` (caught by scripts/validate-e2e.sh).
+type PatchItemData = z.infer<typeof patchItemSchema>;
 
 function buildItemSetFields(data: PatchItemData): Record<string, unknown> {
   const setFields: Record<string, unknown> = {};
