@@ -48,8 +48,8 @@ Build a full-stack meal planning web application with three priority tiers: (P1)
 |---|---|
 | Frontend build/SSR toolchain | **React 18 + Next.js 15 (App Router)**. Client dev server on `:3000` (`next dev --port 3000`); production via `next build` standalone output for Docker. |
 | Client state mounting point | `'use client'` context providers mounted at the App Router root (`app/providers.tsx`); Server Components are not used for application state. |
-| Server API mechanism & process model | **Today:** standalone Express service on `:3001`, split-origin (requires `CORS_ORIGIN`). **Phase C-bis (this branch only):** API migrates into **Next.js Route Handlers** (`app/api/**`), same-origin, one Node process, `CORS_ORIGIN` dropped. See ROADMAP Phase C-bis (Cb0–Cb6). |
-| Server runtime/build | `tsx` runs the Express server today; folds into the Next.js build once Route Handlers replace Express. |
+| Server API mechanism & process model | **Next.js Route Handlers** (`app/api/v1/**`) over a `src/server/` layer (controllers/models/libs/services) — same-origin, **one Node process** on `:3000`, no `CORS_ORIGIN`/`PORT`. Express was retired and `packages/server` deleted (**Phase C-bis COMPLETE, Cb0–Cb6**, 2026-06; v4.0.0). The earlier split-origin Express service on `:3001` is gone. |
+| Server runtime/build | Folded into the Next.js build (`next build` → standalone; `next start`). No separate server runtime. |
 | FCP mechanism (<1.5s) | Next.js server rendering of route shells; route-based code splitting via the App Router; `next/image` + `next/dynamic` for lazy loading. |
 
 Shared and unchanged from the constitution: TypeScript (strict), MongoDB + Mongoose, Tailwind CSS, React Context + Hooks, Vitest + RTL (client) / Jest (server).

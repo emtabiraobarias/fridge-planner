@@ -10,10 +10,10 @@ This file is the primary reference for AI assistants working in this repository.
 
 **Tech Stack:**
 - **Frontend:** React 18 + Next.js 15 (App Router) + Tailwind CSS (port 3000)
-- **Backend:** Express 4 + Mongoose + MongoDB (port 3001)
+- **Backend:** Next.js Route Handlers + Mongoose + MongoDB — served by the **same Next process** (port 3000). Endpoints live in `packages/client/app/api/v1/`; the server layer (models, libs, services, controllers) in `packages/client/src/server/`. **No standalone Express service** (retired in Phase C-bis — see §10/§14).
 - **AI Agent:** Holodeck with Claude Sonnet 4.6 (port 8001)
 - **Language:** TypeScript (strict mode throughout)
-- **Monorepo:** npm workspaces (`packages/client`, `packages/server`)
+- **Monorepo:** npm workspace (`packages/client`) — the Next app is the whole stack
 
 ---
 
@@ -24,33 +24,34 @@ Run all commands from the **repo root** unless noted otherwise.
 ### Development
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start client + server concurrently |
-| `npm run client` | Client only (Next.js, port 3000) |
-| `npm run server` | Server only (tsx watch, port 3001) |
-| `npm run debug` | Client + server with Node inspector |
+| `npm run dev` | Start the Next.js app (port 3000) — the whole stack |
+| `npm run client` | Same as `dev` (the app *is* the client package) |
+
+> Requires MongoDB (`:27017`) and Holodeck (`:8001`) running — `docker compose up -d mongodb holodeck`. The Next process reads `MONGODB_URI` + `HOLODECK_URL` (see `packages/client/.env.local`).
 
 ### Quality
 | Command | Description |
 |---------|-------------|
 | `npm run lint` | ESLint on all `packages/*/src` (zero warnings) |
 | `npm run format` | Prettier on all TS/TSX/CSS source files |
-| `npm test` | Run all tests (server Jest → client Vitest) |
+| `npm test` | Run all tests (client Vitest — includes node-env API tests under `tests/server/`) |
 
 ### Per-Package
 ```bash
-# Server
-npm -w packages/server run test          # all server tests
-npm -w packages/server run test -- --testPathPattern=inventory  # filtered
-npm -w packages/server run build         # production build 
-
-# Client
-npm -w packages/client run test          # all client tests
+npm -w packages/client run test          # all tests (Vitest)
+npm -w packages/client run test -- tests/server/inventory.test.ts  # filtered
 npm -w packages/client run build         # production build (next build)
+```
+
+### End-to-end validation (release gate)
+```bash
+bash scripts/validate-e2e.sh             # boot prod build + Mongo (+Holodeck) → shared smoke → teardown
+bash scripts/validate-e2e.sh --no-agent  # deterministic core only. See docs/smoke-test.md
 ```
 
 ### Docker (full stack)
 ```bash
-docker compose up --build               # MongoDB + Holodeck + server + Next.js client
+docker compose up --build               # MongoDB + Holodeck + Next.js app (serves the API too)
 docker compose rm -fs holodeck          # Stop and remove Holodeck 0-=container
 docker compose up -d --build holodeck   # Rebuild and restart Holodeck
 docker compose ps holodeck              # Verify if Holodeck is healthy
@@ -64,44 +65,38 @@ docker compose logs -f holodeck         # Check Holodeck logs
 ```
 fridge-planner/
 ├── packages/
-│   ├── client/
-│   │   ├── app/                      # Next.js App Router entrypoint
-│   │   │   ├── layout.tsx            # Root layout (fonts, global providers)
-│   │   │   ├── page.tsx              # / → InventoryPage
-│   │   │   ├── providers.tsx         # Client-side context providers wrapper
-│   │   │   ├── nav.tsx               # Top navigation bar
-│   │   │   ├── calendar/page.tsx     # /calendar route
-│   │   │   └── grocery/page.tsx      # /grocery route
-│   │   ├── src/
-│   │   │   ├── components/
-│   │   │   │   ├── calendar/         # WeeklyCalendar, CalendarSlot, CalendarMealCard, MealSlotCard, MealDetailModal
-│   │   │   │   ├── grocery/          # AddGroceryItemForm, GroceryListHeader, GroceryListCategoryGroup,
-│   │   │   │   │                     # GroceryListItemRow, GroceryListSearchBar, CheckoutConfirmModal
-│   │   │   │   ├── inventory/        # InventoryForm, InventoryList
-│   │   │   │   ├── recommendations/  # RecommendationsPanel, MealCard, DraggableMealCard
-│   │   │   │   └── shared/
-│   │   │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
-│   │   │   ├── views/                # InventoryPage, CalendarPage, GroceryListPage (all 'use client')
-│   │   │   ├── services/             # inventory.ts, meal-plans.ts, grocery-lists.ts (API fetch wrappers)
-│   │   │   ├── types/                # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
-│   │   │   └── lib/                  # date-utils.ts
-│   │   └── tests/                    # Vitest — components/, context/, lib/, views/, app/
-│   │
-│   └── server/
+│   └── client/                       # the whole app — UI + API (no separate server package)
+│       ├── app/                      # Next.js App Router entrypoint
+│       │   ├── layout.tsx            # Root layout (fonts, global providers)
+│       │   ├── page.tsx              # / → InventoryPage
+│       │   ├── providers.tsx         # Client-side context providers wrapper
+│       │   ├── nav.tsx               # Top navigation bar
+│       │   ├── calendar/page.tsx     # /calendar route
+│       │   ├── grocery/page.tsx      # /grocery route
+│       │   └── api/v1/               # ROUTE HANDLERS (the backend): inventory/, grocery-lists/[weekStart]/*,
+│       │                             # meal-plans/[weekStart]/*, recommendations/ — thin; call src/server controllers
 │       ├── src/
-│       │   ├── api/v1/               # inventory.ts, recommendations.ts, meal-plans.ts, grocery-lists.ts
-│       │   ├── middleware/           # auth.ts, error-handler.ts, rate-limiter.ts
-│       │   ├── models/               # inventory-item.ts, meal-plan.ts, grocery-list.ts (Mongoose schemas)
-│       │   ├── services/             # meal-recommender.ts, recommendations-cache.ts
-│       │   ├── lib/                  # expiration.ts, errors.ts, ingredient-consumption.ts,
-│       │   │                         # grocery-list-generator.ts, ingredient-categorizer.ts,
-│       │   │                         # ingredient-matcher.ts, unit-normalizer.ts
+│       │   ├── components/           # calendar/, grocery/, inventory/, recommendations/, shared/
+│       │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
+│       │   ├── views/                # InventoryPage, CalendarPage, GroceryListPage (all 'use client')
+│       │   ├── services/             # inventory.ts, meal-plans.ts, grocery-lists.ts (browser API fetch wrappers)
 │       │   ├── types/                # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
-│       │   ├── app.ts                # Express app setup
-│       │   └── index.ts              # Entry point
-│       └── tests/
-│           ├── integration/          # inventory, meal-plans, recommendations, grocery-lists
-│           └── unit/                 # expiration, models, services, middleware, grocery lib
+│       │   ├── lib/                  # date-utils.ts
+│       │   └── server/               # SERVER LAYER (Node-only; `import 'server-only'`):
+│       │       ├── db.ts             #   globalThis-cached Mongoose connection
+│       │       ├── auth.ts           #   getUserId() dev stub (X-User-Id header)
+│       │       ├── http.ts           #   ControllerResult + problem() (framework-agnostic)
+│       │       ├── route-helpers.ts  #   withRoute() error wrapper + problemResponse()
+│       │       ├── rate-limit.ts     #   in-memory fixed-window limiter
+│       │       ├── logger.ts         #   framework-neutral structured logger
+│       │       ├── controllers/      #   inventory, grocery-lists, meal-plans, recommendations (extracted logic)
+│       │       ├── models/           #   inventory-item, meal-plan, grocery-list (Mongoose; hot-reload guarded)
+│       │       ├── services/         #   meal-recommender (Holodeck client), recommendations-cache
+│       │       ├── lib/              #   expiration, ingredient-consumption, grocery-list-generator,
+│       │       │                     #   ingredient-categorizer, ingredient-matcher, unit-normalizer
+│       │       └── types/            #   meal-plan, meal-recommendation, grocery-list
+│       └── tests/                    # Vitest — components/, context/, lib/, views/, app/, and
+│                                     # tests/server/ (node-env API handler + unit tests vs mongodb-memory-server)
 │
 ├── agents/meal-recommender/
 │   ├── agent.yaml                # Holodeck config (model, eval metrics, test cases)
@@ -120,7 +115,7 @@ fridge-planner/
 
 ## 4. API Endpoints
 
-Base URL: `http://localhost:3001/api/v1`
+Base URL: `http://localhost:3000/api/v1` (served by Next.js Route Handlers in the same process — no proxy, no `:3001`)
 
 ### Inventory
 | Method | Path | Description |
@@ -234,13 +229,13 @@ Copy `.env.example` to `.env` before running locally.
 | `AUTH_ISSUER` | — | No (CR-001, production OIDC) |
 | `AUTH_AUDIENCE` | — | No (CR-001, production OIDC) |
 | `AUTH_JWKS_URI` | — | No (CR-001, production OIDC) |
-| `PORT` | `3001` | No |
 | `NODE_ENV` | `development` | No |
-| `CORS_ORIGIN` | `http://localhost:3000` | No |
 | `LOG_LEVEL` | `info` | No |
 | `REDIS_URL` | `redis://localhost:6379` | No (P2+, not required for P1 MVP) |
 
-> **Auth note:** `middleware/auth.ts` is a development stub — it reads `X-User-Id` header and defaults to `'anonymous'`. Production OIDC validation is a known TODO (CR-001).
+> Single Next process on `:3000`, same-origin — so **no `PORT`/`CORS_ORIGIN`/`BACKEND_URL`** (removed with Express in Phase C-bis). For local `next dev`, put `MONGODB_URI` + `HOLODECK_URL` in `packages/client/.env.local`.
+
+> **Auth note:** `src/server/auth.ts` `getUserId()` is a development stub — it reads the `X-User-Id` header and defaults to `'anonymous'`. Production OIDC validation is a known TODO (CR-001).
 
 ---
 
@@ -277,45 +272,46 @@ Copy `.env.example` to `.env` before running locally.
 - **Presentational vs container:** keep UI components pure; logic lives in hooks/context
 - `useCallback`/`useMemo` only when profiling justifies it
 
-### Express Patterns
-- `async/await` for all async operations; never `.then()` chains in route handlers
-- Wrap handlers in `try/catch`; let `middleware/error-handler.ts` handle the rest
-- **Zod** for request body/query validation before processing
-- Apply rate limiting middleware at the router level
+### Route Handler Patterns (Next.js)
+- **Thin handlers, extracted logic:** `app/api/v1/**/route.ts` handlers do only `connectDb()` → `getUserId(request)` → parse body/params → call a `src/server/controllers/*` function → `NextResponse.json`. All real logic lives in the controllers (so it's testable without HTTP).
+- Controllers return a framework-agnostic `ControllerResult` (`{ status, body }`); use `problem()` (`src/server/http.ts`) for RFC-7807 errors.
+- Wrap each handler body in `withRoute(async () => { … })` (`src/server/route-helpers.ts`) so unhandled throws become a Problem JSON 500.
+- `async/await` throughout; **Zod** for request body/query validation before processing.
+- Rate-limit in the handler via `rateLimit(key, limit, windowMs)` (`src/server/rate-limit.ts`) — e.g. recommendations = 10/min.
+- Server-only modules (`db.ts`, `auth.ts`, controllers, services) start with `import 'server-only'`.
+- Next 15: route `params` is a **Promise** — `const { id } = await ctx.params`.
 
 ---
 
 ## 8. Testing
 
-### Server (Jest + ts-jest)
-- **Location:** `packages/server/tests/unit/` and `tests/integration/`
-- **Coverage threshold:** 80% (branches, functions, lines, statements)
-- In-memory MongoDB via `mongodb-memory-server` — no real DB in tests
-- Mock Holodeck HTTP calls in recommender tests
-- Route files (`api/v1/`) are excluded from unit coverage — they're covered by integration tests
-- ESM imports in test files must use `.js` extension (Jest's `moduleNameMapper` resolves them to `.ts`)
+All tests run under **Vitest** in the one `packages/client` package (Express + Jest are gone).
+
+### Server-layer tests (Vitest, node environment) — `tests/server/`
+- **Location:** `packages/client/tests/server/` (API handler tests) and `tests/server/unit/` (lib/service units).
+- First line `// @vitest-environment node`; in-memory MongoDB via `mongodb-memory-server`; `vitest.config.ts` aliases `@server` → `src/server` and stubs `server-only`.
+- **Handler tests** import the route handlers, set `process.env.MONGODB_URI` to the memory server, and call `GET/POST/…` with real `Request` objects — they exercise handler + controller + model end-to-end.
+- Mock the Holodeck agent: stub `getMealRecommendations` (controller fallback tests) **or** `global.fetch` (the agent-client's own fetch/parse logic).
 
 ```typescript
-// Unit test example
-import { describe, it, expect } from '@jest/globals';
-import { getExpirationStatus } from '../../src/lib/expiration.js';
+// @vitest-environment node
+import { describe, it, expect } from 'vitest';
+import { getExpirationStatus } from '@server/lib/expiration';
 
 describe('getExpirationStatus', () => {
   it('returns expired for past dates', () => {
-    const yesterday = new Date(Date.now() - 86400000);
-    expect(getExpirationStatus(yesterday)).toBe('expired');
+    expect(getExpirationStatus(new Date(Date.now() - 86400000))).toBe('expired');
   });
 });
 ```
 
-### Client (Vitest + React Testing Library)
-- **Location:** `packages/client/tests/`
+### Client / component tests (Vitest + React Testing Library)
+- **Location:** `packages/client/tests/` (components/, context/, lib/, views/, app/)
 - **Coverage threshold:** 70%
 - Environment: `jsdom`; setup file at `tests/setup.ts`
 - `tests/setup.ts` mocks `next/navigation` and `next/link` — required for any component using Next.js router hooks
-- Services layer (`src/services/`) excluded from client coverage — covered by server integration tests
+- Services layer (`src/services/`) excluded from coverage; mock all API calls (services layer)
 - Test user interactions and rendered output — avoid testing implementation details
-- Mock all API calls (services layer)
 
 ```typescript
 // Component test example
@@ -436,11 +432,10 @@ After updating the spec, any existing code that no longer satisfies the revised 
 
 | ID | Description | Location |
 |----|-------------|----------|
-| CR-001 | Auth stub — replace X-User-Id header with proper OIDC/JWT validation | `packages/server/src/middleware/auth.ts` |
-| CR-013 | OpenAPI 3.0 spec not yet written — deferred until API shape stabilises post-Phase 2 | `packages/server/src/api/` |
-| — | Drag-and-drop has intermittent bugs noted in commit history | `packages/client/src/pages/CalendarPage.tsx` |
-| — | No CI/CD pipeline — GitHub Actions deferred until test suite is stable | repo root |
-| — | No E2E tests — unit + integration tests are the current confidence ceiling | `packages/*/tests/` |
+| CR-001 | Auth stub — replace X-User-Id header with proper OIDC/JWT validation | `packages/client/src/server/auth.ts` |
+| CR-013 | OpenAPI 3.0 spec not yet written — deferred until API shape stabilises post-Phase 2 | `packages/client/app/api/v1/` |
+| — | Drag-and-drop has intermittent bugs noted in commit history | `packages/client/src/views/CalendarPage.tsx` |
+| — | No CI/CD pipeline — GitHub Actions deferred (would run `validate-e2e.sh --no-agent` + Vitest) | repo root |
 | — | Redis-backed cache deferred to Phase 2+ | `REDIS_URL` in `.env.example` |
 
 ---
@@ -457,9 +452,12 @@ After updating the spec, any existing code that no longer satisfies the revised 
 | `specs/001-meal-planner/plan.md` | Implementation plan |
 | `agents/meal-recommender/agent.yaml` | Holodeck agent config — model, eval metrics, test cases |
 | `agents/meal-recommender/instructions/system-prompt.md` | Claude system prompt for meal AI |
-| `packages/server/src/lib/expiration.ts` | Expiration status logic (midnight cutoff) |
-| `packages/server/src/lib/errors.ts` | Problem JSON error helpers |
-| `packages/server/src/lib/grocery-list-generator.ts` | Generates grocery list items from a meal plan + inventory |
+| `packages/client/app/api/v1/` | Route Handlers (the backend) — thin adapters over `src/server/controllers/` |
+| `packages/client/src/server/db.ts` | globalThis-cached Mongoose connection |
+| `packages/client/src/server/http.ts` + `route-helpers.ts` | `ControllerResult`/`problem()` + `withRoute()` error wrapper |
+| `packages/client/src/server/lib/expiration.ts` | Expiration status logic (midnight cutoff) |
+| `packages/client/src/server/lib/grocery-list-generator.ts` | Generates grocery list items from a meal plan + inventory |
+| `scripts/smoke-test.sh` + `scripts/validate-e2e.sh` | E2E release gate (see `docs/smoke-test.md`) |
 | `.env.example` | All environment variables documented |
 | `.specify/templates/` | Spec, plan, and tasks templates for new features |
 | `.specify/scripts/bash/create-new-feature.sh` | Scaffold a new feature spec directory |
@@ -477,11 +475,17 @@ The agent originally defaulted to API key auth and was corrected to `oauth_token
 **Don't let the meal recommender return prose or markdown.**
 The original agent returned human-readable text; the system prompt was rewritten to enforce raw JSON only (commit `4082def`). Any prompt change that loosens this constraint will break the client's JSON parser.
 
-**Don't use `.ts` extensions in server-side import paths.**
-The server uses `"moduleResolution": "NodeNext"` — imports must use `.js` even for `.ts` source files (e.g., `import { foo } from './bar.js'`). ESLint is configured to ignore `.js` files, so wrong extensions can silently compile but fail at runtime.
+**Don't use `.js` extensions in server-layer import paths.**
+`src/server/` is bundled by Next.js (`"moduleResolution": "Bundler"`) — imports are **extensionless** (`import { foo } from './bar'`), and use the `@server/*` alias for cross-tree imports. (This is the opposite of the old Express `NodeNext` rule, which required `.js` — that package is gone.)
+
+**Don't import `src/server/*` from a Client Component.**
+The server layer is Node-only (Mongoose, secrets) and guarded with `import 'server-only'`, which throws if pulled into the client bundle. Browser code reaches the API only through `src/services/*` (`fetch`). Keep models/DB/agent code behind the Route Handlers.
+
+**Don't re-introduce Express or a separate API server.**
+Phase C-bis retired Express into Next.js Route Handlers (one process on `:3000`); `packages/server` was deleted. Add backend behaviour as a Route Handler + `src/server/controllers/*`, not a new service. (This is branch-scoped — `impl/vite` still runs Express.)
 
 **Don't manually set `expirationStatus` in `findOneAndUpdate` calls.**
-`expirationStatus` is auto-computed by a Mongoose `pre('findOneAndUpdate')` hook in `models/inventory-item.ts` whenever `expiresAt` changes. Writing it directly in an update will produce a stale value or get overwritten; always let the hook manage it.
+`expirationStatus` is auto-computed by a Mongoose `pre('findOneAndUpdate')` hook in `src/server/models/inventory-item.ts` whenever `expiresAt` changes. Writing it directly in an update will produce a stale value or get overwritten; always let the hook manage it.
 
 **Don't add state management libraries (Redux, Zustand, etc.).**
 All shared state uses React Context + custom hooks. Adding a third-party store would duplicate the existing pattern and violate the architecture constraint in `constitution.md`.

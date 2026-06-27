@@ -5,10 +5,14 @@ AI-powered meal planning application that helps you track fridge and pantry inve
 ## Architecture
 
 ```
-packages/client   — React 18 + Next.js 15 (App Router) + Tailwind CSS (port 3000)
-packages/server   — Express + TypeScript + Mongoose  (port 3001)
+packages/client   — React 18 + Next.js 15 (App Router) + Tailwind CSS — the WHOLE app (port 3000)
+                    UI under app/ + src/; the API under app/api/v1/ (Route Handlers) + src/server/
 agents/meal-recommender — Holodeck AI agent, Claude Sonnet 4.6 (port 8001)
 ```
+
+The Next.js app is the entire stack: it serves the UI **and** the `/api/v1` backend from
+Route Handlers in one Node process, talking to MongoDB and Holodeck directly (no separate
+Express service — retired in Phase C-bis).
 
 **Backing services:** MongoDB 7
 
@@ -78,22 +82,32 @@ docker compose up holodeck -d
 > docker compose restart holodeck
 > ```
 
-### 5. Start the dev servers
+### 5. Start the app
+
+The Next.js app reads `MONGODB_URI` + `HOLODECK_URL` from its **own** env (not the root `.env`),
+so put them in `packages/client/.env.local` (gitignored):
+
+```bash
+printf 'MONGODB_URI=mongodb://localhost:27017/fridge-planner\nHOLODECK_URL=http://localhost:8001\n' \
+  > packages/client/.env.local
+```
 
 ```bash
 npm run dev
 ```
 
-This starts both the Express API server (port 3001) and the Next.js dev server (port 3000) concurrently. The Next.js dev server proxies `/api` requests to the Express backend.
+This starts the Next.js app on port 3000 — it serves the UI **and** the `/api/v1` API (Route
+Handlers) in one process (no separate Express server, no proxy).
 
 Open **http://localhost:3000** in your browser.
 
-### Individual services
+### End-to-end validation
 
 ```bash
-npm run server    # Express API only (port 3001)
-npm run client    # Next.js dev server only (port 3000)
+bash scripts/validate-e2e.sh --no-agent   # boots a prod build + Mongo, runs the smoke, tears down
 ```
+
+See [`smoke-test.md`](smoke-test.md) for the full release-gate guide.
 
 ### Running tests
 
@@ -134,14 +148,13 @@ LOG_LEVEL=info
 docker compose up --build -d
 ```
 
-This starts four containers:
+This starts three containers:
 
 | Service | Port | Description |
 |---------|------|-------------|
 | `mongodb` | 27017 | MongoDB 7 database |
 | `holodeck` | 8001 | AI meal recommendation agent |
-| `server` | 3001 | Express API |
-| `client` | 3000 | Next.js standalone server (App Router) |
+| `client` | 3000 | Next.js app — serves the UI **and** the `/api/v1` API |
 
 ### 3. Verify
 
@@ -149,9 +162,9 @@ This starts four containers:
 # Check all services are healthy
 docker compose ps
 
-# Test the API
-curl http://localhost:3001/health
-# → {"status":"ok"}
+# Test the API (served by the Next app)
+curl -s http://localhost:3000/api/v1/inventory -H 'X-User-Id: dev'
+# → {"items":[],"summary":{...},"pagination":{...}}
 
 # Test the client
 curl -s http://localhost:3000 | head -5
@@ -181,7 +194,10 @@ fridge-planner/
 ├── packages/
 │   ├── client/                 # React frontend (Next.js 15 App Router)
 │   │   ├── app/                    # App Router: layout, providers, nav, routes (/, /calendar, /grocery)
+│   │   │   └── api/v1/             # Route Handlers (the backend): inventory, grocery-lists, meal-plans, recommendations
 │   │   ├── src/
+│   │   │   ├── server/            # SERVER LAYER (node-only): db, auth, http, route-helpers, rate-limit, logger,
+│   │   │   │                      #   controllers/, models/, services/, lib/, types/
 │   │   │   ├── components/
 │   │   │   │   ├── calendar/       # WeeklyCalendar, CalendarSlot, CalendarMealCard, MealSlotCard, MealDetailModal
 │   │   │   │   ├── grocery/        # AddGroceryItemForm, GroceryListHeader, GroceryListCategoryGroup,
@@ -194,19 +210,10 @@ fridge-planner/
 │   │   │   ├── services/           # inventory.ts, meal-plans.ts, grocery-lists.ts (API fetch wrappers)
 │   │   │   ├── types/              # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
 │   │   │   └── lib/                # date-utils.ts
-│   │   ├── tests/
+│   │   ├── tests/                  # Vitest — components/, context/, views/, app/, + tests/server/ (node-env API tests)
 │   │   ├── next.config.ts
 │   │   └── Dockerfile
-│   └── server/                 # Express backend
-│       ├── src/
-│       │   ├── api/v1/             # inventory.ts, recommendations.ts, meal-plans.ts, grocery-lists.ts
-│       │   ├── middleware/         # auth.ts, error-handler.ts, rate-limiter.ts
-│       │   ├── models/             # inventory-item.ts, meal-plan.ts, grocery-list.ts (Mongoose schemas)
-│       │   ├── services/           # meal-recommender.ts, recommendations-cache.ts
-│       │   ├── types/              # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
-│       │   └── lib/                # expiration.ts, errors.ts, grocery-list-generator.ts,
-│       │                           # ingredient-categorizer.ts, ingredient-matcher.ts, unit-normalizer.ts
-│       └── tests/
+├── scripts/                    # smoke-test.sh (shared) + validate-e2e.sh (per-branch E2E gate)
 ├── agents/
 │   └── meal-recommender/       # Holodeck AI agent
 │       ├── agent.yaml          # Model, eval metrics, test cases
@@ -220,7 +227,7 @@ fridge-planner/
 
 ## API Endpoints
 
-Base URL: `http://localhost:3001/api/v1`
+Base URL: `http://localhost:3000/api/v1` (served by the Next.js app — same origin, no proxy)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -255,9 +262,7 @@ Base URL: `http://localhost:3001/api/v1`
 | `AUTH_ISSUER` | — | No | OIDC issuer URL (CR-001, production only) |
 | `AUTH_AUDIENCE` | — | No | OIDC audience (CR-001, production only) |
 | `AUTH_JWKS_URI` | — | No | OIDC JWKS endpoint (CR-001, production only) |
-| `PORT` | `3001` | No | Express server port |
-| `CORS_ORIGIN` | `http://localhost:3000` | No | Allowed CORS origin |
-| `LOG_LEVEL` | `info` | No | Pino log level |
+| `LOG_LEVEL` | `info` | No | Log level |
 | `NODE_ENV` | `development` | No | Environment mode |
 | `REDIS_URL` | `redis://localhost:6379` | No | Redis cache (P2+, not required for P1 MVP) |
 
