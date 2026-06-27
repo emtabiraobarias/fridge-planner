@@ -4,9 +4,15 @@ Manual / live validation for the Next.js Route Handler backend (the Express→Ne
 migration, Cb0–Cb5). It exercises the running app the way the automated suites
 **can't**, and was the gate for retiring Express.
 
-> **Scope:** `impl/nextjs` only. The automated tests (server **199** Jest + client
-> **258** Vitest) cover logic in isolation; this validates the *integrated, running*
-> system.
+> **Scope:** the automated tests (server **199** Jest + client **258** Vitest) cover
+> logic in isolation; this validates the *integrated, running* system.
+>
+> **Shared vs per-branch:** the smoke **steps** live in the shared
+> [`scripts/smoke-test.sh`](../scripts/smoke-test.sh) (on `main`, synced to both impls —
+> they share one `/api/v1` contract). Only the **boot** differs, so each impl has its own
+> [`scripts/validate-e2e.sh`](../scripts/validate-e2e.sh): `impl/nextjs` boots one Next
+> process on `:3000`; `impl/vite` boots Express + the SPA and points `BASE` at `:3001`.
+> This doc covers the `impl/nextjs` boot.
 
 ---
 
@@ -19,6 +25,26 @@ migration, Cb0–Cb5). It exercises the running app the way the automated suites
 | `[id]`/`[weekStart]` passed as `ctx.params` directly | Real **dynamic-segment + query-string** routing |
 | `server-only` aliased to a stub | The real bundler's `server-only` enforcement (also via `next build`) |
 | Holodeck agent **mocked** (`vi.mock` / stubbed `fetch`) | The **live Holodeck agent** end-to-end (real LLM call) |
+
+---
+
+## Release validation — when to run this
+
+This is the **top of the testing pyramid**: a release gate, not a per-commit test. Run it at:
+
+- **Major version bumps** (e.g. the C-bis 3.x → 4.0.0 architecture change — its first use).
+- **`impl/* → main` merges** and any change to the **backend topology or data model**.
+- As a **before/after baseline** for a major change: run on the pre-change tag *and* the new
+  version — the same user journeys must still pass. (Major changes are where round-trips
+  silently break, so this is the highest-value use.)
+
+Keep it **thin** — one happy-path per feature area. The 199 + 258 automated tests own depth;
+this owns "does the whole thing stand up and round-trip?"
+
+**Gating guidance:** the **deterministic core** (`--no-agent`) is suitable as a hard gate and
+runs anywhere (no LLM needed) — wire it into CI when CI lands (Mongo service container, on
+backend-touching PRs + release tags). The **live-agent step** is non-deterministic, so keep it
+**report-only** / manual / nightly.
 
 ---
 
@@ -40,13 +66,24 @@ migration, Cb0–Cb5). It exercises the running app the way the automated suites
 
 ---
 
-## Mode A — API smoke (headless, ~1 min + agent time)
+## Mode A — API smoke (headless)
+
+**One-shot (recommended)** — boots a production build + Mongo (+ Holodeck), runs the
+smoke, tears down, exits non-zero on failure:
 
 ```bash
-bash packages/client/scripts/smoke-test.sh
+bash scripts/validate-e2e.sh             # full, incl. live Holodeck agent
+bash scripts/validate-e2e.sh --no-agent  # deterministic core only (no Holodeck)
 ```
 
-Expected (10 checks, `pass=10 fail=0`): inventory POST `201` → GET `200` → meal-plan entry
+**Against an already-running server** (lower-level — you start the stack):
+
+```bash
+BASE=http://localhost:3000/api/v1 bash scripts/smoke-test.sh            # full
+BASE=http://localhost:3000/api/v1 bash scripts/smoke-test.sh --no-agent # core only
+```
+
+Expected (10 checks, `pass=10 fail=0`; 9 with `--no-agent`): inventory POST `201` → GET `200` → meal-plan entry
 `201` → inventory consumed (Chicken **3→2**) → grocery list lazily generated → meal-plan `200`
 → empty-user recommendations `fallback=popular` → **live-agent recommendations `200`** →
 DELETE `204` → bad-ObjectId PUT `400`.
@@ -96,10 +133,13 @@ You can ask Claude to perform the whole thing. Claude uses the **Preview MCP** (
 the dev server from `.claude/launch.json`) for the UI and **Bash + curl** for the API.
 
 **Example prompts:**
+- *"Run the E2E release validation."*
+  → Claude ensures Docker is up and runs `bash scripts/validate-e2e.sh` (production build →
+  smoke → teardown), reporting pass/fail.
 - *"Spin up the Next.js app and run the API smoke test."*
   → Claude ensures the Docker services are up, writes `packages/client/.env.local`
   (`MONGODB_URI` to a demo DB + `HOLODECK_URL`), starts the server
-  (`preview_start` on the `fridge-nextjs` config), runs `packages/client/scripts/smoke-test.sh`,
+  (`preview_start` on the `fridge-nextjs` config), runs `scripts/smoke-test.sh`,
   reports pass/fail, then tears down.
 - *"Demonstrate the app as a user with screenshots."*
   → Claude drives the UI with the Preview tools — `preview_fill`/`preview_click` to add
