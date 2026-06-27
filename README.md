@@ -11,7 +11,7 @@ This repository maintains **two long-lived implementations of the same specifica
 | Branch | Implementation | Frontend | API |
 |---|---|---|---|
 | [`impl/vite`](../../tree/impl/vite) | React + Vite SPA | Vite 5 (`:5173`) | standalone Express service (`:3001`) |
-| [`impl/nextjs`](../../tree/impl/nextjs) | React + Next.js 15 | Next.js App Router (`:3000`) | Express today → Next.js Route Handlers (Phase C-bis) |
+| [`impl/nextjs`](../../tree/impl/nextjs) | React + Next.js 15 | Next.js App Router (`:3000`) | Next.js Route Handlers (`:3000`, one process — Express retired in Phase C-bis) |
 
 Both share one backend data layer (MongoDB + Mongoose), one AI agent (a HoloDeck sidecar running Claude Sonnet), and the same TypeScript + Tailwind stack. The only deliberate divergence is the frontend build/SSR toolchain and the server API mechanism.
 
@@ -22,7 +22,7 @@ Both share one backend data layer (MongoDB + Mongoose), one AI agent (a HoloDeck
 | Shared (authored on `main`, identical on every branch) | Per-branch (only on `impl/*`) |
 |---|---|
 | [`specs/001-meal-planner/spec.md`](specs/001-meal-planner/spec.md) — the *what*/*why* | `plan.md` — the *how*, incl. each branch's "Stack Realization" |
-| [`specs/001-meal-planner/checklists/`](specs/001-meal-planner/checklists/) — shared acceptance criteria | application code (`packages/client`, `packages/server`, `agents/`) |
+| [`specs/001-meal-planner/checklists/`](specs/001-meal-planner/checklists/) — shared acceptance criteria | application code (`packages/client`, `agents/`; `packages/server` on `impl/vite`) |
 | [`constitution.md`](constitution.md) — shared principles (stack-agnostic) | `docs/DEVELOPMENT.md` — branch setup/run · `CLAUDE.md` |
 | [`specs/BRANCHING_STRATEGY.md`](specs/BRANCHING_STRATEGY.md) — the two-impl model + sync runbook | `verification-findings.md` — branch's Phase B/C log |
 | [`ROADMAP_PROGRESS.md`](ROADMAP_PROGRESS.md) — working log + phase tracker | |
@@ -40,7 +40,7 @@ git checkout impl/nextjs   # or: impl/vite
 cat docs/DEVELOPMENT.md     # setup, env vars, dev commands for that branch
 ```
 
-Both are monorepos (`packages/client` + `packages/server` + `agents/meal-recommender`) and run against MongoDB plus the HoloDeck agent sidecar.
+Both run against MongoDB plus the HoloDeck agent sidecar. `impl/vite` is a two-package monorepo (`packages/client` SPA + `packages/server` Express API); `impl/nextjs` is a single Next.js app (`packages/client`) that serves the API from Route Handlers in the same process.
 
 ## License
 
