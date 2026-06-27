@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+#
+# End-to-end API smoke test for the Phase C-bis Next.js Route Handler backend.
+# Exercises every endpoint against a RUNNING server (real Next.js + real MongoDB) —
+# the things the in-memory-Mongo unit/handler tests can't cover (real server boot,
+# HTTP routing, dynamic params, the globalThis connection, server-only enforcement).
+#
+# Usage:
+#   # 1. Start MongoDB (+ Holodeck for the live-agent step) — e.g. `docker compose up -d mongodb holodeck`
+#   # 2. Start the app:  MONGODB_URI=... HOLODECK_URL=... npm run dev   (port 3000)
+#   # 3. Run:            bash packages/client/scripts/smoke-test.sh
+#
+# Env:
+#   BASE   API base URL   (default http://localhost:3000/api/v1)
+#   USER   X-User-Id      (default smoke-user)
+#
+set -u
+BASE="${BASE:-http://localhost:3000/api/v1}"
+U="${USER:-smoke-user}"
+WEEK="2026-06-29T00:00:00.000Z"
+WEEK_ENC="2026-06-29T00%3A00%3A00.000Z"
+SLOT="11111111-2222-3333-4444-555555555555"
+pass=0; fail=0
+chk() { if [ "$2" = "$3" ]; then echo "  ✓ $1 ($3)"; pass=$((pass+1)); else echo "  ✗ $1 expected=$2 got=$3"; fail=$((fail+1)); fi; }
+code() { curl -s -o /tmp/smoke-body.json -w "%{http_code}" --max-time 30 "$@"; }
+field() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(String(eval('('+s+')')$1))}catch{process.stdout.write('?')}})" < /tmp/smoke-body.json; }
+
+echo "1) POST inventory (create Chicken Breast x3)"
+c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" \
+  -d '{"name":"Chicken Breast","quantity":3,"unit":"lbs","category":"Meat","location":"fridge"}' "$BASE/inventory")
+chk "201 Created" 201 "$c"
+ID=$(field ._id)
+echo "   id=$ID  expirationStatus=$(field .expirationStatus)"
+
+echo "2) GET inventory"
+c=$(code -H "X-User-Id: $U" "$BASE/inventory"); chk "200 OK" 200 "$c"
+echo "   total=$(field .summary.total)"
+
+echo "3) POST meal-plan entry (uses Chicken Breast -> consumes)"
+c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" \
+  -d "{\"slotId\":\"$SLOT\",\"date\":\"$WEEK\",\"mealType\":\"dinner\",\"meal\":{\"mealName\":\"Chicken Dinner\",\"suggestedMealType\":\"dinner\",\"prepTimeMinutes\":20,\"cuisine\":\"American\",\"description\":\"x\",\"usesIngredients\":[\"Chicken Breast\"],\"expiringIngredients\":[],\"missingIngredients\":[\"rice\"]}}" \
+  "$BASE/meal-plans/$WEEK_ENC/entries")
+chk "201 Created" 201 "$c"
+
+echo "4) GET inventory -> Chicken Breast consumed to qty 2"
+code -H "X-User-Id: $U" "$BASE/inventory" >/dev/null
+QTY=$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);const i=b.items.find(x=>x.name==='Chicken Breast');process.stdout.write(String(i?i.quantity:'none'))})" < /tmp/smoke-body.json)
+chk "consumed to qty 2" 2 "$QTY"
+
+echo "5) GET grocery-list (lazy-generate from meal plan)"
+c=$(code -H "X-User-Id: $U" "$BASE/grocery-lists/$WEEK_ENC"); chk "200 OK" 200 "$c"
+echo "   items=$(field '.groceryList?.items.length')"
+
+echo "6) GET meal-plans?weekStart"
+c=$(code -H "X-User-Id: $U" "$BASE/meal-plans?weekStart=$WEEK_ENC"); chk "200 OK" 200 "$c"
+echo "   entries=$(field '.plan?.entries.length')"
+
+echo "7) POST recommendations as EMPTY user -> popular fallback (no agent)"
+c=$(code -X POST -H "X-User-Id: smoke-empty" -H "Content-Type: application/json" -d '{}' "$BASE/recommendations")
+chk "200 OK" 200 "$c"
+echo "   fallback=$(field .fallback)"
+
+echo "8) POST recommendations with inventory -> LIVE Holodeck agent (needs HOLODECK_URL up)"
+c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' --max-time 220 "$BASE/recommendations")
+chk "200 OK" 200 "$c"
+echo "   fallback=$(field '.fallback||"(none — real agent result)"')  count=$(field .recommendations.length)"
+
+echo "9) DELETE inventory item -> 204"
+c=$(code -X DELETE -H "X-User-Id: $U" "$BASE/inventory/$ID"); chk "204 No Content" 204 "$c"
+
+echo "10) PUT bad ObjectId -> 400 Problem JSON"
+c=$(code -X PUT -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{"quantity":1}' "$BASE/inventory/not-an-id")
+chk "400 Bad Request" 400 "$c"
+
+echo ""
+echo "RESULT: pass=$pass fail=$fail"
+[ "$fail" -eq 0 ]
