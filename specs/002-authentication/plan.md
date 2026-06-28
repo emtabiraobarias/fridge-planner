@@ -59,6 +59,7 @@ packages/server/tests/
 - **D-VT-2** — `error-handler.ts`: `AuthError` → `problemJson(res, 401, 'Unauthorized', …)`.
 - **D-VT-3** — integration tests (supertest, `oidc` mode): no/invalid token = 401; valid token = 200 + correct scoping; cross-user still 404 (existing isolation test). Existing 199 tests stay green via the dev seam (they set `X-User-Id`).
 - **D-VT-4** — docs: CLAUDE.md auth note (`AUTH_MODE`), `.env.example`, `docs/DEVELOPMENT.md`.
+- **D-VT-5** *(frontend, FR-D-009 — added by `/speckit.analyze`)* — SPA surfaces a `401` as a (re-)authentication prompt: handle in `src/services/*` → an `auth-required` state in context/UI, not a generic error. Login UI / token acquisition stays out of scope.
 - **Gate:** `bash scripts/validate-e2e.sh --no-agent` (dev seam) green; `npm test` (incl. `tsc` build) + lint green.
 
 ## Testing Without a Live IdP (FR-D-007)
