@@ -8,6 +8,7 @@ import { InventoryList } from './components/inventory/InventoryList';
 import { RecommendationsPanel } from './components/recommendations/RecommendationsPanel';
 import { CalendarPage } from './pages/CalendarPage';
 import { GroceryListPage } from './pages/GroceryListPage';
+import { AuthBanner } from './components/shared/AuthBanner';
 import type { InventoryItem } from './services/inventory';
 
 type Tab = 'inventory' | 'calendar' | 'grocery';
@@ -69,6 +70,7 @@ export default function App(): React.JSX.Element {
       <MealPlanProvider>
         <RecommendationsProvider>
           <main className="min-h-screen bg-gray-50">
+            <AuthBanner />
             <header className="border-b border-gray-200 bg-white px-4 py-4 mb-6">
               <div className="max-w-6xl mx-auto flex items-center justify-between">
                 <h1 className="text-2xl font-bold text-gray-900">Fridge Planner</h1>

@@ -234,7 +234,7 @@ Copy `.env.example` to `.env` before running locally.
 | `LOG_LEVEL` | `info` | No |
 | `REDIS_URL` | `redis://localhost:6379` | No (P2+, not required for P1 MVP) |
 
-> **Auth note:** `middleware/auth.ts` is a development stub — it reads `X-User-Id` header and defaults to `'anonymous'`. Production OIDC validation is a known TODO (CR-001).
+> **Auth note (spec 002 / Phase D):** `middleware/auth.ts` `authMiddleware` validates an OIDC Bearer JWT (`jose`: JWKS signature + `iss`/`aud`/`exp`) and sets `req.userId` from the `sub` claim, at the single `app.use('/api/v1', authMiddleware)` seam; on failure it `next(AuthError)` → `errorHandler` returns 401 Problem JSON. `AUTH_MODE=dev` (default off-production) keeps the `X-User-Id` seam for local dev + tests; `AUTH_MODE=oidc` is required in production. `/health` stays public.
 
 ---
 
@@ -426,7 +426,7 @@ After updating the spec, any existing code that no longer satisfies the revised 
 
 | ID | Description | Location |
 |----|-------------|----------|
-| CR-001 | Auth stub — replace X-User-Id header with proper OIDC/JWT validation | `packages/server/src/middleware/auth.ts` |
+| ~~CR-001~~ | ✅ Done (Phase D / spec 002) — `authMiddleware` validates OIDC JWTs; `X-User-Id` is the dev-only seam | `packages/server/src/middleware/auth.ts` |
 | CR-013 | OpenAPI 3.0 spec not yet written — deferred until API shape stabilises post-Phase 2 | `packages/server/src/api/` |
 | — | Drag-and-drop has intermittent bugs noted in commit history | `packages/client/src/pages/CalendarPage.tsx` |
 | — | No CI/CD pipeline — GitHub Actions deferred until test suite is stable | repo root |

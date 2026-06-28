@@ -45,12 +45,15 @@ echo "[2/4] production build (tsc)"
 npm -w packages/server run build || { echo "❌ build failed"; exit 1; }
 
 echo "[3/4] start Express (node dist) on :$PORT against $DB"
+# AUTH_MODE=dev: run the X-User-Id dev seam so the smoke round-trips without a live IdP (FR-D-007).
 PORT="$PORT" MONGODB_URI="mongodb://localhost:27017/$DB" HOLODECK_URL="http://localhost:8001" \
+  AUTH_MODE=dev \
   npm -w packages/server run start >/tmp/e2e-app.log 2>&1 &
 APP_PID=$!
 ready=0
 for _ in $(seq 1 60); do
-  curl -sf -o /dev/null -H "X-User-Id: _probe" "http://localhost:$PORT/api/v1/inventory" && { ready=1; break; }
+  # readiness via the PUBLIC /health endpoint (no auth) — FR-D-006
+  curl -sf -o /dev/null "http://localhost:$PORT/health" && { ready=1; break; }
   sleep 1
 done
 [ "$ready" = 1 ] || { echo "❌ app did not become ready (see /tmp/e2e-app.log)"; exit 1; }

@@ -251,9 +251,10 @@ Base URL: `http://localhost:3001/api/v1`
 | `OPENAI_API_KEY` | — | No | Fallback if Anthropic provider unavailable in Holodeck |
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | No | MongoDB connection string |
 | `HOLODECK_URL` | `http://localhost:8001` | No | Holodeck agent sidecar URL |
-| `AUTH_ISSUER` | — | No | OIDC issuer URL (CR-001, production only) |
-| `AUTH_AUDIENCE` | — | No | OIDC audience (CR-001, production only) |
-| `AUTH_JWKS_URI` | — | No | OIDC JWKS endpoint (CR-001, production only) |
+| `AUTH_MODE` | `dev` | No | `dev` = trust `X-User-Id` (local dev + tests); `oidc` = validate JWTs (required in production). Spec 002 / Phase D. |
+| `AUTH_ISSUER` | — | oidc | OIDC issuer URL (required when `AUTH_MODE=oidc`) |
+| `AUTH_AUDIENCE` | — | oidc | OIDC audience (required when `AUTH_MODE=oidc`) |
+| `AUTH_JWKS_URI` | — | oidc | OIDC JWKS endpoint (required when `AUTH_MODE=oidc`) |
 | `PORT` | `3001` | No | Express server port |
 | `CORS_ORIGIN` | `http://localhost:5173` | No | Allowed CORS origin |
 | `LOG_LEVEL` | `info` | No | Pino log level |
