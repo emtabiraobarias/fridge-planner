@@ -84,3 +84,18 @@ describe('authenticate — dev seam (FR-D-007)', () => {
     expect(await authenticate(req())).toBe('anonymous');
   });
 });
+
+describe('production guard (FR-D-008)', () => {
+  it('refuses the dev seam in production unless explicitly acknowledged', async () => {
+    const prevNodeEnv = process.env['NODE_ENV'];
+    process.env['NODE_ENV'] = 'production';
+    process.env['AUTH_MODE'] = 'dev';
+    delete process.env['AUTH_ALLOW_DEV'];
+    await expect(authenticate(req({ 'x-user-id': 'x' }))).rejects.toThrow(/oidc|dev auth seam/i);
+    // the explicit E2E/CI acknowledgment re-enables it
+    process.env['AUTH_ALLOW_DEV'] = 'true';
+    expect(await authenticate(req({ 'x-user-id': 'x' }))).toBe('x');
+    delete process.env['AUTH_ALLOW_DEV'];
+    process.env['NODE_ENV'] = prevNodeEnv;
+  });
+});

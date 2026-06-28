@@ -259,9 +259,10 @@ Base URL: `http://localhost:3000/api/v1` (served by the Next.js app — same ori
 | `OPENAI_API_KEY` | — | No | Fallback if Anthropic provider unavailable in Holodeck |
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | No | MongoDB connection string |
 | `HOLODECK_URL` | `http://localhost:8001` | No | Holodeck agent sidecar URL |
-| `AUTH_ISSUER` | — | No | OIDC issuer URL (CR-001, production only) |
-| `AUTH_AUDIENCE` | — | No | OIDC audience (CR-001, production only) |
-| `AUTH_JWKS_URI` | — | No | OIDC JWKS endpoint (CR-001, production only) |
+| `AUTH_MODE` | `dev` | No | `dev` = trust `X-User-Id` (local dev + tests); `oidc` = validate JWTs (required in production). Spec 002 / Phase D. |
+| `AUTH_ISSUER` | — | oidc | OIDC issuer URL (required when `AUTH_MODE=oidc`) |
+| `AUTH_AUDIENCE` | — | oidc | OIDC audience (required when `AUTH_MODE=oidc`) |
+| `AUTH_JWKS_URI` | — | oidc | OIDC JWKS endpoint (required when `AUTH_MODE=oidc`) |
 | `LOG_LEVEL` | `info` | No | Log level |
 | `NODE_ENV` | `development` | No | Environment mode |
 | `REDIS_URL` | `redis://localhost:6379` | No | Redis cache (P2+, not required for P1 MVP) |

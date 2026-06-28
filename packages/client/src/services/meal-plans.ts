@@ -1,10 +1,11 @@
 import type { MealPlan, MealPlanEntry } from '../types/meal-plan';
+import { ensureOk } from './http';
 
 const BASE = '/api/v1/meal-plans';
 
 export async function fetchMealPlan(weekStart: string): Promise<MealPlan | null> {
   const res = await fetch(`${BASE}?weekStart=${weekStart}`);
-  if (!res.ok) throw new Error(`Failed to fetch meal plan: ${res.status}`);
+  ensureOk(res, "fetch meal plan");
   const data = (await res.json()) as { plan: MealPlan | null };
   return data.plan;
 }
@@ -15,7 +16,7 @@ export async function addEntry(weekStart: string, entry: MealPlanEntry): Promise
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(entry),
   });
-  if (!res.ok) throw new Error(`Failed to add entry: ${res.status}`);
+  ensureOk(res, "add entry");
   const data = (await res.json()) as { plan: MealPlan };
   return data.plan;
 }
@@ -25,7 +26,7 @@ export async function removeEntry(weekStart: string, slotId: string): Promise<Me
     `${BASE}/${weekStart}/entries/${slotId}`,
     { method: 'DELETE' },
   );
-  if (!res.ok) throw new Error(`Failed to remove entry: ${res.status}`);
+  ensureOk(res, "remove entry");
   const data = (await res.json()) as { plan: MealPlan };
   return data.plan;
 }
@@ -39,7 +40,7 @@ export async function replaceEntries(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ entries }),
   });
-  if (!res.ok) throw new Error(`Failed to replace entries: ${res.status}`);
+  ensureOk(res, "replace entries");
   const data = (await res.json()) as { plan: MealPlan };
   return data.plan;
 }

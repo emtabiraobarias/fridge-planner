@@ -84,7 +84,8 @@ fridge-planner/
 │       │   ├── lib/                  # date-utils.ts
 │       │   └── server/               # SERVER LAYER (Node-only; `import 'server-only'`):
 │       │       ├── db.ts             #   globalThis-cached Mongoose connection
-│       │       ├── auth.ts           #   getUserId() dev stub (X-User-Id header)
+│       │       ├── auth.ts           #   authenticate(): OIDC JWT verify (jose) + dev seam (X-User-Id)
+│       │       ├── auth-errors.ts    #   AuthError → 401 (mapped by withRoute)
 │       │       ├── http.ts           #   ControllerResult + problem() (framework-agnostic)
 │       │       ├── route-helpers.ts  #   withRoute() error wrapper + problemResponse()
 │       │       ├── rate-limit.ts     #   in-memory fixed-window limiter
@@ -235,7 +236,7 @@ Copy `.env.example` to `.env` before running locally.
 
 > Single Next process on `:3000`, same-origin — so **no `PORT`/`CORS_ORIGIN`/`BACKEND_URL`** (removed with Express in Phase C-bis). For local `next dev`, put `MONGODB_URI` + `HOLODECK_URL` in `packages/client/.env.local`.
 
-> **Auth note:** `src/server/auth.ts` `getUserId()` is a development stub — it reads the `X-User-Id` header and defaults to `'anonymous'`. Production OIDC validation is a known TODO (CR-001).
+> **Auth note (spec 002 / Phase D):** `src/server/auth.ts` `authenticate(request)` validates an OIDC Bearer JWT (`jose`: JWKS signature + `iss`/`aud`/`exp`) and returns the `sub` claim as `userId`. `AUTH_MODE=dev` (default off-production) keeps the `X-User-Id` seam for local dev + tests; `AUTH_MODE=oidc` is required in production (the dev seam is refused there). Handlers call `await authenticate(request)`; a failure throws `AuthError` → `withRoute` returns 401 Problem JSON.
 
 ---
 
@@ -273,7 +274,7 @@ Copy `.env.example` to `.env` before running locally.
 - `useCallback`/`useMemo` only when profiling justifies it
 
 ### Route Handler Patterns (Next.js)
-- **Thin handlers, extracted logic:** `app/api/v1/**/route.ts` handlers do only `connectDb()` → `getUserId(request)` → parse body/params → call a `src/server/controllers/*` function → `NextResponse.json`. All real logic lives in the controllers (so it's testable without HTTP).
+- **Thin handlers, extracted logic:** `app/api/v1/**/route.ts` handlers do only `connectDb()` → `await authenticate(request)` (→ userId, or `AuthError`) → parse body/params → call a `src/server/controllers/*` function → `NextResponse.json`. All real logic lives in the controllers (so it's testable without HTTP).
 - Controllers return a framework-agnostic `ControllerResult` (`{ status, body }`); use `problem()` (`src/server/http.ts`) for RFC-7807 errors.
 - Wrap each handler body in `withRoute(async () => { … })` (`src/server/route-helpers.ts`) so unhandled throws become a Problem JSON 500.
 - `async/await` throughout; **Zod** for request body/query validation before processing.
@@ -432,7 +433,7 @@ After updating the spec, any existing code that no longer satisfies the revised 
 
 | ID | Description | Location |
 |----|-------------|----------|
-| CR-001 | Auth stub — replace X-User-Id header with proper OIDC/JWT validation | `packages/client/src/server/auth.ts` |
+| ~~CR-001~~ | ✅ Done (Phase D / spec 002) — `authenticate()` validates OIDC JWTs; `X-User-Id` is the dev-only seam | `packages/client/src/server/auth.ts` |
 | CR-013 | OpenAPI 3.0 spec not yet written — deferred until API shape stabilises post-Phase 2 | `packages/client/app/api/v1/` |
 | — | Drag-and-drop has intermittent bugs noted in commit history | `packages/client/src/views/CalendarPage.tsx` |
 | — | No CI/CD pipeline — GitHub Actions deferred (would run `validate-e2e.sh --no-agent` + Vitest) | repo root |

@@ -5,19 +5,20 @@ import type {
   CompleteItemPayload,
   CompleteResult,
 } from '../types/grocery-list';
+import { ensureOk } from './http';
 
 const BASE = '/api/v1/grocery-lists';
 
 export async function fetchGroceryList(weekStart: string): Promise<GroceryList | null> {
   const res = await fetch(`${BASE}/${weekStart}`);
-  if (!res.ok) throw new Error(`Failed to fetch grocery list: ${res.status}`);
+  ensureOk(res, "fetch grocery list");
   const data = (await res.json()) as { groceryList: GroceryList | null };
   return data.groceryList;
 }
 
 export async function generateGroceryList(weekStart: string): Promise<GroceryList> {
   const res = await fetch(`${BASE}/${weekStart}/generate`, { method: 'POST' });
-  if (!res.ok) throw new Error(`Failed to generate grocery list: ${res.status}`);
+  ensureOk(res, "generate grocery list");
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
 }
@@ -31,7 +32,7 @@ export async function addGroceryItem(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(`Failed to add grocery item: ${res.status}`);
+  ensureOk(res, "add grocery item");
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
 }
@@ -46,14 +47,14 @@ export async function patchGroceryItem(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(`Failed to update grocery item: ${res.status}`);
+  ensureOk(res, "update grocery item");
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
 }
 
 export async function deleteGroceryItem(weekStart: string, itemId: string): Promise<GroceryList> {
   const res = await fetch(`${BASE}/${weekStart}/items/${itemId}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Failed to delete grocery item: ${res.status}`);
+  ensureOk(res, "delete grocery item");
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
 }
@@ -67,6 +68,6 @@ export async function completeGroceryList(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items }),
   });
-  if (!res.ok) throw new Error(`Failed to complete grocery list: ${res.status}`);
+  ensureOk(res, "complete grocery list");
   return (await res.json()) as CompleteResult;
 }

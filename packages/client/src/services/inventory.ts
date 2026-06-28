@@ -1,4 +1,5 @@
 import type { MealRecommendation } from '../types/meal-recommendation';
+import { ensureOk } from './http';
 export type { MealRecommendation };
 export type ExpirationStatus = 'expired' | 'expiring-soon' | 'normal' | 'none';
 export type Category = 'Produce' | 'Dairy' | 'Meat' | 'Seafood' | 'Grains' | 'Pantry' | 'Condiments' | 'Frozen' | 'Other';
@@ -43,7 +44,7 @@ export async function fetchInventory(params?: { category?: string; status?: stri
   if (params?.page) query.set('page', String(params.page));
   if (params?.limit) query.set('limit', String(params.limit));
   const res = await fetch(`${BASE}/inventory?${query}`);
-  if (!res.ok) throw new Error(`Failed to fetch inventory: ${res.status}`);
+  ensureOk(res, "fetch inventory");
   return res.json() as Promise<InventoryResponse>;
 }
 
@@ -53,7 +54,7 @@ export async function createItem(data: Omit<InventoryItem, '_id' | 'expirationSt
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error(`Failed to create item: ${res.status}`);
+  ensureOk(res, "create item");
   return res.json() as Promise<InventoryItem>;
 }
 
@@ -63,13 +64,13 @@ export async function updateItem(id: string, data: Partial<Omit<InventoryItem, '
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error(`Failed to update item: ${res.status}`);
+  ensureOk(res, "update item");
   return res.json() as Promise<InventoryItem>;
 }
 
 export async function deleteItem(id: string): Promise<void> {
   const res = await fetch(`${BASE}/inventory/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Failed to delete item: ${res.status}`);
+  ensureOk(res, "delete item");
 }
 
 /** `fallback` is set by the server when these aren't personalised AI results: */
@@ -84,7 +85,7 @@ export async function fetchRecommendations(): Promise<RecommendationsResult> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
   });
-  if (!res.ok) throw new Error(`Failed to fetch recommendations: ${res.status}`);
+  ensureOk(res, "fetch recommendations");
   const data = await res.json() as RecommendationsResult;
   return { recommendations: data.recommendations, ...(data.fallback ? { fallback: data.fallback } : {}) };
 }

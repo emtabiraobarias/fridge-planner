@@ -23,9 +23,16 @@ function jwks(): JWKS {
 
 function resolveMode(): 'dev' | 'oidc' {
   const mode = process.env['AUTH_MODE'] ?? (process.env['NODE_ENV'] === 'production' ? 'oidc' : 'dev');
-  // FR-D-007/FR-D-008: the dev seam must never be a production auth path.
-  if (process.env['NODE_ENV'] === 'production' && mode !== 'oidc') {
-    throw new Error('AUTH_MODE must be "oidc" in production — the dev auth seam is disabled');
+  // FR-D-007/FR-D-008: the dev seam must never be an *accidental* production auth path.
+  // A production build (e.g. `next start` in the E2E gate) sets NODE_ENV=production, so the
+  // seam additionally requires an explicit AUTH_ALLOW_DEV=true acknowledgment — two
+  // deliberate flags, never reachable by misconfiguration of a real deployment.
+  if (
+    process.env['NODE_ENV'] === 'production' &&
+    mode !== 'oidc' &&
+    process.env['AUTH_ALLOW_DEV'] !== 'true'
+  ) {
+    throw new Error('AUTH_MODE must be "oidc" in production — the dev auth seam is disabled (set AUTH_ALLOW_DEV=true only for E2E/CI test boots)');
   }
   return mode === 'oidc' ? 'oidc' : 'dev';
 }
