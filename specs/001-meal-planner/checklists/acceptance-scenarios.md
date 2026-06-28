@@ -83,3 +83,21 @@ Verify where observable in-app; survey/ops-only criteria are noted.
 ## Cross-cutting requirements
 
 - **FR-036** (per-user data isolation) — a user cannot read, modify, or delete another user's inventory / meal-plans / grocery lists, and the recommendation agent receives only the requester's ingredients. ☑ **Verified 2026-06-11** — `packages/server/tests/integration/isolation.test.ts` (5 cases, both impls; BUG #1 fixed: `impl/vite` `29d2e89` → cherry-pick `impl/nextjs` `532e198`).
+
+## Authentication (002 / Phase D — shared)
+
+> Spec `002` (OAuth 2.0 / OIDC). Topology-agnostic contract; enforcement is per-branch
+> (`impl/nextjs` = Next server layer `authenticate()`; `impl/vite` = Express `authMiddleware`).
+> Verified 2026-06-27 — `impl/nextjs` `3d0a3bb`/`69a415e`, `impl/vite` `40414d2`; both E2E gates 9/9.
+
+- **AUTH-US1-S1** (FR-D-001/003) — a request with a **valid** Bearer token is served, identified by the token `sub`; data is scoped to that user. ☑ **Verified** — handler/integration auth tests (oidc mode).
+- **AUTH-US1-S2** — a **brand-new** subject's first call returns an empty, successful result (no error). ☑ covered by scoping tests.
+- **AUTH-US2-S1** (FR-D-005, SC-D-001) — **missing / malformed / expired / bad-signature / wrong-iss / wrong-aud** token → `401` RFC-7807 Problem JSON, no data. ☑ **Verified** — verifier unit tests (7 cases) + handler 401 tests.
+- **AUTH-US2-S2** (FR-D-006) — the public **health** endpoint is reachable with no token. ☑ **Verified** — `/api/health` (nextjs) / `/health` (vite).
+- **AUTH-US3-S1** (FR-D-004 / FR-036, SC-D-002) — an authenticated user cannot reach another user's resource by id → `404` (existence not revealed), across **inventory + meal-plans + grocery-lists**. ☑ **Verified** — cross-user 404 tests on both impls.
+- **AUTH-EC-1** — expired token → `401` (distinct from other failures, with clock-skew leeway); **JWKS key rotation** (unknown `kid`) triggers refetch. ☑ **Verified** — verifier edge tests.
+- **AUTH-EC-2** (FR-D-007/008) — the `dev` seam (`X-User-Id`) is **refused in production** unless explicitly acknowledged; production uses OIDC only. ☑ **Verified** — prod-guard unit test.
+- **AUTH-UX-1** (FR-D-009) — the client surfaces a `401` as a **(re-)authentication prompt**, not a generic error. ☑ **Verified** — `AuthBanner` tests (both clients).
+
+> **Success criteria:** SC-D-001 (100% no-token → 401, zero leak) ☑ · SC-D-002 (own-data-only, cross-user 404 all resource types) ☑ · SC-D-003 (JWKS cached, within CR-008) — design-satisfied (no perf-test) · SC-D-004 (suite green with no IdP via dev seam) ☑.
+> **Out of scope (002):** token issuance, login UI, IdP configuration.
