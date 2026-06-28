@@ -125,6 +125,32 @@ returning real meals — both outcomes are valid, see the note above.)
 This closed the one gap the headless smoke couldn't reach (the **live agent path**) and
 satisfied the gate for deleting `packages/server`.
 
+## Phase D auth — UI demonstration (2026-06-27, `impl/nextjs`)
+
+Driven as a user in the browser via the Preview MCP, against a live `next dev` + Mongo
+(+ Holodeck). Demonstrates spec `002` (OIDC auth) end-to-end through the UI.
+
+**Part A — `AUTH_MODE=dev` (the X-User-Id seam, default for local dev):**
+- App loads cleanly, **no auth banner** — the dev seam resolves the request as `anonymous`.
+- Added "Chicken Breast / 3 / lbs / Meat" via the form → persisted (**authenticated write
+  succeeded transparently**); recommendations auto-prefetched ("Thinking…" → live agent).
+- Confirms FR-D-007: the dev seam keeps the app fully usable with no IdP/token.
+
+**Part B — `AUTH_MODE=oidc` (real enforcement; browser sends no token):**
+- On load, every `/api/v1` call is rejected `401`, so the SPA shows:
+  - the **amber `AuthBanner`** at the top — *"Your session has expired — please sign in to
+    continue."* (FR-D-009 — a re-auth prompt, not a silent/generic failure), and
+  - **"Failed to load inventory"** + an empty list (data never loads without a valid token).
+- Backing API responses (curl, same server):
+  - `GET /api/v1/inventory` (no token) → **401** `{"type":".../unauthorized","title":"Unauthorized","status":401,"detail":"Missing bearer token"}` (RFC-7807) — AUTH-US2-S1 / SC-D-001
+  - `GET /api/v1/inventory` (`Authorization: Bearer not-a-jwt`) → **401** — invalid token rejected
+  - `GET /api/health` → **200** `{"status":"ok"}` — public, no auth (FR-D-006) / AUTH-US2-S2
+
+> Scenarios exercised live: **AUTH-US1-S1** (dev write), **AUTH-US2-S1/S2** (401 / public health),
+> **AUTH-UX-1** (FR-D-009 banner), and the **dev↔oidc** mode switch (FR-D-007). The cross-user-404
+> (AUTH-US3) and token-`sub` scoping paths are covered by the automated handler/integration suites
+> (a real OIDC login to mint a browser token is out of scope for `002`).
+
 ---
 
 ## Running this with Claude Code
