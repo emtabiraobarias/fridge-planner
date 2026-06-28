@@ -60,6 +60,7 @@ packages/client/
 - **D-NX-3** — swap all 12 handlers to `await authenticate(request)`; add public `app/api/health/route.ts`. Existing handler tests stay green via the dev seam (they send `X-User-Id`).
 - **D-NX-4** — handler-level tests: `oidc` mode → no/invalid token = 401, valid token = 200 + correct scoping; cross-user still 404 (existing isolation tests).
 - **D-NX-5** — docs: CLAUDE.md auth note (`authenticate`, `AUTH_MODE`), `.env.example` (`AUTH_MODE`), `docs/DEVELOPMENT.md`.
+- **D-NX-6** *(frontend, FR-D-009 — added by `/speckit.analyze`)* — client surfaces a `401` as a (re-)authentication prompt: handle in `src/services/*` → an `auth-required` state in context/UI, not a generic error. Login UI / token acquisition stays out of scope.
 - **Gate:** `bash scripts/validate-e2e.sh --no-agent` (dev seam) green; `npm test` + lint green.
 
 ## Testing Without a Live IdP (FR-D-007)
