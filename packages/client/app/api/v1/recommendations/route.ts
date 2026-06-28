@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectDb } from '@server/db';
-import { getUserId } from '@server/auth';
+import { authenticate } from '@server/auth';
 import { getRecommendations } from '@server/controllers/recommendations';
 import { rateLimit } from '@server/rate-limit';
 import { withRoute, problemResponse } from '@server/route-helpers';
@@ -11,7 +11,7 @@ export const maxDuration = 240;
 
 export async function POST(request: Request): Promise<NextResponse> {
   return withRoute(async () => {
-    const userId = getUserId(request);
+    const userId = await authenticate(request);
     // Replaces the Express recommendationsLimiter (10 requests / minute).
     const rl = rateLimit(`recommendations:${userId}`, 10, 60_000);
     if (!rl.allowed) {

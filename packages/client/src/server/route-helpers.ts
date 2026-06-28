@@ -1,5 +1,6 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
+import { AuthError } from './auth-errors';
 
 /** RFC 7807 Problem Details as a NextResponse (the route-handler analogue of http.problem). */
 export function problemResponse(status: number, title: string, detail: string): NextResponse {
@@ -24,6 +25,9 @@ export async function withRoute(fn: () => Promise<NextResponse>): Promise<NextRe
   try {
     return await fn();
   } catch (err) {
+    if (err instanceof AuthError) {
+      return problemResponse(401, 'Unauthorized', err.detail);
+    }
     console.error('[route] unhandled error', err);
     return problemResponse(500, 'Internal Server Error', 'An unexpected error occurred.');
   }

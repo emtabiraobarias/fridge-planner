@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectDb } from '@server/db';
-import { getUserId } from '@server/auth';
+import { authenticate } from '@server/auth';
 import { regenerateGroceryList } from '@server/controllers/grocery-lists';
 import { withRoute } from '@server/route-helpers';
 
@@ -12,7 +12,7 @@ export async function POST(request: Request, ctx: RouteContext): Promise<NextRes
   return withRoute(async () => {
     await connectDb();
     const { weekStart } = await ctx.params;
-    const result = await regenerateGroceryList(getUserId(request), weekStart);
+    const result = await regenerateGroceryList(await authenticate(request), weekStart);
     return NextResponse.json(result.body, { status: result.status });
   });
 }
