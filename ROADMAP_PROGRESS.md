@@ -19,7 +19,7 @@
 - **Phase B — Verify "complete" claims, triage rough edges** (bug vs spec-gap) — **both impls** ◀ NEXT
 - **Phase C — Polish pass** (work the Phase B list, 1 issue/session) — **both impls** ✅ **DONE (2026-06-22)** — all 7 bugs + SG-01/02/03
 - **Phase C-bis — Retire Express into Next Route Handlers** (optional architectural change; sequenced against `002`) — ✅ **COMPLETE (2026-06-27): Cb0–Cb6; Express retired, `packages/server` deleted, one Next process, v4.0.0**, **`impl/nextjs`-only**
-- **Phase D — Spec `002` (authentication / real auth)** — ◐ **IN PROGRESS (2026-06-27): shared spec `002` + BOTH per-branch plans drafted; tasks→code next** — **both impls** (shared spec, per-branch enforcement)
+- **Phase D — Spec `002` (authentication / real auth)** — ◐ **IN PROGRESS (2026-06-27): shared spec `002` + BOTH per-branch plans + tasks drafted; `/speckit.analyze` → TDD code next** — **both impls** (shared spec, per-branch enforcement)
 
 > **Phases B/C/D are spec-level → they apply to BOTH `impl/vite` and `impl/nextjs`** (per `BRANCHING_STRATEGY.md` §5). C-bis is the lone exception (plan-level, `impl/nextjs`-only). See the "Phase B/C/D — both-implementation tracking" section below for the model + status matrix.
 
@@ -62,7 +62,7 @@ Phases B (verify), C (polish), D (`002` auth) are **spec-level**, so each runs a
 |---|---|---|---|
 | B — Verify | ☑ **confirmed** (2026-06-11, code-identity) | ☑ **all 4 areas done** (inventory/recs/calendar/grocery, 2026-06-08/11); **8 bugs, 3 spec-gaps** | scenario checklist + spec-gap register |
 | C — Polish | ☑ **ALL #1–#7 ✔ + #3/SG-02** | ☑ **ALL #1–#7 ✔ + #3/SG-02** (latest `9a2c33e`); server **185/185**, client **118/118** | **Phase C COMPLETE** — #8→spec; SG-01/02/03 applied |
-| D — `002` auth | ◐ **plan done** (`f208bdd`); tasks/code TODO (Express middleware) | ◐ **plan done** (`3d33d58`); tasks/code TODO (Next server layer) | ☑ **spec `002` drafted on `main`** (topology-agnostic; `FR-D-001..009`) |
+| D — `002` auth | ◐ **plan + tasks done** (`f208bdd`/`8387923`); code TODO (Express middleware) | ◐ **plan + tasks done** (`3d33d58`/`3bced73`); code TODO (Next server layer) | ☑ **spec `002` drafted on `main`** (topology-agnostic; `FR-D-001..009`) |
 
 *(Status legend: ☐ not started · ◐ in progress · ☑ done. Update per cell as each branch progresses.)*
 
@@ -118,7 +118,8 @@ Findings with **no** covering scenario/FR. File the spec change on `main`, add t
 - [x] **`impl/nextjs` plan** ✅ `3d33d58` — `specs/002-authentication/plan.md`: verify in the **Next server layer** (`getUserId`→`async authenticate` via `jose`; `withRoute`→401; all 12 handlers `await`); dev/test seam; `jose` dep. Tasks/code TODO.
 - [x] **`impl/vite` plan** ✅ `f208bdd` — `specs/002-authentication/plan.md`: rewrite the single **Express `authMiddleware`** (`app.use('/api/v1', …)`) → `jose` verify + `next(AuthError)`; `errorHandler`→401; health stays public. Tasks/code TODO.
   - Both plans: same `jose` lib, env (`AUTH_MODE`/`AUTH_ISSUER`/`AUTH_AUDIENCE`/`AUTH_JWKS_URI`), dev seam, 401/404 semantics — only the insertion point differs (cross-impl equivalence).
-- [ ] **Implement** per branch (TDD, `D-NX-*` / `D-VT-*`) after `tasks.md` + `/speckit.analyze`.
+- [x] **Both `tasks.md` drafted** ✅ — impl/nextjs `3bced73` (T001–T012; 12-handler swap), impl/vite `8387923` (T001–T011; single-middleware seam, fewer tasks). TDD, FR-D traceability, `[P]` markers.
+- [ ] **`/speckit.analyze`** cross-check (spec ↔ both plans ↔ tasks), then **implement** per branch (TDD, `D-NX-*` / `D-VT-*`).
 
 **Workflow (spec-first):** spec on `main` ✅ → per-impl `/speckit.plan` (enforcement design) → `/speckit.tasks` → `/speckit.analyze` → implement per branch (TDD; shared spec edits stay on `main` and sync down). **Out of scope:** token issuance, login UI, IdP configuration.
 
@@ -139,6 +140,7 @@ Findings with **no** covering scenario/FR. File the spec change on `main`, add t
 
 | Date | Phase/Task | What changed | Next |
 |------|-----------|--------------|------|
+| 2026-06-27 | Phase D tasks (both impls) | Drafted per-branch `tasks.md`: impl/nextjs `3bced73` (T001–T012, 12-handler swap) + impl/vite `8387923` (T001–T011, single-middleware seam). TDD-ordered, FR-D traceability, `[P]` markers. Per-branch files. | /speckit.analyze → implement |
 | 2026-06-27 | Phase D plans (both impls) | Drafted per-branch `specs/002-authentication/plan.md`: **impl/nextjs** `3d33d58` (verify in Next server layer — `authenticate()`/`jose`/`withRoute`→401) + **impl/vite** `f208bdd` (rewrite single Express `authMiddleware`/`jose`/`errorHandler`→401). Same contract/lib/env/dev-seam; only the insertion point differs. Per-branch files (not on main). | tasks.md → analyze → implement |
 | 2026-06-27 | **Phase D kick-off (spec-first)** | Drafted shared topology-agnostic auth spec `specs/002-authentication/spec.md` on `main` (`FR-D-001..009`: OIDC/JWT validation, identity from `sub`, FR-036 isolation, 401/404 Problem JSON, dev/test seam) — elevates `001` CR-001/CR-002/FR-036/Assumption 12. Added a Phase D section + status-matrix/at-a-glance updates. Both impls inherit; enforcement per-branch (Express middleware vs Next server layer). | per-impl plan → tasks → implement |
 | 2026-06-27 | **C-bis Cb6 — COMPLETE** | Deleted `packages/server` (`70af3b9`; gate passed) → single source of truth; root `package.json` client-only workspace + `concurrently` dropped + **v4.0.0**; doc cascade `e926e68` (CLAUDE.md/plan.md/DEVELOPMENT.md → Next Route Handlers) + README `1414269`. Client 258/258, lint clean, build + E2E green. **🎉 Phase C-bis done.** | impl→main merge decision / Phase D |
