@@ -12,6 +12,23 @@ export class AuthRequiredError extends Error {
 type Listener = () => void;
 const listeners = new Set<Listener>();
 
+// E0 (Phase E): the browser carries an OIDC access token so requests are authenticated
+// under AUTH_MODE=oidc. AuthProvider sets it; apiFetch attaches it as a Bearer header.
+let authToken: string | null = null;
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+/** fetch wrapper that attaches `Authorization: Bearer <token>` when a token is set. */
+export function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+  return fetch(input, { ...init, headers });
+}
+
 /** Subscribe to auth-required (401) signals. Returns an unsubscribe function. */
 export function onAuthRequired(handler: Listener): () => void {
   listeners.add(handler);

@@ -1,5 +1,5 @@
 import type { MealRecommendation } from '../types/meal-recommendation';
-import { ensureOk } from './http';
+import { ensureOk, apiFetch } from './http';
 export type { MealRecommendation };
 export type ExpirationStatus = 'expired' | 'expiring-soon' | 'normal' | 'none';
 export type Category = 'Produce' | 'Dairy' | 'Meat' | 'Seafood' | 'Grains' | 'Pantry' | 'Condiments' | 'Frozen' | 'Other';
@@ -43,13 +43,13 @@ export async function fetchInventory(params?: { category?: string; status?: stri
   if (params?.status) query.set('status', params.status);
   if (params?.page) query.set('page', String(params.page));
   if (params?.limit) query.set('limit', String(params.limit));
-  const res = await fetch(`${BASE}/inventory?${query}`);
+  const res = await apiFetch(`${BASE}/inventory?${query}`);
   ensureOk(res, "fetch inventory");
   return res.json() as Promise<InventoryResponse>;
 }
 
 export async function createItem(data: Omit<InventoryItem, '_id' | 'expirationStatus'>): Promise<InventoryItem> {
-  const res = await fetch(`${BASE}/inventory`, {
+  const res = await apiFetch(`${BASE}/inventory`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -59,7 +59,7 @@ export async function createItem(data: Omit<InventoryItem, '_id' | 'expirationSt
 }
 
 export async function updateItem(id: string, data: Partial<Omit<InventoryItem, '_id' | 'expirationStatus'>>): Promise<InventoryItem> {
-  const res = await fetch(`${BASE}/inventory/${id}`, {
+  const res = await apiFetch(`${BASE}/inventory/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -69,7 +69,7 @@ export async function updateItem(id: string, data: Partial<Omit<InventoryItem, '
 }
 
 export async function deleteItem(id: string): Promise<void> {
-  const res = await fetch(`${BASE}/inventory/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`${BASE}/inventory/${id}`, { method: 'DELETE' });
   ensureOk(res, "delete item");
 }
 
@@ -80,7 +80,7 @@ export type RecommendationsResult = {
 };
 
 export async function fetchRecommendations(): Promise<RecommendationsResult> {
-  const res = await fetch(`${BASE}/recommendations`, {
+  const res = await apiFetch(`${BASE}/recommendations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),

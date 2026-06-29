@@ -5,19 +5,19 @@ import type {
   CompleteItemPayload,
   CompleteResult,
 } from '../types/grocery-list';
-import { ensureOk } from './http';
+import { ensureOk, apiFetch } from './http';
 
 const BASE = '/api/v1/grocery-lists';
 
 export async function fetchGroceryList(weekStart: string): Promise<GroceryList | null> {
-  const res = await fetch(`${BASE}/${weekStart}`);
+  const res = await apiFetch(`${BASE}/${weekStart}`);
   ensureOk(res, "fetch grocery list");
   const data = (await res.json()) as { groceryList: GroceryList | null };
   return data.groceryList;
 }
 
 export async function generateGroceryList(weekStart: string): Promise<GroceryList> {
-  const res = await fetch(`${BASE}/${weekStart}/generate`, { method: 'POST' });
+  const res = await apiFetch(`${BASE}/${weekStart}/generate`, { method: 'POST' });
   ensureOk(res, "generate grocery list");
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
@@ -27,7 +27,7 @@ export async function addGroceryItem(
   weekStart: string,
   payload: AddGroceryItemPayload,
 ): Promise<GroceryList> {
-  const res = await fetch(`${BASE}/${weekStart}/items`, {
+  const res = await apiFetch(`${BASE}/${weekStart}/items`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -42,7 +42,7 @@ export async function patchGroceryItem(
   itemId: string,
   payload: PatchGroceryItemPayload,
 ): Promise<GroceryList> {
-  const res = await fetch(`${BASE}/${weekStart}/items/${itemId}`, {
+  const res = await apiFetch(`${BASE}/${weekStart}/items/${itemId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -53,7 +53,7 @@ export async function patchGroceryItem(
 }
 
 export async function deleteGroceryItem(weekStart: string, itemId: string): Promise<GroceryList> {
-  const res = await fetch(`${BASE}/${weekStart}/items/${itemId}`, { method: 'DELETE' });
+  const res = await apiFetch(`${BASE}/${weekStart}/items/${itemId}`, { method: 'DELETE' });
   ensureOk(res, "delete grocery item");
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
@@ -63,7 +63,7 @@ export async function completeGroceryList(
   weekStart: string,
   items: CompleteItemPayload[],
 ): Promise<CompleteResult> {
-  const res = await fetch(`${BASE}/${weekStart}/complete`, {
+  const res = await apiFetch(`${BASE}/${weekStart}/complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items }),

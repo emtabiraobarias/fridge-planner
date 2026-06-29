@@ -79,15 +79,28 @@ Per-branch runbook for shipping **`impl/nextjs`** to production with **gated CI/
 ## Task specifics (E0–E7)
 
 ### E0 — Auth client wiring ⚠ **BLOCKER** (per-branch frontend)
-The SPA currently sends **no `Authorization` header** (only the dev `X-User-Id` seam exists). Under
-`AUTH_MODE=oidc`, every `/api/v1` call → 401 → users are stuck on the `AuthBanner`. **Required before
-a human-facing rollout.**
-- Add an OIDC login flow (redirect to the IdP; e.g. `@auth0/auth0-react`, `oidc-client-ts`, or NextAuth).
-- Store the access token; attach `Authorization: Bearer <token>` to every `fetch` in `src/services/*`
-  (centralize in `src/services/http.ts`).
-- On 401, trigger re-auth (the `AuthBanner`/`onAuthRequired` hook already exists — wire its action to login).
-- Tests: a service-layer test that the header is attached; an interaction test that 401 → login.
-- *Out of scope for spec `002`* → treat as a small Phase-E feature slice (consider a `003` mini-spec).
+The SPA used to send **no `Authorization` header** (only the dev `X-User-Id` seam existed). Under
+`AUTH_MODE=oidc`, every `/api/v1` call → 401 → users were stuck on the `AuthBanner`. Split into **E0a**
+(testable now) and **E0b** (needs a live IdP, deferred to E3).
+
+**E0a — token-bearing client + login redirect ✅ DONE** (commit on `impl/nextjs`)
+- `src/services/http.ts`: added a token store (`setAuthToken`/`getAuthToken`) + `apiFetch(input, init)`
+  that attaches `Authorization: Bearer <token>` to every request. All 15 service calls in
+  `src/services/{inventory,meal-plans,grocery-lists}.ts` now route through `apiFetch`.
+- `src/context/AuthContext.tsx`: `AuthProvider`/`useAuth` hold the access token (sessionStorage-backed,
+  synced to the service layer), expose `login()` (redirect to the OIDC `authorize` endpoint built from
+  `NEXT_PUBLIC_OIDC_*`), `logout()`, and `setToken()`. Mounted outermost in `app/providers.tsx`.
+- `src/components/shared/AuthBanner.tsx`: the 401 banner now renders a **Sign in** button wired to
+  `useAuth().login`.
+- Tests (9, all green): `apiFetch` Bearer attachment (`tests/services/http.test.ts`); `buildAuthorizeUrl`
+  + token sync + login redirect (`tests/context/AuthContext.test.tsx`); AuthBanner Sign-in → login
+  (`tests/components/AuthBanner.test.tsx`). Lint + `next build` clean; coverage 93%.
+
+**E0b — IdP callback code→token exchange ⏳ DEFERRED → E3** (needs a live IdP)
+- `/auth/callback` route: handle the OIDC `code` → token exchange (PKCE), then `setToken(accessToken)`.
+- Token refresh/expiry handling on top of the existing 401 → re-login signal.
+- Configure `NEXT_PUBLIC_OIDC_ISSUER` / `_CLIENT_ID` / `_REDIRECT_URI` against the real IdP (E3).
+- *Out of scope for spec `002`* → small Phase-E feature slice (consider a `003` mini-spec).
 
 ### E1 — CI workflow (gate) — `.github/workflows/ci-nextjs.yml`
 - Trigger: `on: push/pull_request` for `impl/nextjs`.
@@ -130,7 +143,8 @@ monitor; optionally point `OTLP_ENDPOINT` at a collector for the agent's traces.
 ---
 
 ## Top risks
-1. **E0 auth wiring** — without it, oidc prod is unusable for humans (everyone sees the AuthBanner).
+1. **E0 auth wiring** — E0a (token-bearing client + login) is done; **E0b** (the IdP callback
+   token exchange) still blocks a human-facing oidc rollout and depends on a live IdP from E3.
 2. **Per-instance rate limit** (E5) — not global until Redis-backed.
 3. **240 s recommendations timeout** (E3) — constrains host choice (no Vercel).
 4. **`AUTH_ALLOW_DEV` in prod** (E4) — must never be set; it re-opens the dev seam.
