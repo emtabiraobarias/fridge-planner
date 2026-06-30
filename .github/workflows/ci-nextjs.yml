@@ -1,0 +1,54 @@
+name: CI (impl/nextjs)
+
+# Phase E — E1: the CI gate for the Next.js implementation.
+# Runs lint → unit/integration tests → deterministic E2E smoke on every push to
+# impl/nextjs and every PR targeting it. Branch protection on impl/nextjs should
+# require the `verify` check below.
+#
+# Scope: impl/nextjs only. The shared contract lives on `main`; impl/vite has its
+# own pipeline. This file is a per-branch file — it must never be merged to `main`.
+
+on:
+  push:
+    branches: [impl/nextjs]
+  pull_request:
+    branches: [impl/nextjs]
+
+# A newer push to the same ref cancels an in-flight run.
+concurrency:
+  group: ci-nextjs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: lint · test · e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20 # matches packages/client/Dockerfile (node:20-alpine)
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (zero warnings)
+        run: npm run lint
+
+      # Vitest — includes the node-env server tests, which use mongodb-memory-server
+      # (in-process), so no external MongoDB is required for this step.
+      - name: Test
+        run: npm test
+
+      # Deterministic release gate: prod build + real MongoDB (brought up by the
+      # script via docker compose) → shared smoke. --no-agent skips Holodeck, so no
+      # LLM credentials are needed in CI. The live-agent E2E stays manual/nightly.
+      - name: E2E smoke (no agent)
+        run: bash scripts/validate-e2e.sh --no-agent
