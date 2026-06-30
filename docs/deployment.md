@@ -102,12 +102,16 @@ The SPA used to send **no `Authorization` header** (only the dev `X-User-Id` sea
 - Configure `NEXT_PUBLIC_OIDC_ISSUER` / `_CLIENT_ID` / `_REDIRECT_URI` against the real IdP (E3).
 - *Out of scope for spec `002`* → small Phase-E feature slice (consider a `003` mini-spec).
 
-### E1 — CI workflow (gate) — `.github/workflows/ci-nextjs.yml`
-- Trigger: `on: push/pull_request` for `impl/nextjs`.
-- Steps: `npm ci` → `npm run lint` → `npm test` → `bash scripts/validate-e2e.sh --no-agent`.
-- Provide MongoDB via a **service container** (`mongo:7`), `MONGODB_URI` pointed at it. No IdP needed
-  (the smoke runs the dev seam). Live-agent E2E stays out of CI (nightly/manual).
-- Branch protection on `impl/nextjs` requires this check green.
+### E1 — CI workflow (gate) — `.github/workflows/ci-nextjs.yml` ✅ **DONE** (commit `0193e91`)
+- Trigger: `on: push` to `impl/nextjs` + `pull_request` targeting it. `concurrency` cancels superseded runs.
+- Single `verify` job (Node 20, npm cache): `npm ci` → `npm run lint` → `npm test` → `bash scripts/validate-e2e.sh --no-agent`.
+- **MongoDB:** *not* a GitHub `services:` container — `validate-e2e.sh` brings Mongo up itself via
+  `docker compose up -d mongodb`, so a service container would clash on `:27017`. The unit/integration
+  tests need no external Mongo (in-process `mongodb-memory-server`). `--no-agent` skips Holodeck → **no
+  LLM credentials in CI**; live-agent E2E stays manual/nightly.
+- Verified locally end-to-end before commit: lint OK · 283 tests pass · e2e smoke 9/9.
+- **⏳ Remaining (manual, repo settings):** enable branch protection on `impl/nextjs` requiring the
+  `verify` check green before merge. (Can't be done from code — GitHub repo admin step.)
 
 ### E2 — CD workflow (gated) — `.github/workflows/deploy-nextjs.yml`
 - Trigger: `on: push: tags: ['nextjs-v*']`.
