@@ -113,13 +113,20 @@ The SPA used to send **no `Authorization` header** (only the dev `X-User-Id` sea
 - **⏳ Remaining (manual, repo settings):** enable branch protection on `impl/nextjs` requiring the
   `verify` check green before merge. (Can't be done from code — GitHub repo admin step.)
 
-### E2 — CD workflow (gated) — `.github/workflows/deploy-nextjs.yml`
+### E2 — CD workflow (gated) — `.github/workflows/deploy-nextjs.yml` 📝 **DRAFT committed** (not yet active)
+A reference template is committed; it **fails at the deploy job until E3 infra + E4 secrets exist** (by
+design — the banner in the file says so). What it does:
 - Trigger: `on: push: tags: ['nextjs-v*']`.
-- Build `packages/client/Dockerfile` → tag `:<version>` + `:sha-<short>` → push (digest-pinned).
-- `environment: production` (**required reviewers = the gate**) → deploy the image to the host,
-  injecting prod env from secrets.
+- **build-push** job: build `packages/client/Dockerfile` → push `ghcr.io/.../fridge-planner-client`
+  tagged `:<version>` + `:sha-<sha>` (digest-pinned). *(Note the app image is **separate** from the
+  Holodeck image `ghcr.io/.../fridge-planner`.)*
+- **deploy** job: `environment: production` (**required reviewers = the gate**). For an on-prem/LAN box,
+  runs on a **self-hosted runner** labelled `production` doing `docker compose -f docker-compose.prod.yml
+  pull/up client`; a commented **SSH-deploy** alternative is included for a publicly-reachable host.
 - **Post-deploy smoke** against the real URL: `GET /api/health` → 200; `GET /api/v1/inventory` (no
-  token) → **401** (confirms oidc enforced); a token-bearing request → 200. Fail → hold/rollback.
+  token) → **401** (confirms oidc enforced); a token-bearing request → 2xx. Fail → rollback (manual TODO).
+- **Still needed before it runs:** a `docker-compose.prod.yml` on the host, the `production` Environment
+  + reviewers, GHCR pull access, and the `PRODUCTION_URL` var / `SMOKE_BEARER_TOKEN` secret.
 
 ### E3 — Infra prerequisites
 Stand up everything in the checklist above (domain/TLS, registry, host, Atlas, Holodeck, IdP). Capture
