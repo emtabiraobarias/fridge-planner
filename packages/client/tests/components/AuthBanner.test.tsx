@@ -1,4 +1,4 @@
-import { act, render, screen, type RenderResult } from '@testing-library/react';
+import { act, render, screen, waitFor, type RenderResult } from '@testing-library/react';
 import { AuthBanner } from '../../src/components/shared/AuthBanner';
 import { AuthProvider } from '../../src/context/AuthContext';
 import { ensureOk, AuthRequiredError } from '../../src/services/http';
@@ -29,8 +29,9 @@ describe('AuthBanner (FR-D-009 / E0)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/sign in/i);
   });
 
-  it('exposes a Sign in button that starts the OIDC login (E0)', () => {
-    process.env['NEXT_PUBLIC_OIDC_ISSUER'] = 'https://issuer.example.com';
+  it('exposes a Sign in button that starts the OIDC login (E0b)', async () => {
+    process.env['NEXT_PUBLIC_OIDC_ISSUER'] = 'https://auth.example.com:8443/realms/fridge-planner';
+    process.env['NEXT_PUBLIC_OIDC_CLIENT_ID'] = 'fridge-planner-app';
     const assign = vi.fn();
     Object.defineProperty(window, 'location', { value: { origin: 'http://localhost:3000', assign }, writable: true });
     renderBanner();
@@ -40,8 +41,16 @@ describe('AuthBanner (FR-D-009 / E0)', () => {
     act(() => {
       screen.getByRole('button', { name: /sign in/i }).click();
     });
-    expect(assign).toHaveBeenCalledWith(expect.stringContaining('https://issuer.example.com/authorize'));
+    // login() computes the PKCE challenge asynchronously before redirecting.
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'https://auth.example.com:8443/realms/fridge-planner/protocol/openid-connect/auth',
+        ),
+      ),
+    );
     delete process.env['NEXT_PUBLIC_OIDC_ISSUER'];
+    delete process.env['NEXT_PUBLIC_OIDC_CLIENT_ID'];
   });
 
   it('ignores non-401 errors (generic Error, no prompt)', () => {

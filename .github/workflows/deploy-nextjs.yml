@@ -68,6 +68,13 @@ jobs:
           context: packages/client
           file: packages/client/Dockerfile
           push: true
+          # E0b: public OIDC config baked into the client bundle. Stage-1 internal values
+          # (non-secret — they end up in client JS). Stage 2 (s9) updates these to the
+          # public domain. If you move these to repo Variables, swap in ${{ vars.* }}.
+          build-args: |
+            NEXT_PUBLIC_OIDC_ISSUER=https://auth.fridgeplanner.lan:8443/realms/fridge-planner
+            NEXT_PUBLIC_OIDC_CLIENT_ID=fridge-planner-app
+            NEXT_PUBLIC_OIDC_REDIRECT_URI=https://fridgeplanner.lan:8443/auth/callback
           # Both a human-readable version tag and an immutable sha tag.
           tags: |
             ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
