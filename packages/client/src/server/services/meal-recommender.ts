@@ -47,17 +47,36 @@ export async function getMealRecommendations(
   }
 
   const data = (await res.json()) as HolodeckResponse;
+  return parseMealArray(data.content);
+}
+
+/**
+ * Parse the agent's `content` into a MealRecommendation array. The model is told to
+ * return raw JSON, but LLMs occasionally wrap it in a ```json markdown fence (or add
+ * stray text) — tolerate that rather than falling back, since the payload is valid.
+ */
+function parseMealArray(content: string): MealRecommendation[] {
+  let text = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '') // strip a leading ```json / ``` fence
+    .replace(/\s*```$/, '') // strip the trailing ```
+    .trim();
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(data.content);
+    parsed = JSON.parse(text);
   } catch {
-    throw new Error(`Holodeck returned non-JSON response: ${data.content.slice(0, 200)}`);
+    // Last resort: extract the outermost JSON array from surrounding prose.
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if (start === -1 || end <= start) {
+      throw new Error(`Holodeck returned non-JSON response: ${content.slice(0, 200)}`);
+    }
+    parsed = JSON.parse(text.slice(start, end + 1));
   }
 
   if (!Array.isArray(parsed)) {
     throw new Error('Holodeck response was not a JSON array');
   }
-
   return parsed as MealRecommendation[];
 }

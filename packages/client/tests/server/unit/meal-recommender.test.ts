@@ -70,6 +70,16 @@ describe('getMealRecommendations (Holodeck agent client)', () => {
     expect(result[0]).toMatchObject({ mealName: 'Chicken Fried Rice', suggestedMealType: 'dinner', prepTimeMinutes: 25 });
   });
 
+  it('parses a MealRecommendation array wrapped in a ```json markdown fence', async () => {
+    const fenced = '```json\n' + JSON.stringify([mockMeal], null, 2) + '\n```';
+    mockFetch.mockResolvedValueOnce(holodeckOk(fenced));
+    const result = await getMealRecommendations([
+      { name: 'chicken breast', quantity: 2, unit: 'lbs' },
+    ]);
+    expect(Array.isArray(result)).toBe(true);
+    expect(result[0]).toMatchObject({ mealName: 'Chicken Fried Rice' });
+  });
+
   it('throws on a non-ok holodeck response', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 502, text: async () => 'Bad Gateway' });
     await expect(getMealRecommendations([])).rejects.toThrow('502');
