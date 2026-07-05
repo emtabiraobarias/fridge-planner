@@ -30,13 +30,15 @@
 services:
   # ── Edge: the only LAN-facing service ─────────────────────────────────────
   caddy:
-    image: caddy:2-alpine
+    # Caddyfile is BAKED into this image (see deploy/caddy.Dockerfile) — a repo-relative
+    # bind mount doesn't resolve on the Portainer/TrueNAS daemon. Rebuild the image
+    # (tag caddy-v*) to change the config.
+    image: ${CADDY_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-caddy:latest}
     restart: unless-stopped
     ports:
       - "80:80" # ACME/redirect; Stage 1 (local_certs) still serves HTTP→HTTPS redirect
       - "443:443"
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data # persists the internal CA + issued certs across restarts
       - caddy_config:/config
     depends_on:

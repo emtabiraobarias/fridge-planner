@@ -1,0 +1,53 @@
+name: Caddy image (edge)
+
+# Phase E: build & publish the Caddy edge image with the Stage-1 Caddyfile baked in
+# → ghcr.io/emtabiraobarias/fridge-planner-caddy. Removes the repo-relative bind mount
+# that fails on the Portainer/TrueNAS target. Trigger: push a tag `caddy-v*`.
+# Per-branch file (impl/nextjs). Built linux/amd64 to match the LAN host.
+
+on:
+  push:
+    tags: ['caddy-v*']
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/emtabiraobarias/fridge-planner-caddy
+
+jobs:
+  build-push:
+    name: build & push caddy image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: meta
+        run: |
+          version="${GITHUB_REF_NAME#caddy-v}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Building caddy image version ${version}"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push (linux/amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy
+          file: deploy/caddy.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
+            ${{ env.IMAGE }}:latest
+          provenance: false
