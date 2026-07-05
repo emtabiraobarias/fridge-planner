@@ -9,7 +9,8 @@
 # with agent.yaml if they change. Use agent.yaml for `holodeck test`.
 #
 # Only runtime credential: CLAUDE_CODE_OAUTH_TOKEN (via model.auth_provider), which
-# the compose injects — no ${VAR} interpolation remains in this file.
+# the compose injects. NOTE: holodeck substitutes env-var references over the raw file
+# text INCLUDING COMMENTS, so this file must contain no dollar-brace sequences anywhere.
 
 name: meal-recommender
 description: AI-powered meal recommendation agent that suggests meals to minimise food waste
