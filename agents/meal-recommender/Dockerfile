@@ -14,7 +14,8 @@ WORKDIR /app
 
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
-COPY agent.yaml /app/agent.yaml
+# Serve-only config (no evaluations/observability env refs) — see agent.serve.yaml.
+COPY agent.serve.yaml /app/agent.yaml
 COPY instructions/ /app/instructions/
 COPY schemas/ /app/schemas/
 
