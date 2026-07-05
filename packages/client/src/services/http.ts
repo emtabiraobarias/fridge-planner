@@ -14,7 +14,19 @@ const listeners = new Set<Listener>();
 
 // E0 (Phase E): the browser carries an OIDC access token so requests are authenticated
 // under AUTH_MODE=oidc. AuthProvider sets it; apiFetch attaches it as a Bearer header.
-let authToken: string | null = null;
+// Seed synchronously from sessionStorage at module load so the very first request on a
+// page reload (before AuthProvider's effect runs) already carries the token — otherwise
+// the initial inventory/meal-plan fetches race ahead unauthenticated and 401.
+const TOKEN_STORAGE_KEY = 'fp_access_token';
+function readStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+let authToken: string | null = readStoredToken();
 export function setAuthToken(token: string | null): void {
   authToken = token;
 }

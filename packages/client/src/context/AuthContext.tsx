@@ -107,13 +107,11 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-
-  // Hydrate from sessionStorage on mount.
-  useEffect(() => {
-    const stored = typeof window !== 'undefined' ? window.sessionStorage.getItem(STORAGE_KEY) : null;
-    if (stored) setAccessToken(stored);
-  }, []);
+  // Lazy-init from sessionStorage so accessToken is correct on the first render and the
+  // service-layer sync never transiently clears a valid token (avoids the reload 401 race).
+  const [accessToken, setAccessToken] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? window.sessionStorage.getItem(STORAGE_KEY) : null,
+  );
 
   // Keep the service layer's token in sync.
   useEffect(() => {
