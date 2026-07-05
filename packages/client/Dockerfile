@@ -13,9 +13,12 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
-CMD ["node", "packages/client/server.js"]
+# Build context is packages/client (package-rooted), so Next's standalone output
+# emits server.js at the root — not the monorepo-nested packages/client/server.js.
+CMD ["node", "server.js"]
