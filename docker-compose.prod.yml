@@ -36,8 +36,11 @@ services:
     image: ${CADDY_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-caddy:latest}
     restart: unless-stopped
     ports:
-      - "80:80" # ACME/redirect; Stage 1 (local_certs) still serves HTTP→HTTPS redirect
-      - "443:443"
+      # Host 80/443 are taken on this node, so publish on high ports (Option B).
+      # Access is https://fridgeplanner.lan:8443. Caddy still listens on 80/443
+      # INSIDE the container; the Caddyfile is unchanged (host matcher ignores port).
+      - "8080:80"
+      - "8443:443"
     volumes:
       - caddy_data:/data # persists the internal CA + issued certs across restarts
       - caddy_config:/config
@@ -57,7 +60,8 @@ services:
       MONGODB_URI: mongodb://${MONGO_ROOT_USER:?}:${MONGO_ROOT_PASSWORD:?}@mongodb:27017/fridge-planner?authSource=admin
       HOLODECK_URL: http://holodeck:8001
       # `iss` the tokens actually carry — must match the public issuer URL exactly.
-      AUTH_ISSUER: https://auth.fridgeplanner.lan/realms/${OIDC_REALM:-fridge-planner}
+      # Includes the :8443 published port (Option B) so it matches KC_HOSTNAME below.
+      AUTH_ISSUER: https://auth.fridgeplanner.lan:8443/realms/${OIDC_REALM:-fridge-planner}
       AUTH_AUDIENCE: ${OIDC_AUDIENCE:?}
       # JWKS is fetched server-to-server: use the INTERNAL Keycloak URL so the app
       # needs neither LAN DNS for *.lan nor trust of Caddy's internal CA. Only the
@@ -119,7 +123,7 @@ services:
       KC_DB_PASSWORD: ${KC_DB_PASSWORD:?}
       # Public hostname (served by Caddy). TLS terminates at Caddy, so run HTTP
       # here and trust the proxy's X-Forwarded-* headers.
-      KC_HOSTNAME: https://auth.fridgeplanner.lan
+      KC_HOSTNAME: https://auth.fridgeplanner.lan:8443
       KC_HTTP_ENABLED: "true"
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
