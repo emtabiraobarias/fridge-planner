@@ -116,8 +116,8 @@ jobs:
           cd "${PROD_COMPOSE_DIR:-/opt/fridge-planner}"
           echo "Deploying $APP_IMAGE"
           # Pin the exact image the gate approved, then recreate just the app service.
-          APP_IMAGE="$APP_IMAGE" docker compose -f docker-compose.prod.yml pull client
-          APP_IMAGE="$APP_IMAGE" docker compose -f docker-compose.prod.yml up -d client
+          APP_IMAGE="$APP_IMAGE" docker compose -f docker-compose.prod.yml pull app
+          APP_IMAGE="$APP_IMAGE" docker compose -f docker-compose.prod.yml up -d app
 
       # Post-deploy smoke against the REAL URL. Confirms (a) health, (b) oidc is
       # actually enforced (no token → 401), (c) a token-bearing call works.
@@ -147,7 +147,7 @@ jobs:
         if: failure()
         run: |
           echo "::warning::Deploy smoke failed — roll back manually to the previous image:"
-          echo "  cd /opt/fridge-planner && APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:<prev> docker compose -f docker-compose.prod.yml up -d client"
+          echo "  cd /opt/fridge-planner && APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:<prev> docker compose -f docker-compose.prod.yml up -d app"
           # TODO(E2): automate by capturing the running image digest before the pull
           # and re-upping it here.
 
@@ -165,7 +165,7 @@ jobs:
   #       script: |
   #         cd /opt/fridge-planner
   #         APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:${{ needs.build-push.outputs.version }} \
-  #           docker compose -f docker-compose.prod.yml pull client
+  #           docker compose -f docker-compose.prod.yml pull app
   #         APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:${{ needs.build-push.outputs.version }} \
-  #           docker compose -f docker-compose.prod.yml up -d client
+  #           docker compose -f docker-compose.prod.yml up -d app
   # ──────────────────────────────────────────────────────────────────────────────

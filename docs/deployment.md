@@ -132,9 +132,27 @@ design — the banner in the file says so). What it does:
 Stand up everything in the checklist above (domain/TLS, registry, host, Atlas, Holodeck, IdP). Capture
 all connection values into the secret store (E4).
 
+**Single-node internal-LAN variant (current target).** Instead of Cloud Run + Atlas, run the whole
+stack on one host reachable only over the LAN. Artifacts committed for this:
+- [`docker-compose.prod.yml`](../docker-compose.prod.yml) — Caddy (edge) + app (pulled image) + MongoDB
+  (internal, auth on) + Holodeck + Keycloak (+ its Postgres). **Only Caddy publishes host ports (80/443);
+  everything else is reachable only on the `fpnet` network.**
+- [`deploy/Caddyfile`](../deploy/Caddyfile) — `fridgeplanner.lan` → app, `auth.fridgeplanner.lan` →
+  Keycloak; **Stage 1** uses `local_certs` (internal CA, no internet); **Stage 2** drops the global block
+  for public Let's Encrypt. 300s upstream timeouts for the recommendations route.
+- [`deploy/prod.env.example`](../deploy/prod.env.example) — the required secrets (copy → root-owned
+  `.env`, chmod 600).
+- **LAN prerequisites:** internal DNS (or `/etc/hosts`) resolving `fridgeplanner.lan` +
+  `auth.fridgeplanner.lan` to the host; distribute Caddy's internal-CA root to clients (Stage 1).
+- **Keycloak setup:** create the `fridge-planner` realm + a public SPA client (PKCE), redirect URI
+  `https://fridgeplanner.lan/auth/callback`, and an audience mapper matching `OIDC_AUDIENCE`.
+
 ### E4 — Secrets & prod env
-Load the prod env (checklist) into the secret manager + GH `production` Environment secrets.
-**Verify `AUTH_ALLOW_DEV` is unset** in every prod surface.
+Load the prod env (checklist) into the secret manager + GH `production` Environment secrets. For the
+single-node variant, the runtime secrets live in the host `.env` (see `deploy/prod.env.example`); GH
+secrets are only needed for the CD job (`SMOKE_BEARER_TOKEN`, GHCR pull).
+**Verify `AUTH_ALLOW_DEV` is unset** in every prod surface. Remember `NEXT_PUBLIC_OIDC_*` are **build
+args** (E2 build-push), not runtime env.
 
 ### E5 — Multi-instance rate limit
 The recommendations limiter is **in-memory, per instance** (`src/server/rate-limit.ts`). For >1

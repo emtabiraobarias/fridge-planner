@@ -1,0 +1,157 @@
+# Fridge Planner — production compose (Phase E, impl/nextjs)
+#
+# TARGET: a SINGLE node (one host) reachable only over an INTERNAL LAN.
+#
+# Exposure policy: ONLY Caddy publishes host ports (443, and 80 for redirect).
+# Every other service has NO `ports:` mapping — it is reachable solely on the
+# internal compose network `fpnet`, never from the LAN. So the only way in is
+# https://fridgeplanner.lan (app) and https://auth.fridgeplanner.lan (Keycloak),
+# both terminated by Caddy. (Egress still works via the host's NAT — Holodeck
+# needs it to reach the LLM API.)
+#
+# Secrets: provide a root-owned `.env` (chmod 600) NEXT TO this file. Docker
+# interpolates ${VARS} below from it. `:?` entries fail the up if unset. NEVER
+# bake secrets into an image and NEVER commit the .env. Required keys are listed
+# in deploy/prod.env.example.
+#
+# Build-time vs runtime auth env — IMPORTANT:
+#   • Server-side JWT verification (AUTH_ISSUER/AUDIENCE/JWKS_URI, AUTH_MODE) is
+#     RUNTIME → set on the `app` service below.
+#   • The browser OIDC config (NEXT_PUBLIC_OIDC_*) is BAKED AT BUILD TIME into the
+#     client bundle → it must be passed as build args in the E2 build-push job,
+#     NOT here. Setting NEXT_PUBLIC_* at runtime has no effect.
+#
+# 🔴 AUTH_ALLOW_DEV is intentionally ABSENT. Setting it re-opens the X-User-Id dev
+#    seam (any user can be impersonated) — FR-D-008. Never add it to prod.
+#
+# Usage on the host:  APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:<ver> \
+#                       docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # ── Edge: the only LAN-facing service ─────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80" # ACME/redirect; Stage 1 (local_certs) still serves HTTP→HTTPS redirect
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # persists the internal CA + issued certs across restarts
+      - caddy_config:/config
+    depends_on:
+      - app
+      - keycloak
+    networks: [fpnet]
+
+  # ── The app: pulled image (never built on the host) ───────────────────────
+  app:
+    image: ${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client:latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      AUTH_MODE: oidc
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER:?}:${MONGO_ROOT_PASSWORD:?}@mongodb:27017/fridge-planner?authSource=admin
+      HOLODECK_URL: http://holodeck:8001
+      # `iss` the tokens actually carry — must match the public issuer URL exactly.
+      AUTH_ISSUER: https://auth.fridgeplanner.lan/realms/${OIDC_REALM:-fridge-planner}
+      AUTH_AUDIENCE: ${OIDC_AUDIENCE:?}
+      # JWKS is fetched server-to-server: use the INTERNAL Keycloak URL so the app
+      # needs neither LAN DNS for *.lan nor trust of Caddy's internal CA. Only the
+      # `iss` check uses the public hostname above.
+      AUTH_JWKS_URI: http://keycloak:8080/realms/${OIDC_REALM:-fridge-planner}/protocol/openid-connect/certs
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      holodeck:
+        condition: service_healthy
+    networks: [fpnet]
+    # no ports: reachable only through Caddy
+
+  # ── State: MongoDB, internal only, auth on, persistent ────────────────────
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?}
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [fpnet]
+    # no host port (:27017 not published) — hardening vs the dev compose.
+    # NOTE: the app connects as root for simplicity on a single node; a
+    # least-privilege app user (initdb script) is a recommended follow-up.
+
+  # ── AI agent: internal only, needs egress to the LLM API ──────────────────
+  holodeck:
+    image: ghcr.io/emtabiraobarias/fridge-planner:latest # the AGENT image (≠ app image)
+    restart: unless-stopped
+    environment:
+      HOLODECK_PORT: 8001
+      HOLODECK_PROTOCOL: rest
+      # Prefer the OAuth token; ANTHROPIC_API_KEY is the fallback (see CLAUDE.md §9).
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [fpnet]
+
+  # ── Identity provider (self-hosted OIDC) + its database ───────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start"] # production mode; --optimized would require a build step
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/${KC_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KC_DB_USER:?}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?}
+      # Public hostname (served by Caddy). TLS terminates at Caddy, so run HTTP
+      # here and trust the proxy's X-Forwarded-* headers.
+      KC_HOSTNAME: https://auth.fridgeplanner.lan
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      # First-boot admin bootstrap (Keycloak 26 names). Rotate after first login.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:?}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?}
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks: [fpnet]
+    # no host port — reached only via Caddy at auth.fridgeplanner.lan → :8080
+
+  keycloak-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${KC_DB_NAME:-keycloak}
+      POSTGRES_USER: ${KC_DB_USER:?}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?}
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KC_DB_USER:-keycloak} -d ${KC_DB_NAME:-keycloak}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [fpnet]
+
+networks:
+  fpnet:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  mongodb_data:
+  keycloak_db_data:

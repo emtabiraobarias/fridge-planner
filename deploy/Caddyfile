@@ -1,0 +1,21 @@
+{
+    # Stage 1: issue internally-trusted certs (no Let's Encrypt, no internet needed).
+    # Remove this whole global block in Stage 2 to switch to public Let's Encrypt.
+    local_certs
+}
+
+fridgeplanner.lan {
+    reverse_proxy app:3000 {
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+            # AI recommendations can take up to ~240s to send the first byte;
+            # give upstream headers headroom so the proxy doesn't cut it off.
+            response_header_timeout 300s
+        }
+    }
+}
+
+auth.fridgeplanner.lan {
+    reverse_proxy keycloak:8080
+}
