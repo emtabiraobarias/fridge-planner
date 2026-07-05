@@ -96,11 +96,28 @@ The SPA used to send **no `Authorization` header** (only the dev `X-User-Id` sea
   + token sync + login redirect (`tests/context/AuthContext.test.tsx`); AuthBanner Sign-in → login
   (`tests/components/AuthBanner.test.tsx`). Lint + `next build` clean; coverage 93%.
 
-**E0b — IdP callback code→token exchange ⏳ DEFERRED → E3** (needs a live IdP)
-- `/auth/callback` route: handle the OIDC `code` → token exchange (PKCE), then `setToken(accessToken)`.
-- Token refresh/expiry handling on top of the existing 401 → re-login signal.
-- Configure `NEXT_PUBLIC_OIDC_ISSUER` / `_CLIENT_ID` / `_REDIRECT_URI` against the real IdP (E3).
-- *Out of scope for spec `002`* → small Phase-E feature slice (consider a `003` mini-spec).
+**E0b — IdP callback code→token exchange ✅ DONE** (against the live Stage-1 Keycloak)
+- `app/auth/callback/page.tsx` + `AuthContext`: full authorization-code + PKCE (S256) flow —
+  `login()` redirects to `${issuer}/protocol/openid-connect/auth` with a code challenge + CSRF state;
+  the callback exchanges the code (+ verifier) at the token endpoint and `setToken`s the result.
+- `NEXT_PUBLIC_OIDC_*` are baked at build time via Dockerfile ARGs + `deploy-nextjs.yml` build-args.
+- Post-login 401 race fixed by seeding the token from sessionStorage at `http.ts` module load.
+- *(Token refresh on expiry is still a future nicety; the 401 → re-login signal covers expiry for now.)*
+
+### Stage 1 (internal LAN) — ✅ COMPLETE (verified end-to-end)
+Deployed to a single Portainer/TrueNAS node; `s8int-smoke` passed (trusted TLS, OIDC login round-trip,
+AI recommendations within the timeout, data persists across app restart, no leaked ports, no
+`AUTH_ALLOW_DEV`). Realities discovered during bring-up (baked into the artifacts):
+- **Three images** back the stack, all built via CI (host can't build): app
+  `fridge-planner-client:4.0.0-rc.5`, agent `fridge-planner:latest` (Dockerfile +
+  `agent-image.yml`), edge `fridge-planner-caddy:latest` (Caddyfile **baked in** — the TrueNAS daemon
+  can't resolve a repo-relative bind mount).
+- **Port remap (Option B):** host 80/443 were taken, so Caddy publishes **8080/8443**; `KC_HOSTNAME`
+  and `AUTH_ISSUER` carry `:8443` so the token `iss` stays consistent.
+- **Agent serve config:** `holodeck serve` substitutes `${VAR}` over the whole file incl. comments, so
+  the served image uses `agent.serve.yaml` (no evaluations/observability env refs).
+- **Fence-tolerant parsing:** the agent occasionally wraps its JSON in a ```json fence; the client now
+  strips it (CLAUDE.md §14).
 
 ### E1 — CI workflow (gate) — `.github/workflows/ci-nextjs.yml` ✅ **DONE** (commit `0193e91`)
 - Trigger: `on: push` to `impl/nextjs` + `pull_request` targeting it. `concurrency` cancels superseded runs.
@@ -172,8 +189,8 @@ monitor; optionally point `OTLP_ENDPOINT` at a collector for the agent's traces.
 ---
 
 ## Top risks
-1. **E0 auth wiring** — E0a (token-bearing client + login) is done; **E0b** (the IdP callback
-   token exchange) still blocks a human-facing oidc rollout and depends on a live IdP from E3.
+1. ~~**E0 auth wiring**~~ — ✅ RESOLVED: E0a + E0b both done; OIDC login verified against the live
+   Stage-1 Keycloak. (Token *refresh* on expiry remains a future nicety.)
 2. **Per-instance rate limit** (E5) — not global until Redis-backed.
 3. **240 s recommendations timeout** (E3) — constrains host choice (no Vercel).
 4. **`AUTH_ALLOW_DEV` in prod** (E4) — must never be set; it re-opens the dev seam.
