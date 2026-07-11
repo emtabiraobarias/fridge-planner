@@ -354,6 +354,17 @@ One active test case ("Prioritise expiring chicken") is defined in `agent.yaml` 
 
 **Deployment:** Agent is containerised for GCP Cloud Run (`linux/arm64`), published to `ghcr.io/emtabiraobarias/fridge-planner`.
 
+### 9a. Second agent — Feedback Collector (spec 003 / Phase F)
+
+A **second Holodeck agent** collects bug/improvement feedback conversationally and saves structured, spec-shaped records (exportable as `/speckit.specify` markdown). One Holodeck instance serves one agent, so it runs in its **own container/port**.
+
+- **Config:** `agents/feedback-collector/agent.yaml` (+ `agent.serve.yaml` serve variant — no `${…}` anywhere, incl. comments). **Model:** `claude-sonnet-4-6`, temp **0.3**, `allowed_tools: []` (**no web tools** — it only converses; also removes an injection amplifier). Evals: `JSONProtocolCompliance`/`ClarifyingQuestionQuality`/`SpecReadiness`.
+- **Protocol (raw JSON only):** the backend replays the whole transcript each turn (**stateless**, CR-018) framed with untrusted-data markers; the agent returns exactly one object — `{status:"collecting",reply,missing[]}` or `{status:"complete",reply,record{…}}`. At the ~30-turn cap the backend appends `FINALIZE NOW`.
+- **Local:** `docker compose up -d --build holodeck-feedback` (port **8002**). The Next app reads **`FEEDBACK_AGENT_URL`** (`http://localhost:8002` locally). When unset/unreachable the `/api/v1/feedback` chat endpoints return **502** and preserve the draft — the rest of the app is unaffected.
+- **App wiring:** `src/server/services/feedback-collector.ts` (client — fence-strip + zod discriminated-union validation), `controllers/feedback.ts`, `models/feedback-record.ts`, `lib/feedback-export.ts` (spec-template markdown), routes under `app/api/v1/feedback/**`; UI at `/feedback` (`views/FeedbackPage.tsx`, `context/FeedbackContext.tsx`, `components/feedback/*`).
+- **Base-image note (2026-07-11):** the current `holodeck-base:latest` (Debian trixie) **rejects `claude.setting_sources`** and **no longer bundles Node.js** (which the Claude provider needs). The feedback Dockerfile therefore omits `setting_sources` and `apt-get install`s `nodejs`. The older meal-recommender image predates both; rebuilding it may need the same fixes.
+- **Prod:** publishing the second agent image (`…/fridge-planner-feedback`) + `docker-compose.prod.yml`/`deploy/checklist.yaml` is **deferred (Phase F6)**.
+
 ---
 
 ## 10. Git Workflow
