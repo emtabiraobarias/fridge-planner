@@ -22,7 +22,6 @@ instructions:
 
 claude:
   max_turns: 3
-  setting_sources: []   # explicit: no inheritance from ~/.claude or project settings
   extended_thinking:
     enabled: false
   allowed_tools: []     # no WebSearch/WebFetch — the agent only converses

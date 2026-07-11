@@ -12,6 +12,13 @@ FROM ghcr.io/justinbarias/holodeck-base:latest
 USER root
 WORKDIR /app
 
+# The Claude Agent SDK (Anthropic provider) requires Node.js on PATH. The current
+# holodeck-base:latest (Debian trixie) no longer bundles it, so install it explicitly —
+# this keeps the image self-sufficient regardless of base-image drift.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 # Serve-only config (no evaluations/observability env refs) — see agent.serve.yaml.
