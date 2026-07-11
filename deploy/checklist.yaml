@@ -1,0 +1,209 @@
+# =============================================================================
+# Deployment checklist manifest — consumed by the deploy-runbook orchestrator.
+# Aligned to the ACTUAL repo files (do not rename them here):
+#   • prod stack:      docker-compose.prod.yml            (repo ROOT)
+#   • prod env sample: deploy/prod.env.example            (host .env, NOT committed filled-in)
+#   • reverse proxy:   deploy/Caddyfile                   (Stage 1: local_certs, fridgeplanner.lan)
+#   • CI/CD:           .github/workflows/deploy-nextjs.yml (gated; builds …/fridge-planner-client)
+#   • prose runbook:   docs/deployment.md
+#
+# mode: agent  -> deploy-file-writer subagent edits repo files
+#       manual  -> human acts in Portainer/router/host; orchestrator BLOCKS
+#       verify  -> a check (command or human-eyeball)
+# =============================================================================
+
+meta:
+  runbook: docs/deployment.md
+  compose_file: docker-compose.prod.yml           # at repo ROOT
+  env_sample: deploy/prod.env.example
+  caddyfile: deploy/Caddyfile
+  workflow: .github/workflows/deploy-nextjs.yml
+  internal_host: fridgeplanner.lan
+  public_domain: null
+  app_image: ghcr.io/emtabiraobarias/fridge-planner-client   # NOT …/fridge-planner (that's Holodeck)
+  keycloak_realm: fridge-planner
+  network: fpnet
+  portainer_edition: CE                            # CE | BE (affects the CD step)
+
+steps:
+  # ---------------- STAGE 1: INTERNAL ----------------
+  - id: s0-verify-portainer
+    title: Confirm Docker/Portainer healthy, node LAN IP recorded
+    stage: 1
+    mode: manual
+    prompt: |
+      In Portainer, open the environment Dashboard and confirm it loads.
+      Record the node's LAN IP. Ensure a strong Portainer admin password.
+    done_when: "You confirm the dashboard loads and note the LAN IP."
+
+  - id: s7-compose-verify
+    title: Verify docker-compose.prod.yml (already exists at repo root)
+    stage: 1
+    mode: agent
+    depends_on: [s0-verify-portainer]
+    artifact: docker-compose.prod.yml
+    subagent: deploy-file-writer
+    note: |
+      This file ALREADY EXISTS and is well-formed (only caddy publishes ports; app pulls
+      ${APP_IMAGE:-…/fridge-planner-client}; mongo/holodeck/keycloak/keycloak-db internal on fpnet;
+      ${VAR:?} fail-fast; AUTH_JWKS_URI uses the INTERNAL keycloak URL by design). VERIFY only —
+      do not rewrite. Only propose a diff if a concrete defect is found.
+    done_when: "compose parses; only caddy has ports; no AUTH_ALLOW_DEV; matches deploy/prod.env.example var names."
+
+  - id: s1-caddyfile-verify
+    title: Verify deploy/Caddyfile (Stage 1 internal CA)
+    stage: 1
+    mode: agent
+    depends_on: [s7-compose-verify]
+    artifact: deploy/Caddyfile
+    subagent: deploy-file-writer
+    note: "Already correct: local_certs, fridgeplanner.lan + auth.fridgeplanner.lan, 300s + response_header_timeout. Verify + keep."
+    done_when: "Directives present for Stage 1; no changes needed (or a justified diff)."
+
+  - id: s6-secrets-decide
+    title: Decide secrets path (Portainer stack-env vs host .env)
+    stage: 1
+    mode: manual
+    depends_on: [s7-compose-verify]
+    prompt: |
+      The compose uses ${VAR:?} interpolation from an .env next to it (Path B) — that's the
+      designed model. On Portainer you can instead supply these as stack Environment variables
+      (Path A). Reply "A" (Portainer stack env) or "B" (host .env, chmod 600). Keys: see deploy/prod.env.example.
+    done_when: "You reply A or B."
+
+  - id: s1-dns-internal
+    title: Resolve fridgeplanner.lan / auth.fridgeplanner.lan on the LAN
+    stage: 1
+    mode: manual
+    depends_on: [s1-caddyfile-verify]
+    prompt: |
+      Add internal DNS or hosts entries: <node-lan-ip> fridgeplanner.lan and auth.fridgeplanner.lan
+    done_when: "`ping fridgeplanner.lan` resolves to the node's LAN IP."
+
+  - id: s7-deploy-stack
+    title: Deploy the stack in Portainer
+    stage: 1
+    mode: manual
+    depends_on: [s1-caddyfile-verify, s6-secrets-decide, s1-dns-internal]
+    prompt: |
+      Portainer: Stacks -> + Add stack -> Git repository. Compose path: docker-compose.prod.yml (repo root).
+      Provide APP_IMAGE and the deploy/prod.env.example keys — as stack env (Path A) or ensure the host .env exists (Path B).
+      Deploy. Docs: https://docs.portainer.io/user/docker/stacks/add
+    done_when: "All services (caddy, app, mongodb, holodeck, keycloak, keycloak-db) show Running."
+
+  - id: s1-trust-ca
+    title: Trust Caddy internal CA on the test machine
+    stage: 1
+    mode: manual
+    depends_on: [s7-deploy-stack]
+    prompt: |
+      Portainer: Containers -> caddy -> Console -> Connect (/bin/sh), then
+      cat /data/caddy/pki/authorities/local/root.crt  — install as a trusted root on your test machine.
+    done_when: "https://fridgeplanner.lan shows no cert warning."
+
+  - id: s5-keycloak-config
+    title: Configure Keycloak realm + client (internal hostname)
+    stage: 1
+    mode: manual
+    depends_on: [s7-deploy-stack]
+    prompt: |
+      At https://auth.fridgeplanner.lan: log in with KC_ADMIN_USER/PASSWORD, create realm 'fridge-planner',
+      a public/SPA client (PKCE S256), redirect URI https://fridgeplanner.lan/auth/callback.
+      Set the client audience to match OIDC_AUDIENCE. Paste Client ID + confirm realm/audience.
+    done_when: "You confirm realm, client id, and audience (OIDC_REALM / OIDC_AUDIENCE)."
+
+  - id: s8int-smoke
+    title: Internal smoke test (Stage 1 finish line — HARD GATE)
+    stage: 1
+    mode: verify
+    depends_on: [s1-trust-ca, s5-keycloak-config]
+    prompt: |
+      From a LAN machine confirm ALL:
+        [ ] https://fridgeplanner.lan loads (CA trusted, no warning)
+        [ ] Login via https://auth.fridgeplanner.lan completes -> /auth/callback
+        [ ] Recommendations route finishes past ~240s (no 502)
+        [ ] Holodeck-backed feature responds
+        [ ] Restart app container -> data persists
+        [ ] mongodb/holodeck/keycloak: NO published ports; only caddy 80/443
+        [ ] app console: printenv | grep AUTH_ALLOW_DEV -> nothing
+    done_when: "You confirm every box. GATES Stage 2."
+
+  # ---------------- STAGE 2: PUBLIC ----------------
+  - id: s2-domain
+    title: Domain + public DNS + split-horizon
+    stage: 2
+    mode: manual
+    depends_on: [s8int-smoke]
+    prompt: |
+      Register <your-domain>. A records @ and auth -> public IP. Split-horizon internal DNS -> node LAN IP.
+      Reply with the domain to record public_domain.
+    done_when: "Domain provided; resolves publicly + internally."
+
+  - id: s2-router-fw
+    title: Router port-forward 80/443 + host firewall (admin)
+    stage: 2
+    mode: manual
+    depends_on: [s2-domain]
+    prompt: |
+      Forward ONLY 80/443 to the node. Host firewall (admin) allows only 80/443 externally.
+      Confirm from mobile data that 9443/27017/8001/keycloak-admin are unreachable.
+    done_when: "Only 80/443 reachable externally; internal ports refused."
+
+  - id: s2-caddy-public
+    title: Switch deploy/Caddyfile to public (remove local_certs, real domain)
+    stage: 2
+    mode: agent
+    depends_on: [s2-domain]
+    artifact: deploy/Caddyfile
+    subagent: deploy-file-writer
+    done_when: "local_certs removed; sites use <your-domain>/auth.<your-domain>; email set; 300s timeouts kept."
+
+  - id: s2-keycloak-hostname
+    title: Update KC_HOSTNAME + AUTH_ISSUER to the public domain
+    stage: 2
+    mode: manual
+    depends_on: [s2-domain, s2-caddy-public]
+    prompt: |
+      In compose env/host .env: KC_HOSTNAME -> https://auth.<your-domain>; AUTH_ISSUER's host follows OIDC_REALM
+      on the public domain. Update the Keycloak client redirect URI to https://<your-domain>/auth/callback.
+      (AUTH_JWKS_URI stays the internal keycloak:8080 URL — no change needed.)
+    done_when: "Public discovery doc loads; redirect URI updated."
+
+  - id: s9-rebuild-image
+    title: Add public NEXT_PUBLIC_OIDC_* build args to the EXISTING deploy-nextjs.yml
+    stage: 2
+    mode: agent
+    depends_on: [s2-keycloak-hostname]
+    artifact: .github/workflows/deploy-nextjs.yml
+    subagent: deploy-file-writer
+    note: |
+      The workflow ALREADY EXISTS (build-push digest-pinned + gated `production` env + OIDC-enforcement
+      smoke + rollback stub) and builds …/fridge-planner-client. EDIT it: pass the public NEXT_PUBLIC_OIDC_*
+      as docker build-args (they bake into the client bundle). Preserve gate/smoke/rollback.
+    done_when: "build-push passes NEXT_PUBLIC_OIDC_ISSUER/CLIENT_ID/REDIRECT_URI as build-args; nothing else regressed."
+
+  - id: s8-cd
+    title: Reconcile the deploy job with Portainer + edition (EDIT existing workflow)
+    stage: 2
+    mode: agent
+    depends_on: [s9-rebuild-image]
+    artifact: .github/workflows/deploy-nextjs.yml
+    subagent: deploy-file-writer
+    note: |
+      Existing deploy job uses a self-hosted runner / SSH doing `docker compose -f docker-compose.prod.yml up -d app`.
+      Reconcile with this project's Portainer-CE, no-host-shell reality:
+        - CE cannot use Portainer stack webhooks (Business-only).
+        - Keep the self-hosted-runner compose rollout (an admin installs the runner once), OR
+        - stop CI at build-push and have the human do Portainer "Pull and redeploy".
+      Confirm with the orchestrator (decisions.portainer_edition + self_hosted_runner_available) before editing.
+    done_when: "Deploy path matches recorded edition + runner availability; `production` gate + smoke + rollback preserved; no secrets in repo."
+
+  - id: s9-public-smoke
+    title: Public go-live smoke test + security recheck
+    stage: 2
+    mode: verify
+    depends_on: [s8-cd]
+    prompt: |
+      From OFF the LAN: https://<your-domain> valid cert + login works.
+      Recheck: 9443/27017/8001/keycloak-admin unreachable; app has no AUTH_ALLOW_DEV.
+    done_when: "All public checks + security recheck pass."

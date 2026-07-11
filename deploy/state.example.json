@@ -1,0 +1,15 @@
+{
+  "completed": [],
+  "decisions": {
+    "secrets_path": null,
+    "portainer_edition": "CE",
+    "self_hosted_runner_available": null,
+    "internal_host": "fridgeplanner.lan",
+    "public_domain": null,
+    "app_image": "ghcr.io/emtabiraobarias/fridge-planner-client",
+    "keycloak_realm": "fridge-planner",
+    "oidc_audience": null,
+    "oidc_client_id": null
+  },
+  "current": null
+}
