@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FeedbackCollectorResponse",
+  "description": "The single JSON object the feedback-collector agent returns each turn. Reference/documentation for the raw-JSON conversation protocol; the Next server layer validates against an equivalent zod schema before persisting.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["status", "reply"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "const": "collecting" },
+        "reply": { "type": "string", "minLength": 1, "description": "One clarifying question, shown to the user." },
+        "missing": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Still-unknown record field names the agent intends to gather."
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["status", "reply", "record"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "const": "complete" },
+        "reply": { "type": "string", "minLength": 1, "description": "1-2 sentence confirmation summary." },
+        "record": {
+          "type": "object",
+          "required": [
+            "type", "title", "problemStatement", "userStory",
+            "acceptanceCriteria", "reproSteps", "expectedBehavior",
+            "actualBehavior", "affectedArea", "priority"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "enum": ["bug", "improvement"] },
+            "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+            "problemStatement": { "type": "string", "minLength": 1 },
+            "userStory": { "type": "string", "minLength": 1, "description": "As a <role>, I want <capability>, so that <benefit>." },
+            "acceptanceCriteria": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["given", "when", "then"],
+                "additionalProperties": false,
+                "properties": {
+                  "given": { "type": "string", "minLength": 1 },
+                  "when": { "type": "string", "minLength": 1 },
+                  "then": { "type": "string", "minLength": 1 }
+                }
+              }
+            },
+            "reproSteps": { "type": "array", "items": { "type": "string" }, "description": "Non-empty for bugs; [] for improvements." },
+            "expectedBehavior": { "type": "string", "description": "Required for bugs; \"\" for improvements." },
+            "actualBehavior": { "type": "string", "description": "Required for bugs; \"\" for improvements." },
+            "affectedArea": { "enum": ["inventory", "meal-plan", "grocery", "recommendations", "auth", "feedback", "other"] },
+            "priority": { "enum": ["P1", "P2", "P3"] }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -33,6 +33,30 @@ services:
       timeout: 5s
       retries: 5
 
+  # Phase F: second Holodeck agent — the conversational feedback collector (spec 003).
+  # One Holodeck instance serves one agent, so it gets its own container/port (:8002).
+  # Built from source here (no published image yet — prod publishing is deferred, Phase F6).
+  holodeck-feedback:
+    build:
+      context: agents/feedback-collector
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    env_file:
+      - path: .env
+        required: true
+      - path: .env.local
+        required: false
+    environment:
+      HOLODECK_PORT: 8002
+      HOLODECK_PROTOCOL: rest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   # Phase C-bis: the Next.js app is now the whole backend — it talks to MongoDB and
   # the Holodeck agent directly (no Express service, no proxy).
   client:
@@ -46,11 +70,14 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb://mongodb:27017/fridge-planner
       HOLODECK_URL: http://holodeck:8001
+      FEEDBACK_AGENT_URL: http://holodeck-feedback:8002
       LOG_LEVEL: info
     depends_on:
       mongodb:
         condition: service_healthy
       holodeck:
+        condition: service_healthy
+      holodeck-feedback:
         condition: service_healthy
 
 volumes:

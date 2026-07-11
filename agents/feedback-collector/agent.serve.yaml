@@ -1,0 +1,35 @@
+# Feedback Collector — SERVE-ONLY config (production container entrypoint).
+#
+# Derived from agent.yaml but WITHOUT the evaluations, test_cases, and observability
+# blocks: those reference dev/test env vars (AZURE_OPENAI_*, OTLP_ENDPOINT) that
+# holodeck serve tries to resolve at load time and that do not exist in production.
+# holodeck serve needs only the model + instructions + claude blocks. The system prompt
+# stays single-source (instructions/system-prompt.md) — keep the model/claude settings
+# here in sync with agent.yaml if they change. Use agent.yaml for holodeck test.
+#
+# Only runtime credential: CLAUDE_CODE_OAUTH_TOKEN (via model.auth_provider), which the
+# compose injects. NOTE: holodeck substitutes env-var references over the raw file text
+# INCLUDING COMMENTS, so this file must contain no dollar-brace sequences anywhere.
+
+name: feedback-collector
+description: Conversational agent that collects bug reports / improvement suggestions as structured specification input
+
+execution:
+  llm_timeout: 120
+
+model:
+  provider: anthropic
+  name: claude-sonnet-4-6
+  auth_provider: oauth_token
+  temperature: 0.3
+  max_tokens: 2000
+
+instructions:
+  file: instructions/system-prompt.md
+
+claude:
+  max_turns: 3
+  setting_sources: [] # explicit: no inheritance from ~/.claude or project settings
+  extended_thinking:
+    enabled: false
+  allowed_tools: []
