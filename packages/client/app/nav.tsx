@@ -6,6 +6,7 @@ const NAV_LINKS = [
   { href: '/', label: 'Inventory' },
   { href: '/calendar', label: 'Meal Plan' },
   { href: '/grocery', label: 'Grocery List' },
+  { href: '/feedback', label: 'Feedback' },
 ] as const;
 
 export function Nav(): React.JSX.Element {
