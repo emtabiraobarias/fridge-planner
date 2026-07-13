@@ -49,69 +49,72 @@ function titleCase(name: string): string {
   return name.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Resolve an `expires <token>` token to a Date, or null if unrecognised. */
+function resolveExpiryToken(token: string, base: Date): Date | null {
+  const rel = token.match(/^(\d+)\s*(d|w)$/);
+  if (rel) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + Number(rel[1]) * (rel[2] === 'w' ? 7 : 1));
+    return d;
+  }
+  if (/^\d{1,2}\/\d{1,2}$/.test(token)) {
+    const [dd, mm] = token.split('/').map(Number) as [number, number];
+    return new Date(base.getFullYear(), mm - 1, dd);
+  }
+  const dowIdx = DOW.findIndex((n) => n.startsWith(token.slice(0, 3)));
+  if (dowIdx >= 0 && token.length >= 3) {
+    const d = new Date(base);
+    let diff = (dowIdx - d.getDay() + 7) % 7;
+    if (diff === 0) diff = 7; // never today → next occurrence
+    d.setDate(d.getDate() + diff);
+    return d;
+  }
+  return null;
+}
+
+/** Strip a leading `expires …` clause, returning the remaining text + parsed date. */
+function extractExpiry(t: string, base: Date): { text: string; expiresAt: Date | null } {
+  const m = t.match(/\b(?:exp(?:ires)?)\s+([a-z0-9/]+)\b/i);
+  if (!m) return { text: t, expiresAt: null };
+  const expiresAt = resolveExpiryToken(m[1]!.toLowerCase(), base);
+  return { text: expiresAt ? t.replace(m[0], '').trim() : t, expiresAt };
+}
+
+/** Strip a leading quantity (+ optional unit), returning the remaining text + qty/unit. */
+function extractQuantity(t: string): { text: string; quantity: number; unit: string } {
+  const m = t.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s+/);
+  if (!m) return { text: t, quantity: 1, unit: 'count' };
+  const quantity = Number(m[1]);
+  const u = (m[2] ?? '').toLowerCase();
+  if (u && UNITS.includes(u)) return { text: t.slice(m[0].length), quantity, unit: u === 'l' ? 'L' : u };
+  if (!u) return { text: t.slice(m[0].length), quantity, unit: 'count' };
+  // group2 is the item word, not a unit — keep it as part of the name.
+  return { text: t.slice(m[1]!.length).trim(), quantity, unit: 'count' };
+}
+
+function guessCategoryLocation(name: string): [Category, Location] {
+  for (const [re, cat, loc] of CAT_GUESS) {
+    if (re.test(name)) return [cat, loc];
+  }
+  return ['Other', 'fridge'];
+}
+
 export function parseQuick(text: string, today: Date = new Date()): ParsedQuick | null {
-  let t = text.trim();
-  if (!t) return null;
+  const trimmed = text.trim();
+  if (!trimmed) return null;
 
   const base = midnight(today);
-  let expiresAt: Date | null = null;
+  const afterExpiry = extractExpiry(trimmed, base);
+  const afterQty = extractQuantity(afterExpiry.text);
 
-  // "expires friday" / "exp 3d" / "expires 16/7"
-  const expMatch = t.match(/\b(?:exp(?:ires)?)\s+([a-z0-9/]+)\b/i);
-  if (expMatch) {
-    const token = expMatch[1]!.toLowerCase();
-    const rel = token.match(/^(\d+)\s*(d|w)$/);
-    if (rel) {
-      const d = new Date(base);
-      d.setDate(d.getDate() + Number(rel[1]) * (rel[2] === 'w' ? 7 : 1));
-      expiresAt = d;
-    } else if (/^\d{1,2}\/\d{1,2}$/.test(token)) {
-      const [dd, mm] = token.split('/').map(Number) as [number, number];
-      expiresAt = new Date(base.getFullYear(), mm - 1, dd);
-    } else {
-      const dowIdx = DOW.findIndex((n) => n.startsWith(token.slice(0, 3)));
-      if (dowIdx >= 0 && token.length >= 3) {
-        const d = new Date(base);
-        let diff = (dowIdx - d.getDay() + 7) % 7;
-        if (diff === 0) diff = 7; // never today → next occurrence
-        d.setDate(d.getDate() + diff);
-        expiresAt = d;
-      }
-    }
-    if (expiresAt) t = t.replace(expMatch[0], '').trim();
-  }
-
-  // leading quantity + optional unit: "2L milk", "500 g mince", "6 eggs"
-  let quantity = 1;
-  let unit = 'count';
-  const qtyMatch = t.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s+/);
-  if (qtyMatch) {
-    quantity = Number(qtyMatch[1]);
-    const u = (qtyMatch[2] ?? '').toLowerCase();
-    if (u && UNITS.includes(u)) {
-      unit = u === 'l' ? 'L' : u;
-      t = t.slice(qtyMatch[0].length);
-    } else if (!u) {
-      t = t.slice(qtyMatch[0].length);
-    } else {
-      // group2 is the item word, not a unit — keep it as part of the name
-      t = t.slice(qtyMatch[1]!.length).trim();
-    }
-  }
-
-  const name = t.replace(/\s+/g, ' ').trim();
+  const name = afterQty.text.replace(/\s+/g, ' ').trim();
   // No usable name (empty, or a bare number like "12" with nothing else) → add nothing.
   if (!name || /^\d+(\.\d+)?$/.test(name)) return null;
 
-  let category: Category = 'Other';
-  let location: Location = 'fridge';
-  for (const [re, cat, loc] of CAT_GUESS) {
-    if (re.test(name)) {
-      category = cat;
-      location = loc;
-      break;
-    }
-  }
+  const [category, location] = guessCategoryLocation(name);
+  const quantity = afterQty.quantity;
+  const unit = afterQty.unit;
+  const expiresAt = afterExpiry.expiresAt;
 
   return {
     name: titleCase(name),

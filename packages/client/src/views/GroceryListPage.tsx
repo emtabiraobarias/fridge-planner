@@ -19,6 +19,21 @@ function weekLabel(weekStart: string): string {
   return `Week of ${start.getUTCDate()}–${end.getUTCDate()} ${M[end.getUTCMonth()]}`;
 }
 
+const pluralS = (n: number): string => (n === 1 ? '' : 's');
+const groceryUnit = (unit: string): string => (unit === 'count' ? 'servings' : unit);
+
+/** Build the checkout payload that moves purchased items into inventory. */
+function toCheckoutPayload(purchased: GroceryListItem[]): CompleteItemPayload[] {
+  return purchased.map((i) => ({
+    itemId: i._id,
+    name: i.displayName,
+    quantity: i.quantity,
+    unit: i.unit,
+    category: i.category,
+    location: parseQuick(i.displayName)?.location ?? 'fridge',
+  }));
+}
+
 export function GroceryListPage(): React.JSX.Element {
   const { groceryList, loading, error, generate, addItem, removeItem, togglePurchased, completeSession } =
     useGroceryList();
@@ -49,32 +64,21 @@ export function GroceryListPage(): React.JSX.Element {
     await addItem({
       displayName: p.name,
       quantity: p.quantity,
-      unit: p.unit === 'count' ? 'servings' : p.unit,
+      unit: groceryUnit(p.unit),
       category: p.category as GroceryCategory,
     });
     setText('');
   }
 
   async function handleCheckout(): Promise<void> {
-    const payload: CompleteItemPayload[] = purchased.map((i) => {
-      const guess = parseQuick(i.displayName);
-      return {
-        itemId: i._id,
-        name: i.displayName,
-        quantity: i.quantity,
-        unit: i.unit,
-        category: i.category,
-        location: guess?.location ?? 'fridge',
-      };
-    });
-    const count = payload.length;
-    const result = await completeSession(payload);
+    const count = purchased.length;
+    const result = await completeSession(toCheckoutPayload(purchased));
     await refreshInventory();
     if (result.errors.length > 0) {
       showToast(`Some items could not be moved: ${result.errors.length} error(s)`);
       return;
     }
-    showToast(`${count} item${count === 1 ? '' : 's'} moved into your kitchen`);
+    showToast(`${count} item${pluralS(count)} moved into your kitchen`);
   }
 
   if (loading) {
@@ -191,7 +195,7 @@ export function GroceryListPage(): React.JSX.Element {
           onClick={() => void handleCheckout()}
           className="min-h-[48px] w-full rounded-full bg-accent text-[15px] font-semibold text-bg hover:bg-accent-600"
         >
-          Done shopping — move {purchased.length} item{purchased.length === 1 ? '' : 's'} into my kitchen
+          Done shopping — move {purchased.length} item{pluralS(purchased.length)} into my kitchen
         </button>
       )}
     </div>
