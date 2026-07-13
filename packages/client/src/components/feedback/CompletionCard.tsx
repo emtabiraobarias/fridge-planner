@@ -47,37 +47,37 @@ export function CompletionCard({ record, onStartAnother }: CompletionCardProps):
   }
 
   return (
-    <section className="rounded-lg border border-green-200 bg-green-50 p-4" aria-label="Feedback saved">
-      <h2 className="text-base font-semibold text-green-900">Thanks — your feedback is saved</h2>
-      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-gray-700">
-        <dt className="font-medium">Title</dt>
+    <section className="rounded-lg bg-accent2-100 p-4" aria-label="Feedback saved">
+      <h2 className="font-heading text-h5 text-accent2-900">Thanks — your feedback is saved</h2>
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-ink/75">
+        <dt className="font-semibold">Title</dt>
         <dd>{record.title}</dd>
-        <dt className="font-medium">Type</dt>
+        <dt className="font-semibold">Type</dt>
         <dd className="capitalize">{record.type}</dd>
-        <dt className="font-medium">Priority</dt>
+        <dt className="font-semibold">Priority</dt>
         <dd>{record.priority}</dd>
-        <dt className="font-medium">Area</dt>
+        <dt className="font-semibold">Area</dt>
         <dd>{record.affectedArea}</dd>
       </dl>
-      {error && <p className="mt-2 text-sm text-red-600" role="alert">{error}</p>}
+      {error && <p className="mt-2 text-sm text-accent-700" role="alert">{error}</p>}
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           onClick={() => void copy()}
           disabled={busy}
-          className="rounded-lg bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:bg-gray-300"
+          className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-bg hover:bg-accent-600 disabled:opacity-45"
         >
           {copied ? 'Copied!' : 'Copy as spec markdown'}
         </button>
         <button
           onClick={() => void download()}
           disabled={busy}
-          className="rounded-lg border border-green-700 px-3 py-2 text-sm font-medium text-green-800 hover:bg-green-100 disabled:opacity-50"
+          className="rounded-full border border-divider px-4 py-2 text-sm font-semibold text-ink hover:bg-ink/[0.07] disabled:opacity-45"
         >
           Download .md
         </button>
         <button
           onClick={onStartAnother}
-          className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+          className="rounded-full px-4 py-2 text-sm font-semibold text-ink/70 hover:bg-ink/[0.07]"
         >
           Start another
         </button>

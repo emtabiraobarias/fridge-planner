@@ -5,9 +5,9 @@ import { fetchFeedbackExport } from '../../services/feedback';
 import type { FeedbackRecord } from '../../services/feedback';
 
 const STATUS_STYLES: Record<string, string> = {
-  draft: 'bg-yellow-100 text-yellow-800',
-  complete: 'bg-green-100 text-green-800',
-  reviewed: 'bg-blue-100 text-blue-800',
+  draft: 'bg-neutral-100 text-neutral-800',
+  complete: 'bg-accent2-100 text-accent2-800',
+  reviewed: 'bg-accent-100 text-accent-800',
 };
 
 async function exportRecord(record: FeedbackRecord): Promise<void> {
@@ -32,23 +32,23 @@ export function FeedbackHistory(): React.JSX.Element {
   return (
     <section className="mt-8" aria-label="Your feedback history">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Your feedback</h2>
-        <button onClick={() => void refreshList()} className="text-sm text-indigo-600 hover:underline">
+        <h2 className="font-heading text-h5 text-ink">Your feedback</h2>
+        <button onClick={() => void refreshList()} className="text-sm font-semibold text-accent hover:text-accent-600">
           Refresh
         </button>
       </div>
 
-      {listLoading && <p className="text-sm text-gray-500">Loading…</p>}
+      {listLoading && <p className="text-muted text-sm">Loading…</p>}
       {!listLoading && records.length === 0 && (
-        <p className="text-sm text-gray-500">You haven’t submitted any feedback yet.</p>
+        <p className="text-muted text-sm">You haven’t submitted any feedback yet.</p>
       )}
 
       <ul className="flex flex-col gap-2">
         {records.map((r) => (
-          <li key={r._id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-3">
+          <li key={r._id} className="flex items-center justify-between gap-3 rounded-lg bg-surface p-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-gray-900">{r.title ?? '(draft — not yet titled)'}</p>
-              <p className="text-xs text-gray-500">
+              <p className="truncate text-sm font-semibold text-ink">{r.title ?? '(draft — not yet titled)'}</p>
+              <p className="text-muted text-xs">
                 {r.type ?? 'unclassified'} · {new Date(r.updatedAt).toLocaleDateString()}
               </p>
             </div>
@@ -59,7 +59,7 @@ export function FeedbackHistory(): React.JSX.Element {
               {r.status !== 'draft' && (
                 <button
                   onClick={() => void exportRecord(r)}
-                  className="text-xs font-medium text-indigo-600 hover:underline"
+                  className="text-xs font-semibold text-accent hover:text-accent-600"
                 >
                   Export
                 </button>
@@ -67,7 +67,7 @@ export function FeedbackHistory(): React.JSX.Element {
               <button
                 onClick={() => void remove(r._id)}
                 aria-label={`Delete feedback ${r.title ?? r._id}`}
-                className="text-xs font-medium text-red-600 hover:underline"
+                className="text-xs font-semibold text-accent-700 hover:text-accent-800"
               >
                 Delete
               </button>

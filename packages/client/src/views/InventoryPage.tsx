@@ -23,7 +23,9 @@ export function InventoryPage(): React.JSX.Element {
       unit: p.unit,
       category: p.category,
       location: p.location,
-      ...(p.expiresAt ? { expiresAt: new Date(`${p.expiresAt}T00:00:00`).toISOString() } : {}),
+      // Anchor at UTC midnight so the stored ISO datetime keeps the parsed calendar
+      // date (a local-midnight conversion can shift the day across the UTC boundary).
+      ...(p.expiresAt ? { expiresAt: `${p.expiresAt}T00:00:00.000Z` } : {}),
     };
     await addItem(data);
     showToast(`${p.name} added to your ${p.location}`);
