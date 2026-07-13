@@ -27,7 +27,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps): React.JSX.Eleme
     >
       <textarea
         aria-label="Your message"
-        className="min-h-[2.75rem] flex-1 resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+        className="min-h-[46px] flex-1 resize-none rounded-[23px] bg-neutral-100 px-4 py-3 text-[15px] text-ink placeholder:text-muted"
         rows={1}
         value={value}
         disabled={disabled}
@@ -43,7 +43,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps): React.JSX.Eleme
       <button
         type="submit"
         disabled={disabled || value.trim() === ''}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+        className="min-h-[46px] rounded-full bg-accent px-5 font-semibold text-bg transition-colors hover:bg-accent-600 disabled:opacity-45"
       >
         Send
       </button>

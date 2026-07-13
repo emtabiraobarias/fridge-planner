@@ -5,6 +5,8 @@ import { GroceryListPage } from '../../src/views/GroceryListPage';
 import { GroceryListProvider } from '../../src/context/GroceryListContext';
 import { MealPlanProvider } from '../../src/context/MealPlanContext';
 import { InventoryProvider } from '../../src/context/InventoryContext';
+import { ToastProvider } from '../../src/context/ToastContext';
+import { Toast } from '../../src/components/shared/Toast';
 
 vi.mock('../../src/services/grocery-lists', () => ({
   fetchGroceryList: vi.fn(),
@@ -23,17 +25,24 @@ vi.mock('../../src/services/meal-plans', () => ({
 }));
 
 vi.mock('../../src/services/inventory', () => ({
-  fetchInventory: vi.fn().mockResolvedValue({ items: [], summary: { total: 0, expired: 0, expiringSoon: 0 }, pagination: { page: 1, limit: 50, total: 0, totalPages: 0 } }),
+  fetchInventory: vi
+    .fn()
+    .mockResolvedValue({ items: [], summary: { total: 0, expired: 0, expiringSoon: 0 }, pagination: { page: 1, limit: 50, total: 0, totalPages: 0 } }),
   createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
   fetchRecommendations: vi.fn(),
 }));
 
-import { fetchGroceryList, generateGroceryList } from '../../src/services/grocery-lists';
+import {
+  fetchGroceryList,
+  generateGroceryList,
+  completeGroceryList,
+} from '../../src/services/grocery-lists';
 
 const mockFetch = vi.mocked(fetchGroceryList);
 const mockGenerate = vi.mocked(generateGroceryList);
+const mockComplete = vi.mocked(completeGroceryList);
 
 const mockListWithItems: GroceryList = {
   _id: 'list-1',
@@ -72,17 +81,20 @@ const mockListWithItems: GroceryList = {
 
 function Wrapper(): React.JSX.Element {
   return (
-    <InventoryProvider>
-      <MealPlanProvider>
-        <GroceryListProvider>
-          <GroceryListPage />
-        </GroceryListProvider>
-      </MealPlanProvider>
-    </InventoryProvider>
+    <ToastProvider>
+      <InventoryProvider>
+        <MealPlanProvider>
+          <GroceryListProvider>
+            <GroceryListPage />
+            <Toast />
+          </GroceryListProvider>
+        </MealPlanProvider>
+      </InventoryProvider>
+    </ToastProvider>
   );
 }
 
-describe('GroceryListPage', () => {
+describe('GroceryListPage (organic redesign)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -101,43 +113,38 @@ describe('GroceryListPage', () => {
     });
   });
 
-  it('renders items grouped by category', async () => {
+  it('renders items grouped by category with a progress bar', async () => {
     mockFetch.mockResolvedValue(mockListWithItems);
     render(<Wrapper />);
     await waitFor(() => {
       expect(screen.getByText('Garlic')).toBeInTheDocument();
       expect(screen.getByText('Soy Sauce')).toBeInTheDocument();
     });
-    // Category section labels (aria-label on <section>)
-    expect(screen.getByRole('region', { name: /Produce items/i })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /Pantry items/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Produce' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Pantry' })).toBeInTheDocument();
+    // 1 of 2 purchased.
+    expect(screen.getByText('1/2 in the trolley')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
-  it('shows Complete Shopping button when there are purchased items', async () => {
+  it('shows the inline "Done shopping" button when there are purchased items', async () => {
     mockFetch.mockResolvedValue(mockListWithItems);
     render(<Wrapper />);
     await waitFor(() => {
-      expect(screen.getByText(/Complete Shopping/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Done shopping — move 1 item into my kitchen/i })).toBeInTheDocument();
     });
+    // No modal dialog in the redesign.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('shows checkout modal when Complete Shopping is clicked', async () => {
+  it('completes checkout inline and shows a toast', async () => {
     mockFetch.mockResolvedValue(mockListWithItems);
+    mockComplete.mockResolvedValue({ created: [{ _id: 'inv-1', name: 'Soy Sauce' }], errors: [] });
     render(<Wrapper />);
-    await waitFor(() => screen.getByText(/Complete Shopping/i));
-    fireEvent.click(screen.getByText(/Complete Shopping/i));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-  });
-
-  it('shows search bar only when 5+ items', async () => {
-    mockFetch.mockResolvedValue({
-      ...mockListWithItems,
-      items: mockListWithItems.items,
-    });
-    render(<Wrapper />);
-    await waitFor(() => screen.getByText('Garlic'));
-    // Only 2 items → no search bar
-    expect(screen.queryByPlaceholderText(/Search items/i)).not.toBeInTheDocument();
+    await waitFor(() => screen.getByRole('button', { name: /Done shopping/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Done shopping/i }));
+    await waitFor(() => expect(mockComplete).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText(/moved into your kitchen/i)).toBeInTheDocument());
   });
 
   it('calls generate when Regenerate button clicked', async () => {

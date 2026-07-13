@@ -11,19 +11,19 @@ export function FeedbackPage(): React.JSX.Element {
   const complete = chatState === 'complete';
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-[640px]">
       <header className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">Feedback</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Report a bug or suggest an improvement. The assistant asks a few questions, then saves a
-          structured report you can export as a specification draft.
+        <h1 className="font-heading text-h2 text-ink">Feedback</h1>
+        <p className="text-muted mt-1 text-sm">
+          Spotted a bug, or wishing for something? Tell us — the assistant asks a couple of questions
+          and files a tidy report.
         </p>
       </header>
 
       <ChatMessageList messages={messages} pending={sending} />
 
       {error && (
-        <p className="mt-2 text-sm text-red-600" role="alert">
+        <p className="mt-2 text-sm text-accent-700" role="alert">
           {error} — your message was kept; press Send to try again.
         </p>
       )}

@@ -13,12 +13,11 @@ export function ChatMessageList({ messages, pending }: ChatMessageListProps): Re
       role="log"
       aria-live="polite"
       aria-label="Feedback conversation"
-      className="flex flex-col gap-3 overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 min-h-[16rem] max-h-[28rem]"
+      className="flex max-h-[420px] min-h-[280px] flex-col gap-3 overflow-y-auto rounded-lg bg-surface p-4"
     >
       {messages.length === 0 && !pending && (
-        <p className="m-auto max-w-sm text-center text-sm text-gray-500">
-          Describe a bug or an idea to improve the app. The assistant will ask a few questions, then
-          save a structured report you can review and export.
+        <p className="text-muted m-auto max-w-sm text-center text-sm">
+          Describe a bug or an idea. A short back-and-forth, then it&apos;s saved for review.
         </p>
       )}
       {messages.map((m, i) => (
@@ -26,12 +25,12 @@ export function ChatMessageList({ messages, pending }: ChatMessageListProps): Re
           key={`${m.at}-${i}`}
           className={m.role === 'user' ? 'self-end text-right' : 'self-start text-left'}
         >
-          <span className="mb-0.5 block text-xs font-medium text-gray-400">
+          <span className="text-muted mb-0.5 block text-[11px]">
             {m.role === 'user' ? 'You' : 'Assistant'}
           </span>
           <span
-            className={`inline-block whitespace-pre-wrap rounded-2xl px-4 py-2 text-sm ${
-              m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'
+            className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-[20px] px-4 py-[9px] text-left text-sm ${
+              m.role === 'user' ? 'bg-accent text-bg' : 'bg-bg text-ink'
             }`}
           >
             {m.content}
@@ -40,8 +39,8 @@ export function ChatMessageList({ messages, pending }: ChatMessageListProps): Re
       ))}
       {pending && (
         <div className="self-start text-left" aria-label="Assistant is typing">
-          <span className="mb-0.5 block text-xs font-medium text-gray-400">Assistant</span>
-          <span className="inline-block rounded-2xl bg-gray-100 px-4 py-2 text-sm text-gray-500">…</span>
+          <span className="text-muted mb-0.5 block text-[11px]">Assistant</span>
+          <span className="inline-block rounded-[20px] bg-bg px-4 py-[9px] text-sm text-ink/60">…</span>
         </div>
       )}
     </div>
