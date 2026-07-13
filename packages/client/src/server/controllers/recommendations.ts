@@ -1,6 +1,7 @@
 import 'server-only';
 import { InventoryItem } from '../models/inventory-item';
 import { getMealRecommendations } from '../services/meal-recommender';
+import { attachVerifiedRecipes } from '../services/recipe-verifier';
 import { buildCacheKey, getCached, getStale, setCached } from '../services/recommendations-cache';
 import { notExpiredQuery } from '../lib/expiration';
 import { POPULAR_RECIPES } from '../lib/popular-recipes';
@@ -45,6 +46,11 @@ export async function getRecommendations(userId: string): Promise<ControllerResu
       body: { recommendations: stale ?? POPULAR_RECIPES, fallback: stale ? 'cache' : 'popular' },
     };
   }
+
+  // Option A groundedness: the LLM never authors a recipeUrl — attach one here only if a
+  // real, existing recipe was found (approved domains, then Spoonacular). Runs before
+  // caching so the verified URLs are cached too, avoiding repeat lookups within the TTL.
+  recommendations = await attachVerifiedRecipes(recommendations);
 
   setCached(cacheKey, recommendations);
   return { status: 200, body: { recommendations } };

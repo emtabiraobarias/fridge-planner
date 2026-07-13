@@ -1,12 +1,13 @@
 # Meal-recommender agent image → ghcr.io/emtabiraobarias/fridge-planner
 #
-# Anthropic/Claude agent, so it uses the manual `holodeck serve` container path
-# (holodeck deploy build supports Semantic-Kernel backends only). The base image
-# carries the holodeck runtime + Node.js (required by the Anthropic provider).
+# OpenAI provider (Semantic Kernel backend) — no Claude Agent SDK, so no Node.js
+# runtime dependency (that requirement was specific to the Anthropic provider). This
+# also means `holodeck deploy build` now supports this agent directly, if we later
+# want to move off this manual Dockerfile path.
 #
 # Port/protocol default to 8001/rest to match docker-compose(.prod).yml's holodeck
-# service and HOLODECK_URL=http://holodeck:8001. Runtime secret CLAUDE_CODE_OAUTH_TOKEN
-# is injected by compose, never baked in.
+# service and HOLODECK_URL=http://holodeck:8001. Runtime secret OPENAI_API_KEY is
+# injected by compose via model.api_key: ${OPENAI_API_KEY}, never baked in.
 FROM ghcr.io/justinbarias/holodeck-base:latest
 
 USER root

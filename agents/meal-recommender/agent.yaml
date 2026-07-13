@@ -1,31 +1,27 @@
 # Meal Recommender Agent
 # Suggests meals based on fridge/pantry inventory, prioritising ingredients expiring soonest.
-# Provider: Anthropic Claude Sonnet 4.6
-# Note: holodeck serve requires Node.js at runtime when using the Anthropic provider.
+# Provider: OpenAI (Semantic Kernel backend) — no Claude/Anthropic dependency, no Node.js
+# runtime requirement (Semantic Kernel doesn't need it; that requirement was specific to
+# the Claude Agent SDK). Switched away from Claude Sonnet 4.6 to decouple this agent from
+# Anthropic. IMPORTANT TRADE-OFF: without a live web-search tool (Holodeck has no built-in
+# web-search under this backend), the agent cannot verify a real recipe page exists —
+# recipeUrl/imageUrl are therefore intentionally omitted rather than risk a fabricated
+# link (see instructions/system-prompt.md, guideline 7).
 
 name: meal-recommender
 description: AI-powered meal recommendation agent that suggests meals to minimise food waste
 
 execution:
-  llm_timeout: 180
+  llm_timeout: 90
 model:
-  provider: anthropic
-  name: claude-sonnet-4-6
-  auth_provider: oauth_token
+  provider: openai
+  name: gpt-4o
+  api_key: ${OPENAI_API_KEY}
   temperature: 0.5
   max_tokens: 2000
 
 instructions:
   file: instructions/system-prompt.md
-
-claude:
-  max_turns: 15
-  setting_sources: []   # explicit: no inheritance from ~/.claude or project settings
-  extended_thinking:
-    enabled: false
-  allowed_tools:
-    - WebSearch
-    - WebFetch
 
 evaluations:
   model:
@@ -130,6 +126,10 @@ evaluations:
     #   enabled: true
     #   fail_on_error: false
 
+    # RecipeUrlConformance no longer applies post-OpenAI-migration: the prompt now
+    # instructs the agent to never emit recipeUrl at all (no web-search tool to verify
+    # one), so there is nothing left for this metric to check. Left here for history /
+    # in case a future MCP web-search tool restores recipe-link sourcing.
     # - type: geval
     #   name: RecipeUrlConformance
     #   criteria: |
@@ -161,9 +161,6 @@ test_cases:
       "chicken breast" and "broccoli" in usesIngredients and expiringIngredients, since they expire
       soonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,
       cuisine, description, usesIngredients, expiringIngredients, and missingIngredients.
-    expected_tools:
-      - WebSearch
-      - WebFetch
 
   # - name: Mixed pantry and perishables
   #   input: |

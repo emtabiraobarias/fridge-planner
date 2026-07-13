@@ -58,10 +58,15 @@ Per-branch runbook for shipping **`impl/nextjs`** to production with **gated CI/
 - [ ] Least-privilege DB user; **`MONGODB_URI`** (SRV, TLS)
 - [ ] Network: VPC peering / private endpoint (preferred) or IP allowlist for the host egress
 
-### AI agent
-- [ ] Holodeck sidecar deployed (`ghcr.io/emtabiraobarias/fridge-planner`) on a **private** address
-- [ ] **`HOLODECK_URL`** reachable from the app
-- [ ] LLM secret for the agent: `CLAUDE_CODE_OAUTH_TOKEN` **or** `ANTHROPIC_API_KEY` (+ optional `OPENAI_API_KEY` fallback)
+### AI agents (two Holodeck sidecars — one agent per instance)
+- [ ] **Meal-recommender** (`ghcr.io/emtabiraobarias/fridge-planner`, `:8001`) on a **private** address;
+      **`HOLODECK_URL`** reachable from the app. Provider = **OpenAI** → needs **`OPENAI_API_KEY`**.
+- [ ] **Feedback collector** (`ghcr.io/emtabiraobarias/fridge-planner-feedback`, `:8002`) on a **private**
+      address; **`FEEDBACK_AGENT_URL`** reachable from the app. Provider = **Claude** → needs
+      **`CLAUDE_CODE_OAUTH_TOKEN`** (or `ANTHROPIC_API_KEY`). If down, `/api/v1/feedback` 502s and
+      preserves drafts — the rest of the app is unaffected.
+- [ ] *(optional)* recipe-URL verification for recommendations: `BRAVE_SEARCH_API_KEY` +
+      `SPOONACULAR_API_KEY` on the **app** (not the agent). Unset → meals return without a `recipeUrl`.
 
 ### Secrets & prod env (in a secret manager — **never** in the image)
 - [ ] `NODE_ENV=production`
@@ -152,8 +157,9 @@ all connection values into the secret store (E4).
 **Single-node internal-LAN variant (current target).** Instead of Cloud Run + Atlas, run the whole
 stack on one host reachable only over the LAN. Artifacts committed for this:
 - [`docker-compose.prod.yml`](../docker-compose.prod.yml) — Caddy (edge) + app (pulled image) + MongoDB
-  (internal, auth on) + Holodeck + Keycloak (+ its Postgres). **Only Caddy publishes host ports (80/443);
-  everything else is reachable only on the `fpnet` network.**
+  (internal, auth on) + **two agents** (`holodeck` meal-rec :8001 OpenAI, `holodeck-feedback` :8002
+  Claude) + Keycloak (+ its Postgres). **Only Caddy publishes host ports (80/443); everything else is
+  reachable only on the `fpnet` network.**
 - [`deploy/Caddyfile`](../deploy/Caddyfile) — `fridgeplanner.lan` → app, `auth.fridgeplanner.lan` →
   Keycloak; **Stage 1** uses `local_certs` (internal CA, no internet); **Stage 2** drops the global block
   for public Let's Encrypt. 300s upstream timeouts for the recommendations route.
@@ -185,6 +191,115 @@ monitor; optionally point `OTLP_ENDPOINT` at a collector for the agent's traces.
 `git tag nextjs-v4.0.0` on `impl/nextjs` → push → CI green → CD builds/pushes → **approve the
 `production` gate** → post-deploy smoke passes. **No merge to `main`.** Record the release in
 `ROADMAP_PROGRESS.md`.
+
+---
+
+## Updating a running deployment (no data loss)
+
+The internal-LAN stack is already live. This is the routine for shipping a **new version** to it
+**without wiping data**. All persistent state lives in Docker **named volumes** — the update path
+never touches them; only the destructive commands in "What NOT to do" below do.
+
+### What holds the data (must survive every update)
+| Volume | Holds | Lost if… |
+|---|---|---|
+| `mongodb_data` | All app data — inventory, meal plans, grocery lists, **feedback records** | volume removed |
+| `keycloak_db_data` | Keycloak realm, users, client config (Postgres) | volume removed |
+| `caddy_data` | Caddy **internal CA + issued certs** (re-trusting the CA on every client if lost) | volume removed |
+| `caddy_config` | Caddy autosave config | volume removed |
+
+The two agents (`holodeck`, `holodeck-feedback`) are **stateless** — feedback transcripts live in
+`mongodb_data`, not in the agent containers — so re-pulling/replacing them never risks data.
+
+### The three images (each versioned independently by a git tag)
+| Image | Built by tag | Carries |
+|---|---|---|
+| `…/fridge-planner-client` (`APP_IMAGE`) | `nextjs-v*` → `deploy-nextjs.yml` | UI + API + **recipe-verifier** |
+| `…/fridge-planner` (`AGENT_IMAGE`) | `agent-v*` → `agent-image.yml` | meal-recommender (**OpenAI**) |
+| `…/fridge-planner-feedback` (`FEEDBACK_AGENT_IMAGE`) | `agent-feedback-v*` → `agent-feedback-image.yml` | feedback collector (**Claude**) |
+
+Only re-tag/rebuild the image(s) that actually changed. A code change under `packages/client/`
+→ `nextjs-v*`; a change under `agents/meal-recommender/` → `agent-v*`; under
+`agents/feedback-collector/` → `agent-feedback-v*`.
+
+### Standard update procedure
+
+1. **Back up first (belt-and-suspenders — the update itself won't touch data, but do this anyway).**
+   On the host, dump Mongo to a file *inside the named volume's reach* or copy it out:
+   ```sh
+   # App + feedback data
+   docker compose -f docker-compose.prod.yml exec -T mongodb \
+     mongodump --username "$MONGO_ROOT_USER" --password "$MONGO_ROOT_PASSWORD" \
+     --authenticationDatabase admin --archive > mongo-backup-$(date +%F).archive
+   # Keycloak Postgres
+   docker compose -f docker-compose.prod.yml exec -T keycloak-db \
+     pg_dump -U "$KC_DB_USER" "$KC_DB_NAME" > keycloak-backup-$(date +%F).sql
+   ```
+
+2. **Publish the new image(s)** by cutting the matching tag(s) from `impl/nextjs` (CI builds +
+   pushes to GHCR; the host only pulls):
+   ```sh
+   git tag nextjs-v4.1.0        && git push origin nextjs-v4.1.0          # app changed
+   git tag agent-v1.1.0         && git push origin agent-v1.1.0           # meal-rec agent changed
+   git tag agent-feedback-v1.0.0 && git push origin agent-feedback-v1.0.0 # feedback agent changed
+   ```
+   Wait for the workflow(s) to go green (Actions tab). **Pin to the version tag**, not `:latest`, so
+   a redeploy is reproducible.
+
+3. **Update the env** on the host `.env` (Path B) or the Portainer stack env (Path A) to the new
+   pinned tags, and add any new keys the release introduced:
+   ```
+   APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:4.1.0
+   AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner:1.1.0
+   FEEDBACK_AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-feedback:1.0.0
+   OPENAI_API_KEY=…            # meal-recommender (new — was CLAUDE_* before the OpenAI migration)
+   CLAUDE_CODE_OAUTH_TOKEN=…   # feedback agent (unchanged)
+   BRAVE_SEARCH_API_KEY=…      # optional (recipe-URL verification)
+   SPOONACULAR_API_KEY=…       # optional
+   ```
+
+4. **Redeploy — a rolling, volume-preserving recreate:**
+   - **Portainer (CE, this deployment):** open the stack → **Update the stack** (or **Pull and
+     redeploy**) with **"Re-pull image"** enabled and **"Remove volumes" OFF**. Portainer recreates
+     only the containers whose image/config changed; named volumes are reused.
+   - **Or from a host shell** (self-hosted-runner / SSH):
+     ```sh
+     cd /opt/fridge-planner
+     docker compose -f docker-compose.prod.yml pull            # fetch new image tags
+     docker compose -f docker-compose.prod.yml up -d            # recreate changed services only
+     ```
+     `up -d` **preserves volumes** and leaves unchanged services running. You can scope it to one
+     service, e.g. `… up -d app` or `… up -d holodeck`.
+
+5. **Verify** (subset of `s8int-smoke`): `https://fridgeplanner.lan:8443` loads; OIDC login still
+   works (Keycloak data intact); a **pre-existing** inventory item / feedback record is still
+   present (proves `mongodb_data` survived); recommendations return; `/feedback` gets a reply.
+
+### Rollback
+Re-point the tag(s) in the env to the previous version and redeploy (step 4). Because images are
+version-pinned and data is in volumes, rollback is just "deploy the old image again" — no data
+migration. Keep the last-known-good tags noted in `deploy/state.json`.
+
+### ⛔ What NOT to do (these destroy data)
+- **`docker compose -f docker-compose.prod.yml down -v`** — the `-v` deletes the named volumes
+  (Mongo, Keycloak, Caddy CA). Use `down` **without** `-v`, or just `up -d` to recreate in place.
+- **Portainer → Remove stack with "Remove volumes" checked**, or deleting a volume under
+  **Volumes**. Removing the stack *without* the volumes option is recoverable (redeploy re-attaches);
+  removing volumes is not.
+- **Renaming a volume or the stack/project name** — Docker keys volumes by `<project>_<volume>`, so a
+  renamed project silently creates *fresh empty* volumes. Keep the stack name stable.
+- **Switching `mongodb_data` to a bind mount** or changing the Mongo `authSource`/root creds without a
+  dump+restore.
+
+### Migrating the existing deployment to this release (one-time)
+The currently-running stack predates the OpenAI meal-rec + recipe-verifier + feedback-agent changes.
+To move it to this version without data loss, do a **normal update** (above) with these specifics:
+- Publish **all three** images (`nextjs-v*`, `agent-v*`, `agent-feedback-v*`).
+- Add `OPENAI_API_KEY` to the env; the meal-rec `holodeck` service no longer reads
+  `CLAUDE_CODE_OAUTH_TOKEN` (that now feeds only `holodeck-feedback`). Keep the Claude token set for
+  the feedback agent.
+- The new `holodeck-feedback` service is **additive** — it starts alongside the others; no existing
+  volume or service is replaced. `mongodb_data` (your existing inventory/plans) is untouched.
 
 ---
 

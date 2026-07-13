@@ -11,7 +11,7 @@ This file is the primary reference for AI assistants working in this repository.
 **Tech Stack:**
 - **Frontend:** React 18 + Next.js 15 (App Router) + Tailwind CSS (port 3000)
 - **Backend:** Next.js Route Handlers + Mongoose + MongoDB — served by the **same Next process** (port 3000). Endpoints live in `packages/client/app/api/v1/`; the server layer (models, libs, services, controllers) in `packages/client/src/server/`. **No standalone Express service** (retired in Phase C-bis — see §10/§14).
-- **AI Agent:** Holodeck with Claude Sonnet 4.6 (port 8001)
+- **AI Agents:** two Holodeck sidecars — meal-recommender (OpenAI `gpt-4o`, port 8001) + feedback-collector (Claude, port 8002)
 - **Language:** TypeScript (strict mode throughout)
 - **Monorepo:** npm workspace (`packages/client`) — the Next app is the whole stack
 
@@ -334,9 +334,9 @@ it('shows expiring badge when ingredient expires soon', () => {
 
 - **Config:** `agents/meal-recommender/agent.yaml`
 - **Instructions:** `agents/meal-recommender/instructions/system-prompt.md`
-- **Model:** Claude Sonnet 4.6 (`claude-sonnet-4-6`)
+- **Model:** OpenAI `gpt-4o` (Semantic Kernel backend — **migrated off Claude** to decouple from Anthropic; SK needs no Node.js runtime)
 - **Temperature:** 0.5, **Max tokens:** 2000
-- **Auth:** OAuth token preferred (`CLAUDE_CODE_OAUTH_TOKEN`); falls back to `ANTHROPIC_API_KEY`
+- **Auth:** `OPENAI_API_KEY` (`model.api_key: ${OPENAI_API_KEY}`)
 
 The agent receives inventory data (sorted by expiry date) and returns a JSON array of `MealRecommendation` objects. It must **never** return markdown or prose — only raw JSON.
 
@@ -348,11 +348,11 @@ One active test case ("Prioritise expiring chicken") is defined in `agent.yaml` 
 
 **Caching:** `services/recommendations-cache.ts` caches results by `(userId, ingredients)` key with a **15-minute TTL**. Cache is invalidated per-user (`invalidateUser(userId)`) on any inventory mutation.
 
-**Agent capabilities:** `WebSearch` and `WebFetch` are enabled — the agent looks up real recipes from approved domains (panlasangpinoy.com, recipetineats.com, kawalingpinoy.com, taste.com.au). `extended_thinking` is disabled. `claude.max_turns` is 15; `setting_sources: []` ensures no inheritance from local Claude settings.
+**Recipe-URL grounding (Option A):** the OpenAI backend has **no web-search tool** (Holodeck exposes none for non-Claude providers), so the agent is instructed to **never author `recipeUrl`/`imageUrl`** (no fabricated links). Instead, `src/server/services/recipe-verifier.ts` attaches a URL server-side, only when a real page is found: Brave `site:`-restricted search of the 4 approved domains (panlasangpinoy.com, recipetineats.com, kawalingpinoy.com, taste.com.au), then a Spoonacular fallback, gated by title-similarity — else the field is omitted. Keys `BRAVE_SEARCH_API_KEY` + `SPOONACULAR_API_KEY` are **optional** (unset → no `recipeUrl`). Runs in the recommendations controller before caching.
 
 **Observability:** Full tracing enabled in `agent.yaml` — traces, metrics, and structured logs are exported via OTLP to `${OTLP_ENDPOINT}`. Evaluation results are saved to `agents/meal-recommender/results/`.
 
-**Deployment:** Agent is containerised for GCP Cloud Run (`linux/arm64`), published to `ghcr.io/emtabiraobarias/fridge-planner`.
+**Deployment:** Agent is containerised (`linux/amd64` for the LAN host), published to `ghcr.io/emtabiraobarias/fridge-planner` by `.github/workflows/agent-image.yml` (tag `agent-v*`).
 
 ### 9a. Second agent — Feedback Collector (spec 003 / Phase F)
 
@@ -363,7 +363,7 @@ A **second Holodeck agent** collects bug/improvement feedback conversationally a
 - **Local:** `docker compose up -d --build holodeck-feedback` (port **8002**). The Next app reads **`FEEDBACK_AGENT_URL`** (`http://localhost:8002` locally). When unset/unreachable the `/api/v1/feedback` chat endpoints return **502** and preserve the draft — the rest of the app is unaffected.
 - **App wiring:** `src/server/services/feedback-collector.ts` (client — fence-strip + zod discriminated-union validation), `controllers/feedback.ts`, `models/feedback-record.ts`, `lib/feedback-export.ts` (spec-template markdown), routes under `app/api/v1/feedback/**`; UI at `/feedback` (`views/FeedbackPage.tsx`, `context/FeedbackContext.tsx`, `components/feedback/*`).
 - **Base-image note (2026-07-11):** the current `holodeck-base:latest` (Debian trixie) **rejects `claude.setting_sources`** and **no longer bundles Node.js** (which the Claude provider needs). The feedback Dockerfile therefore omits `setting_sources` and `apt-get install`s `nodejs`. The older meal-recommender image predates both; rebuilding it may need the same fixes.
-- **Prod:** publishing the second agent image (`…/fridge-planner-feedback`) + `docker-compose.prod.yml`/`deploy/checklist.yaml` is **deferred (Phase F6)**.
+- **Prod (Phase F6, wired):** the second agent image `…/fridge-planner-feedback` is published by `.github/workflows/agent-feedback-image.yml` (tag `agent-feedback-v*`, linux/amd64); `docker-compose.prod.yml` runs it as the internal `holodeck-feedback` service (`:8002`, `FEEDBACK_AGENT_IMAGE`, Claude creds), and the `app` service reads `FEEDBACK_AGENT_URL`. See `docs/deployment.md` → "Updating a running deployment".
 
 ---
 
@@ -481,8 +481,8 @@ After updating the spec, any existing code that no longer satisfies the revised 
 **Don't add a vector store or embedding layer to the AI agent.**
 ChromaDB and Ollama embeddings were added then removed (commit `983ec78`). The meal recommender doesn't need semantic search — it receives structured inventory JSON directly. Adding embedding infrastructure is over-engineering for this use case.
 
-**Don't set `auth_provider: api_key` in `agent.yaml`.**
-The agent originally defaulted to API key auth and was corrected to `oauth_token` (commit `da0f65f`). Always use `auth_provider: oauth_token`; `ANTHROPIC_API_KEY` is the fallback, not the default.
+**For Anthropic agents, don't set `auth_provider: api_key` in `agent.yaml`.**
+Applies to the **feedback-collector** (still `provider: anthropic`): use `auth_provider: oauth_token` (`CLAUDE_CODE_OAUTH_TOKEN`); `ANTHROPIC_API_KEY` is the fallback, not the default (commit `da0f65f`). *(The meal-recommender no longer uses `auth_provider` at all — it migrated to `provider: openai` with `api_key: ${OPENAI_API_KEY}`, which is the correct field for OpenAI. This rule is Anthropic-specific.)*
 
 **Don't let the meal recommender return prose or markdown.**
 The original agent returned human-readable text; the system prompt was rewritten to enforce raw JSON only (commit `4082def`). Any prompt change that loosens this constraint will break the client's JSON parser.

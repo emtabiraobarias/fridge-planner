@@ -1,38 +1,31 @@
 # Meal Recommender — SERVE-ONLY config (production container entrypoint).
 #
 # Derived from agent.yaml but WITHOUT the `evaluations`, `test_cases`, and
-# `observability` blocks: those reference dev/test env vars (OLLAMA_ENDPOINT,
-# AZURE_OPENAI_*, OTLP_ENDPOINT) that `holodeck serve` tries to resolve at load
-# time and that don't exist in production. `holodeck serve` needs only the model
-# + instructions + claude blocks. The system prompt stays single-source
-# (instructions/system-prompt.md) — keep the model/claude settings here in sync
-# with agent.yaml if they change. Use agent.yaml for `holodeck test`.
+# `observability` blocks: those reference dev/test env vars (AZURE_OPENAI_*,
+# OTLP_ENDPOINT) that `holodeck serve` tries to resolve at load time and that don't
+# exist in production. `holodeck serve` needs only the model + instructions blocks.
+# The system prompt stays single-source (instructions/system-prompt.md) — keep the
+# model settings here in sync with agent.yaml if they change. Use agent.yaml for
+# `holodeck test`.
 #
-# Only runtime credential: CLAUDE_CODE_OAUTH_TOKEN (via model.auth_provider), which
-# the compose injects. NOTE: holodeck substitutes env-var references over the raw file
-# text INCLUDING COMMENTS, so this file must contain no dollar-brace sequences anywhere.
+# Runtime credential: OPENAI_API_KEY (model.api_key), which the compose env_file
+# injects — this var IS present at runtime (unlike the AZURE_OPENAI_*/OTLP_ENDPOINT
+# vars dropped above), so referencing it with ${...} here is safe. Provider is
+# openai (Semantic Kernel backend): no Claude Agent SDK, so no `claude:` block and
+# no Node.js runtime dependency.
 
 name: meal-recommender
 description: AI-powered meal recommendation agent that suggests meals to minimise food waste
 
 execution:
-  llm_timeout: 180
+  llm_timeout: 90
 
 model:
-  provider: anthropic
-  name: claude-sonnet-4-6
-  auth_provider: oauth_token
+  provider: openai
+  name: gpt-4o
+  api_key: ${OPENAI_API_KEY}
   temperature: 0.5
   max_tokens: 2000
 
 instructions:
   file: instructions/system-prompt.md
-
-claude:
-  max_turns: 15
-  setting_sources: [] # explicit: no inheritance from ~/.claude or project settings
-  extended_thinking:
-    enabled: false
-  allowed_tools:
-    - WebSearch
-    - WebFetch

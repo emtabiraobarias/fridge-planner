@@ -22,6 +22,12 @@ const mockMeal = {
 const { getMealRecommendations } = vi.hoisted(() => ({ getMealRecommendations: vi.fn() }));
 vi.mock('@server/services/meal-recommender', () => ({ getMealRecommendations }));
 
+// Mock the recipe-verifier enrichment step (its own internals are unit-tested
+// separately in unit/recipe-verifier.test.ts). Defaults to a passthrough so
+// unrelated tests aren't affected; overridden in the enrichment test below.
+const { attachVerifiedRecipes } = vi.hoisted(() => ({ attachVerifiedRecipes: vi.fn() }));
+vi.mock('@server/services/recipe-verifier', () => ({ attachVerifiedRecipes }));
+
 let mongod: MongoMemoryServer;
 let InventoryItem: typeof import('@server/models/inventory-item').InventoryItem;
 let invalidateUser: typeof import('@server/services/recommendations-cache').invalidateUser;
@@ -45,6 +51,8 @@ afterAll(async () => {
 beforeEach(async () => {
   await mongoose.connection.dropDatabase();
   getMealRecommendations.mockReset();
+  attachVerifiedRecipes.mockReset();
+  attachVerifiedRecipes.mockImplementation((meals: unknown) => Promise.resolve(meals));
   invalidateUser(USER);
   // Reset the in-memory rate-limit windows so per-test call counts start fresh.
   (globalThis as unknown as { _rateLimitBuckets?: Map<string, unknown> })._rateLimitBuckets?.clear();
@@ -121,6 +129,25 @@ describe('POST /api/v1/recommendations', () => {
     const body = (await res.json()) as RecResponse;
     expect(body.fallback).toBe('popular');
     expect(body.recommendations.length).toBeGreaterThan(0);
+  });
+
+  it('enriches agent meals with a verified recipeUrl before caching (Option A groundedness)', async () => {
+    await seedInv('Chicken Breast');
+    getMealRecommendations.mockResolvedValueOnce([mockMeal]);
+    attachVerifiedRecipes.mockImplementationOnce((meals: Array<Record<string, unknown>>) =>
+      Promise.resolve(meals.map((m) => ({ ...m, recipeUrl: 'https://www.recipetineats.com/chicken-stir-fry/' }))),
+    );
+
+    const res = await POST(req());
+    const body = (await res.json()) as { recommendations: Array<{ mealName: string; recipeUrl?: string }> };
+    expect(attachVerifiedRecipes).toHaveBeenCalledWith([mockMeal]);
+    expect(body.recommendations[0]?.recipeUrl).toBe('https://www.recipetineats.com/chicken-stir-fry/');
+
+    // The enriched (URL-attached) result is what gets cached, not the raw agent output.
+    const res2 = await POST(req());
+    const body2 = (await res2.json()) as { recommendations: Array<{ recipeUrl?: string }> };
+    expect(body2.recommendations[0]?.recipeUrl).toBe('https://www.recipetineats.com/chicken-stir-fry/');
+    expect(getMealRecommendations).toHaveBeenCalledTimes(1);
   });
 
   it('rate-limits to 10 requests/minute per user (429 on the 11th)', async () => {

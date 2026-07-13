@@ -20,10 +20,15 @@ meta:
   workflow: .github/workflows/deploy-nextjs.yml
   internal_host: fridgeplanner.lan
   public_domain: null
-  app_image: ghcr.io/emtabiraobarias/fridge-planner-client   # NOT …/fridge-planner (that's Holodeck)
+  app_image: ghcr.io/emtabiraobarias/fridge-planner-client   # NOT …/fridge-planner (that's the meal-rec agent)
+  agent_image: ghcr.io/emtabiraobarias/fridge-planner            # meal-recommender (OpenAI provider)
+  feedback_agent_image: ghcr.io/emtabiraobarias/fridge-planner-feedback  # feedback collector (Claude); Phase F
   keycloak_realm: fridge-planner
   network: fpnet
   portainer_edition: CE                            # CE | BE (affects the CD step)
+  # Runtime secret keys (see deploy/prod.env.example): OPENAI_API_KEY (meal-rec),
+  # CLAUDE_CODE_OAUTH_TOKEN/ANTHROPIC_API_KEY (feedback), BRAVE_SEARCH_API_KEY +
+  # SPOONACULAR_API_KEY (optional recipe-URL verification), plus MONGO/OIDC/KC keys.
 
 steps:
   # ---------------- STAGE 1: INTERNAL ----------------
@@ -45,9 +50,11 @@ steps:
     subagent: deploy-file-writer
     note: |
       This file ALREADY EXISTS and is well-formed (only caddy publishes ports; app pulls
-      ${APP_IMAGE:-…/fridge-planner-client}; mongo/holodeck/keycloak/keycloak-db internal on fpnet;
-      ${VAR:?} fail-fast; AUTH_JWKS_URI uses the INTERNAL keycloak URL by design). VERIFY only —
-      do not rewrite. Only propose a diff if a concrete defect is found.
+      ${APP_IMAGE:-…/fridge-planner-client}; mongo/holodeck/holodeck-feedback/keycloak/keycloak-db
+      internal on fpnet; ${VAR:?} fail-fast; AUTH_JWKS_URI uses the INTERNAL keycloak URL by design).
+      TWO agents: holodeck (meal-rec, OPENAI_API_KEY) + holodeck-feedback :8002 (Claude,
+      CLAUDE_CODE_OAUTH_TOKEN). App also reads FEEDBACK_AGENT_URL + optional BRAVE/SPOONACULAR keys.
+      VERIFY only — do not rewrite. Only propose a diff if a concrete defect is found.
     done_when: "compose parses; only caddy has ports; no AUTH_ALLOW_DEV; matches deploy/prod.env.example var names."
 
   - id: s1-caddyfile-verify
@@ -87,9 +94,9 @@ steps:
     depends_on: [s1-caddyfile-verify, s6-secrets-decide, s1-dns-internal]
     prompt: |
       Portainer: Stacks -> + Add stack -> Git repository. Compose path: docker-compose.prod.yml (repo root).
-      Provide APP_IMAGE and the deploy/prod.env.example keys — as stack env (Path A) or ensure the host .env exists (Path B).
-      Deploy. Docs: https://docs.portainer.io/user/docker/stacks/add
-    done_when: "All services (caddy, app, mongodb, holodeck, keycloak, keycloak-db) show Running."
+      Provide APP_IMAGE / AGENT_IMAGE / FEEDBACK_AGENT_IMAGE and the deploy/prod.env.example keys — as
+      stack env (Path A) or ensure the host .env exists (Path B). Deploy. Docs: https://docs.portainer.io/user/docker/stacks/add
+    done_when: "All services (caddy, app, mongodb, holodeck, holodeck-feedback, keycloak, keycloak-db) show Running."
 
   - id: s1-trust-ca
     title: Trust Caddy internal CA on the test machine
@@ -121,10 +128,10 @@ steps:
       From a LAN machine confirm ALL:
         [ ] https://fridgeplanner.lan loads (CA trusted, no warning)
         [ ] Login via https://auth.fridgeplanner.lan completes -> /auth/callback
-        [ ] Recommendations route finishes past ~240s (no 502)
-        [ ] Holodeck-backed feature responds
+        [ ] Recommendations return (meal-rec agent, OpenAI); a recipeUrl appears when a match is found
+        [ ] Feedback chat (/feedback) gets an assistant reply (holodeck-feedback up)
         [ ] Restart app container -> data persists
-        [ ] mongodb/holodeck/keycloak: NO published ports; only caddy 80/443
+        [ ] mongodb/holodeck/holodeck-feedback/keycloak: NO published ports; only caddy 80/443
         [ ] app console: printenv | grep AUTH_ALLOW_DEV -> nothing
     done_when: "You confirm every box. GATES Stage 2."
 

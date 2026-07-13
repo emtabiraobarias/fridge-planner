@@ -15,6 +15,13 @@ services:
       retries: 5
 
   holodeck:
+    # Dev builds the meal-recommender agent from source (so local agent/prompt changes
+    # take effect on `docker compose build holodeck`), tagging it as the same image name
+    # the prod compose pulls. `up` uses the locally-built image. Prod pulls the CI-published
+    # image instead (agent-image.yml, tag agent-v*).
+    build:
+      context: agents/meal-recommender
+      dockerfile: Dockerfile
     image: ghcr.io/emtabiraobarias/fridge-planner:latest
     restart: unless-stopped
     ports:
@@ -71,6 +78,8 @@ services:
       MONGODB_URI: mongodb://mongodb:27017/fridge-planner
       HOLODECK_URL: http://holodeck:8001
       FEEDBACK_AGENT_URL: http://holodeck-feedback:8002
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      SPOONACULAR_API_KEY: ${SPOONACULAR_API_KEY:-}
       LOG_LEVEL: info
     depends_on:
       mongodb:

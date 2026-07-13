@@ -59,6 +59,11 @@ services:
       AUTH_MODE: oidc
       MONGODB_URI: mongodb://${MONGO_ROOT_USER:?}:${MONGO_ROOT_PASSWORD:?}@mongodb:27017/fridge-planner?authSource=admin
       HOLODECK_URL: http://holodeck:8001
+      FEEDBACK_AGENT_URL: http://holodeck-feedback:8002
+      # Recipe-URL verification for meal recommendations (Option A groundedness). Optional:
+      # unset → meals return without a recipeUrl (no error). See src/server/services/recipe-verifier.ts.
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      SPOONACULAR_API_KEY: ${SPOONACULAR_API_KEY:-}
       # `iss` the tokens actually carry — must match the public issuer URL exactly.
       # Includes the :8443 published port (Option B) so it matches KC_HOSTNAME below.
       AUTH_ISSUER: https://auth.fridgeplanner.lan:8443/realms/${OIDC_REALM:-fridge-planner}
@@ -71,6 +76,8 @@ services:
       mongodb:
         condition: service_healthy
       holodeck:
+        condition: service_healthy
+      holodeck-feedback:
         condition: service_healthy
     networks: [fpnet]
     # no ports: reachable only through Caddy
@@ -94,18 +101,38 @@ services:
     # NOTE: the app connects as root for simplicity on a single node; a
     # least-privilege app user (initdb script) is a recommended follow-up.
 
-  # ── AI agent: internal only, needs egress to the LLM API ──────────────────
+  # ── Meal-recommender agent: internal only, needs egress to the LLM API ─────
+  # Provider is OpenAI (Semantic Kernel backend) — see agents/meal-recommender.
+  # The agent image (…/fridge-planner) reads OPENAI_API_KEY via model.api_key.
   holodeck:
-    image: ghcr.io/emtabiraobarias/fridge-planner:latest # the AGENT image (≠ app image)
+    image: ${AGENT_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner:latest} # the AGENT image (≠ app image)
     restart: unless-stopped
     environment:
       HOLODECK_PORT: 8001
       HOLODECK_PROTOCOL: rest
-      # Prefer the OAuth token; ANTHROPIC_API_KEY is the fallback (see CLAUDE.md §9).
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [fpnet]
+
+  # ── Feedback-collector agent (spec 003 / Phase F): internal only, egress to LLM ──
+  # A SECOND Holodeck instance (one agent per instance) on :8002. Still Claude/Anthropic
+  # (unlike the meal-recommender) → needs CLAUDE_CODE_OAUTH_TOKEN (ANTHROPIC_API_KEY
+  # fallback). The app reaches it at FEEDBACK_AGENT_URL; if it's down the /api/v1/feedback
+  # chat endpoints 502 and preserve drafts, so the rest of the app is unaffected.
+  holodeck-feedback:
+    image: ${FEEDBACK_AGENT_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-feedback:latest}
+    restart: unless-stopped
+    environment:
+      HOLODECK_PORT: 8002
+      HOLODECK_PROTOCOL: rest
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 15s
       timeout: 5s
       retries: 5
