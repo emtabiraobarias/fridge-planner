@@ -1,25 +1,32 @@
+'use client';
 import { useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { fetchRecommendations as fetchRecommendationsService, type RecommendationsResult } from '../../services/inventory';
 import { useRecommendations } from '../../context/RecommendationsContext';
 import { useInventory } from '../../context/InventoryContext';
+import { usePlacement } from '../../context/PlacementContext';
 import { MealCard, MealCardSkeleton } from './MealCard';
-import { DraggableMealCard } from './DraggableMealCard';
+import type { MealRecommendation } from '../../types/meal-recommendation';
 
 const CLIENT_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 const FALLBACK_NOTICE: Record<'popular' | 'cache', string> = {
-  popular: 'Personalised AI suggestions are unavailable right now — showing popular recipes. Add inventory items and try again for tailored picks.',
+  popular:
+    'Personalised AI suggestions are unavailable right now — showing popular recipes. Add inventory items and try again for tailored picks.',
   cache: 'Showing your most recent suggestions — the AI is taking a while to refresh.',
 };
 
 interface Props {
   fetchRecommendations?: () => Promise<RecommendationsResult>;
-  draggable?: boolean;
 }
 
-export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchRecommendationsService, draggable = false }: Props): React.JSX.Element {
+export function RecommendationsPanel({
+  fetchRecommendations: fetchFn = fetchRecommendationsService,
+}: Props): React.JSX.Element {
   const { state, meals, error, cachedAt, fallback, setLoading, setMeals, setError } = useRecommendations();
   const { items } = useInventory();
+  const { startPlacing } = usePlacement();
+  const router = useRouter();
   const prefetchedRef = useRef(false);
 
   // Prefetch when inventory first becomes non-empty
@@ -32,24 +39,18 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
 
   async function handleFetch(): Promise<void> {
     const age = cachedAt !== null ? Date.now() - cachedAt : Infinity;
+    if (meals.length > 0 && age < CLIENT_CACHE_TTL_MS) return;
 
-    // Fresh cache hit — skip the network call entirely
-    if (meals.length > 0 && age < CLIENT_CACHE_TTL_MS) {
-      return;
-    }
-
-    // Stale cache — revalidate silently in the background without clearing existing meals
     if (meals.length > 0 && age >= CLIENT_CACHE_TTL_MS) {
       try {
         const result = await fetchFn();
         setMeals(result.recommendations, result.fallback ?? null);
       } catch {
-        // Silently ignore background revalidation errors; stale data remains visible
+        // stale data remains visible
       }
       return;
     }
 
-    // Cold fetch
     setLoading();
     try {
       const result = await fetchFn();
@@ -59,7 +60,17 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
     }
   }
 
-  // Extracted so the result-state branches count against this helper's complexity, not the component's.
+  function handlePlan(meal: MealRecommendation): void {
+    startPlacing(meal);
+    router.push('/calendar');
+  }
+
+  const urgentNames = items
+    .filter((i) => i.expirationStatus === 'expiring-soon' || i.expirationStatus === 'expired')
+    .slice(0, 2)
+    .map((i) => i.name.toLowerCase());
+  const urgentSummary = urgentNames.length ? urgentNames.join(' and ') : 'freshest ingredients';
+
   function renderResults(): React.JSX.Element | null {
     if (state === 'loading') {
       return (
@@ -72,25 +83,27 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
     }
     if (state === 'error') {
       return (
-        <p role="alert" className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</p>
+        <p role="alert" className="mt-4 rounded-lg bg-accent-100 p-3 text-sm text-accent-800">
+          {error}
+        </p>
       );
     }
     if (state !== 'success') return null;
     return (
       <>
         {fallback && (
-          <p role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p role="status" className="mt-4 rounded-lg bg-accent-100 p-3 text-sm text-accent-800">
             {FALLBACK_NOTICE[fallback]}
           </p>
         )}
         {meals.length === 0 && (
-          <p className="mt-4 text-sm text-gray-500">No suggestions returned — try adding more ingredients.</p>
+          <p className="text-muted mt-4 text-sm">No suggestions returned — try adding more ingredients.</p>
         )}
         {meals.length > 0 && (
           <ul className="mt-4 space-y-3">
-            {meals.map((meal, i) =>
-              draggable ? <DraggableMealCard key={i} meal={meal} index={i} /> : <MealCard key={i} meal={meal} />,
-            )}
+            {meals.map((meal, i) => (
+              <MealCard key={i} meal={meal} onPlan={handlePlan} />
+            ))}
           </ul>
         )}
       </>
@@ -98,13 +111,18 @@ export function RecommendationsPanel({ fetchRecommendations: fetchFn = fetchReco
   }
 
   return (
-    <section aria-label="Meal recommendations" className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="text-lg font-semibold text-gray-900 mb-3">AI Meal Recommendations</h2>
+    <section aria-label="Meal recommendations" className="rounded-lg bg-surface p-6 shadow-sm">
+      <p className="text-h6 font-body font-bold uppercase text-accent-700">From your fridge</p>
+      <h2 className="font-heading text-h3 text-ink">What can I cook?</h2>
+      <p className="text-muted mb-3 text-[13px]">Ideas that use up your {urgentSummary} first.</p>
 
       <button
-        onClick={() => { void handleFetch(); }}
+        type="button"
+        onClick={() => {
+          void handleFetch();
+        }}
         disabled={state === 'loading'}
-        className="w-full rounded-lg bg-green-600 px-4 py-2 text-white font-medium hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full rounded-full bg-accent px-4 py-2.5 font-semibold text-bg hover:bg-accent-600 disabled:opacity-60"
       >
         {state === 'loading' ? 'Thinking…' : 'Get Recommendations'}
       </button>

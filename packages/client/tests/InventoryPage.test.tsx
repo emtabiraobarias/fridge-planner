@@ -5,6 +5,7 @@ import { InventoryPage } from '../src/views/InventoryPage';
 import { InventoryProvider } from '../src/context/InventoryContext';
 import { MealPlanProvider } from '../src/context/MealPlanContext';
 import { RecommendationsProvider } from '../src/context/RecommendationsContext';
+import { PlacementProvider } from '../src/context/PlacementContext';
 import { ToastProvider } from '../src/context/ToastContext';
 import * as inventoryService from '../src/services/inventory';
 
@@ -33,7 +34,9 @@ function renderWithProviders(): ReturnType<typeof render> {
       <InventoryProvider>
         <MealPlanProvider>
           <RecommendationsProvider>
-            <InventoryPage />
+            <PlacementProvider>
+              <InventoryPage />
+            </PlacementProvider>
           </RecommendationsProvider>
         </MealPlanProvider>
       </InventoryProvider>

@@ -2,31 +2,16 @@ import type { MealRecommendation } from '../../types/meal-recommendation';
 
 export function MealCardSkeleton(): React.JSX.Element {
   return (
-    <li className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden animate-pulse">
-      <div className="w-full h-40 bg-gray-200" />
-      <div className="p-4 space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="h-4 bg-gray-200 rounded w-2/5" />
-          <div className="flex items-center gap-1.5">
-            <div className="h-5 bg-gray-200 rounded-full w-14" />
-            <div className="h-5 bg-gray-200 rounded-full w-12" />
-            <div className="h-5 bg-gray-200 rounded-full w-16" />
-          </div>
-        </div>
-        <div className="h-3 bg-gray-200 rounded w-full" />
-        <div className="h-3 bg-gray-200 rounded w-4/5" />
-        <div className="flex flex-wrap gap-1.5 mt-1">
-          <div className="h-5 bg-gray-200 rounded-full w-20" />
-          <div className="h-5 bg-gray-200 rounded-full w-16" />
-          <div className="h-5 bg-gray-200 rounded-full w-24" />
-        </div>
+    <li className="animate-pulse rounded-lg bg-bg p-4">
+      <div className="h-4 w-2/5 rounded bg-neutral-300" />
+      <div className="mt-3 h-3 w-full rounded bg-neutral-300" />
+      <div className="mt-2 h-3 w-4/5 rounded bg-neutral-300" />
+      <div className="mt-3 flex gap-1.5">
+        <div className="h-5 w-20 rounded-full bg-neutral-300" />
+        <div className="h-5 w-16 rounded-full bg-neutral-300" />
       </div>
     </li>
   );
-}
-
-interface Props {
-  meal: MealRecommendation;
 }
 
 const MEAL_TYPE_LABEL: Record<MealRecommendation['suggestedMealType'], string> = {
@@ -35,83 +20,64 @@ const MEAL_TYPE_LABEL: Record<MealRecommendation['suggestedMealType'], string> =
   dinner: 'Dinner',
 };
 
-export function MealCard({ meal }: Props): React.JSX.Element {
+interface Props {
+  meal: MealRecommendation;
+  /** When provided, renders a "Plan it" pill that starts calendar placement. */
+  onPlan?: (meal: MealRecommendation) => void;
+}
+
+/** Organic meal card (spec 004 §3.2). */
+export function MealCard({ meal, onPlan }: Props): React.JSX.Element {
   const expiringSet = new Set(meal.expiringIngredients.map((s) => s.toLowerCase()));
-  const nonExpiringUsed = meal.usesIngredients.filter(
-    (i) => !expiringSet.has(i.toLowerCase()),
-  );
+  const nonExpiringUsed = meal.usesIngredients.filter((i) => !expiringSet.has(i.toLowerCase()));
 
   return (
-    <li className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-      {/* Food image */}
-      {meal.imageUrl && (
-        <img
-          src={meal.imageUrl}
-          alt={meal.mealName}
-          draggable={false}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-          className="w-full h-40 object-cover"
-        />
-      )}
-
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <h3 className="text-base font-semibold text-gray-900 leading-snug">{meal.mealName}</h3>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-              {meal.cuisine}
-            </span>
-            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
-              {MEAL_TYPE_LABEL[meal.suggestedMealType]}
-            </span>
-            <span className="rounded-full bg-gray-50 px-2 py-0.5 text-xs text-gray-500">
-              ⏱ {meal.prepTimeMinutes} min
-            </span>
-            {meal.recipeUrl && (
-              <a
-                href={meal.recipeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                draggable={false}
-                className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200 hover:bg-green-100"
-              >
-                View Recipe ↗
-              </a>
-            )}
-          </div>
+    <li className="rounded-lg bg-bg p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="font-heading text-[17px] leading-tight text-ink">{meal.mealName}</h3>
+          <p className="text-muted mt-0.5 text-xs">
+            {meal.cuisine} · {MEAL_TYPE_LABEL[meal.suggestedMealType]} · {meal.prepTimeMinutes} min
+          </p>
         </div>
+        {onPlan && (
+          <button
+            type="button"
+            onClick={() => onPlan(meal)}
+            className="shrink-0 rounded-full bg-accent px-3.5 py-[7px] text-xs font-semibold text-bg hover:bg-accent-600"
+          >
+            Plan it
+          </button>
+        )}
+      </div>
 
-        {/* Description */}
-        <p className="mt-1.5 text-xs text-gray-500 leading-relaxed">{meal.description}</p>
+      <p className="mt-2 text-[13px] text-ink/75">{meal.description}</p>
 
-        {/* Ingredients */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {meal.expiringIngredients.map((ing) => (
-            <span
-              key={ing}
-              className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200"
-            >
-              ⚠️ {ing}
-            </span>
-          ))}
-          {nonExpiringUsed.map((ing) => (
-            <span
-              key={ing}
-              className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200"
-            >
-              {ing}
-            </span>
-          ))}
-          {meal.missingIngredients.map((ing) => (
-            <span
-              key={ing}
-              className="rounded-full bg-gray-50 px-2 py-0.5 text-xs italic text-gray-400 border border-gray-200"
-            >
-              Need: {ing}
-            </span>
-          ))}
-        </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {meal.expiringIngredients.map((ing) => (
+          <span
+            key={ing}
+            className="rounded-full bg-accent-200 px-2.5 py-0.5 text-[11px] font-semibold text-accent-800"
+          >
+            {ing} — use soon
+          </span>
+        ))}
+        {nonExpiringUsed.map((ing) => (
+          <span
+            key={ing}
+            className="rounded-full bg-accent2-100 px-2.5 py-0.5 text-[11px] text-accent2-800"
+          >
+            {ing}
+          </span>
+        ))}
+        {meal.missingIngredients.map((ing) => (
+          <span
+            key={ing}
+            className="rounded-full border border-accent/70 px-2.5 py-0.5 text-[11px] text-accent/80"
+          >
+            need {ing}
+          </span>
+        ))}
       </div>
     </li>
   );

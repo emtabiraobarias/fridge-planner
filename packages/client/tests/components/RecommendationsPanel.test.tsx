@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { RecommendationsPanel } from '../../src/components/recommendations/RecommendationsPanel';
 import { RecommendationsProvider } from '../../src/context/RecommendationsContext';
 import { InventoryProvider } from '../../src/context/InventoryContext';
+import { PlacementProvider } from '../../src/context/PlacementContext';
 import type { MealRecommendation } from '../../src/types/meal-recommendation';
 import type { RecommendationsResult } from '../../src/services/inventory';
 
@@ -29,7 +30,7 @@ function renderWithProviders(ui: React.ReactElement): ReturnType<typeof render> 
   return render(
     <InventoryProvider>
       <RecommendationsProvider>
-        {ui}
+        <PlacementProvider>{ui}</PlacementProvider>
       </RecommendationsProvider>
     </InventoryProvider>,
   );
@@ -60,8 +61,7 @@ describe('RecommendationsPanel', () => {
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     await screen.findByText('Chicken Stir-fry');
-    expect(screen.getByText('Asian')).toBeInTheDocument();
-    expect(screen.getByText(/20 min/)).toBeInTheDocument();
+    expect(screen.getByText(/Asian · Dinner · 20 min/)).toBeInTheDocument();
   });
 
   it('renders expiring ingredient with warning indicator', async () => {
@@ -69,7 +69,7 @@ describe('RecommendationsPanel', () => {
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     await screen.findByText('Chicken Stir-fry');
-    expect(screen.getByText(/⚠️.*chicken breast/i)).toBeInTheDocument();
+    expect(screen.getByText(/chicken breast — use soon/i)).toBeInTheDocument();
   });
 
   it('renders missing ingredients with "Need:" prefix', async () => {
@@ -77,7 +77,7 @@ describe('RecommendationsPanel', () => {
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     await screen.findByText('Chicken Stir-fry');
-    expect(screen.getByText(/need:.*soy sauce/i)).toBeInTheDocument();
+    expect(screen.getByText(/need soy sauce/i)).toBeInTheDocument();
   });
 
   it('shows empty state message when no meals returned', async () => {

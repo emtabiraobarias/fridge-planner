@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi } from 'vitest';
 import { MealCard } from '../../src/components/recommendations/MealCard';
 import type { MealRecommendation } from '../../src/types/meal-recommendation';
 
@@ -14,57 +15,85 @@ const baseMeal: MealRecommendation = {
   missingIngredients: ['chives'],
 };
 
-describe('MealCard', () => {
+describe('MealCard (organic)', () => {
   it('renders the meal name', () => {
-    render(<ul><MealCard meal={baseMeal} /></ul>);
+    render(
+      <ul>
+        <MealCard meal={baseMeal} />
+      </ul>,
+    );
     expect(screen.getByText('Spinach Omelette')).toBeInTheDocument();
   });
 
-  it('renders cuisine badge', () => {
-    render(<ul><MealCard meal={baseMeal} /></ul>);
-    expect(screen.getByText('French')).toBeInTheDocument();
+  it('renders a cuisine · type · time meta line', () => {
+    render(
+      <ul>
+        <MealCard meal={baseMeal} />
+      </ul>,
+    );
+    expect(screen.getByText(/French · Breakfast · 10 min/)).toBeInTheDocument();
   });
 
-  it('renders the suggested meal type badge', () => {
-    render(<ul><MealCard meal={baseMeal} /></ul>);
-    expect(screen.getByText('Breakfast')).toBeInTheDocument();
-  });
-
-  it('renders prep time', () => {
-    render(<ul><MealCard meal={baseMeal} /></ul>);
-    expect(screen.getByText(/10 min/)).toBeInTheDocument();
-  });
-
-  it('renders description', () => {
-    render(<ul><MealCard meal={baseMeal} /></ul>);
+  it('renders the description', () => {
+    render(
+      <ul>
+        <MealCard meal={baseMeal} />
+      </ul>,
+    );
     expect(screen.getByText('A light omelette packed with spinach.')).toBeInTheDocument();
   });
 
-  it('renders expiring ingredient with ⚠️ prefix', () => {
-    render(<ul><MealCard meal={baseMeal} /></ul>);
-    expect(screen.getByText(/⚠️.*spinach/i)).toBeInTheDocument();
+  it('marks expiring ingredients "use soon"', () => {
+    render(
+      <ul>
+        <MealCard meal={baseMeal} />
+      </ul>,
+    );
+    expect(screen.getByText(/spinach — use soon/i)).toBeInTheDocument();
   });
 
-  it('renders non-expiring used ingredients without warning', () => {
-    render(<ul><MealCard meal={baseMeal} /></ul>);
+  it('renders non-expiring used ingredients plainly', () => {
+    render(
+      <ul>
+        <MealCard meal={baseMeal} />
+      </ul>,
+    );
     expect(screen.getByText('egg')).toBeInTheDocument();
     expect(screen.getByText('butter')).toBeInTheDocument();
   });
 
-  it('renders missing ingredients with "Need:" prefix', () => {
-    render(<ul><MealCard meal={baseMeal} /></ul>);
-    expect(screen.getByText(/need:.*chives/i)).toBeInTheDocument();
+  it('prefixes missing ingredients with "need"', () => {
+    render(
+      <ul>
+        <MealCard meal={baseMeal} />
+      </ul>,
+    );
+    expect(screen.getByText(/need chives/i)).toBeInTheDocument();
   });
 
-  it('renders nothing in missing section when no missing ingredients', () => {
-    const meal = { ...baseMeal, missingIngredients: [] };
-    render(<ul><MealCard meal={meal} /></ul>);
-    expect(screen.queryByText(/need:/i)).not.toBeInTheDocument();
+  it('omits the missing section when there are none', () => {
+    render(
+      <ul>
+        <MealCard meal={{ ...baseMeal, missingIngredients: [] }} />
+      </ul>,
+    );
+    expect(screen.queryByText(/need /i)).not.toBeInTheDocument();
   });
 
-  it('renders correct meal type label for dinner', () => {
-    const meal = { ...baseMeal, suggestedMealType: 'dinner' as const };
-    render(<ul><MealCard meal={meal} /></ul>);
-    expect(screen.getByText('Dinner')).toBeInTheDocument();
+  it('renders "Plan it" only when onPlan is provided, and calls it', async () => {
+    const onPlan = vi.fn();
+    const { rerender } = render(
+      <ul>
+        <MealCard meal={baseMeal} />
+      </ul>,
+    );
+    expect(screen.queryByRole('button', { name: /plan it/i })).not.toBeInTheDocument();
+    rerender(
+      <ul>
+        <MealCard meal={baseMeal} onPlan={onPlan} />
+      </ul>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /plan it/i }));
+    expect(onPlan).toHaveBeenCalledWith(baseMeal);
   });
 });
