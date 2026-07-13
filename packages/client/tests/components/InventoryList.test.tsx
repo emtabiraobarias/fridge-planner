@@ -1,55 +1,70 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi } from 'vitest';
 import { InventoryList } from '../../src/components/inventory/InventoryList';
 import type { InventoryItem } from '../../src/services/inventory';
+
+// Far-future / past dates keep these deterministic regardless of the real "today".
+function iso(daysFromNow: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  return d.toISOString();
+}
 
 const base: InventoryItem = {
   _id: '1',
   name: 'Chicken Breast',
   quantity: 2,
-  unit: 'lbs',
+  unit: 'kg',
   category: 'Meat',
   location: 'fridge',
   expirationStatus: 'normal',
 };
 
-describe('InventoryList', () => {
-  it('renders a list of ingredient names', () => {
-    render(<InventoryList items={[base]} onDelete={() => {}} onEdit={() => {}} />);
+describe('InventoryList (organic redesign)', () => {
+  it('renders name, category·location, and quantity', () => {
+    render(<InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} />);
     expect(screen.getByText('Chicken Breast')).toBeInTheDocument();
-    expect(screen.getByText(/2 lbs/)).toBeInTheDocument();
+    expect(screen.getByText(/Meat · fridge/)).toBeInTheDocument();
+    expect(screen.getByText(/2 kg/)).toBeInTheDocument();
   });
 
-  it('shows empty state when no items', () => {
-    render(<InventoryList items={[]} onDelete={() => {}} onEdit={() => {}} />);
+  it('shows the empty state when there are no items', () => {
+    render(<InventoryList items={[]} onStep={() => {}} onDelete={() => {}} />);
     expect(screen.getByText(/no ingredients/i)).toBeInTheDocument();
   });
 
-  it('applies yellow styling for expiring-soon items', () => {
-    const item = { ...base, expirationStatus: 'expiring-soon' as const };
-    render(<InventoryList items={[item]} onDelete={() => {}} onEdit={() => {}} />);
+  it('uses the accent-100 background for expired rows', () => {
+    const item = { ...base, expiresAt: iso(-3), expirationStatus: 'expired' as const };
+    render(<InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} />);
     const row = screen.getByRole('listitem', { name: /chicken breast/i });
-    expect(row.className).toMatch(/yellow/);
+    expect(row.className).toMatch(/accent-100/);
   });
 
-  it('applies red styling and disables actions for expired items (FR-010)', () => {
-    const item = { ...base, expirationStatus: 'expired' as const };
-    render(<InventoryList items={[item]} onDelete={() => {}} onEdit={() => {}} />);
-    const row = screen.getByRole('listitem', { name: /chicken breast/i });
-    expect(row.className).toMatch(/red/);
-    expect(screen.getByRole('button', { name: /delete/i })).toBeDisabled();
+  it('sorts soonest-expiry first, no-expiry last', () => {
+    const items: InventoryItem[] = [
+      { ...base, _id: 'a', name: 'NoExpiry' },
+      { ...base, _id: 'b', name: 'Soon', expiresAt: iso(1) },
+      { ...base, _id: 'c', name: 'Later', expiresAt: iso(10) },
+    ];
+    render(<InventoryList items={items} onStep={() => {}} onDelete={() => {}} />);
+    const names = screen.getAllByRole('listitem').map((li) => within(li).getByText(/Soon|Later|NoExpiry/).textContent);
+    expect(names).toEqual(['Soon', 'Later', 'NoExpiry']);
   });
 
-  it('shows expiry date when present', () => {
-    const item = { ...base, expiresAt: '2026-04-01T00:00:00.000Z', expirationStatus: 'normal' as const };
-    render(<InventoryList items={[item]} onDelete={() => {}} onEdit={() => {}} />);
-    expect(screen.getByText(/apr.*2026|2026.*apr/i)).toBeInTheDocument();
+  it('steps quantity by the unit-aware amount', async () => {
+    const onStep = vi.fn();
+    render(<InventoryList items={[base]} onStep={onStep} onDelete={() => {}} />);
+    await userEvent.click(screen.getByRole('button', { name: /increase chicken breast/i }));
+    expect(onStep).toHaveBeenCalledWith(base, 0.5); // kg → 0.5
+    await userEvent.click(screen.getByRole('button', { name: /decrease chicken breast/i }));
+    expect(onStep).toHaveBeenCalledWith(base, -0.5);
   });
 
-  it('shows expiry date in red for an expired item with expiresAt set', () => {
-    const item = { ...base, expiresAt: '2026-03-01T00:00:00.000Z', expirationStatus: 'expired' as const };
-    render(<InventoryList items={[item]} onDelete={() => {}} onEdit={() => {}} />);
-    const dateSpan = screen.getByText(/mar.*2026|2026.*mar/i);
-    expect(dateSpan.className).toMatch(/red/);
+  it('deletes an item', async () => {
+    const onDelete = vi.fn();
+    render(<InventoryList items={[base]} onStep={() => {}} onDelete={onDelete} />);
+    await userEvent.click(screen.getByRole('button', { name: /delete chicken breast/i }));
+    expect(onDelete).toHaveBeenCalledWith('1');
   });
 });

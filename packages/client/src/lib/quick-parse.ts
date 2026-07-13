@@ -123,9 +123,20 @@ export function parseQuick(text: string, today: Date = new Date()): ParsedQuick 
   };
 }
 
+/**
+ * Read the calendar date out of an ISO string — whether date-only (`2026-07-17`)
+ * or a full datetime (`2026-07-17T00:00:00.000Z`) — as a local-midnight Date.
+ * Using the string's own y-m-d avoids UTC/local day-shift for expiry semantics.
+ */
+function localDateFromIso(iso: string): Date {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return midnight(new Date(iso));
+}
+
 export function daysLeft(iso: string | null | undefined, today: Date = new Date()): number | null {
   if (!iso) return null;
-  const d = midnight(new Date(`${iso}T00:00:00`));
+  const d = localDateFromIso(iso);
   const t = midnight(today);
   return Math.round((d.getTime() - t.getTime()) / 86_400_000);
 }

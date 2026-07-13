@@ -1,72 +1,81 @@
+'use client';
+import { Trash2 } from 'lucide-react';
 import type { InventoryItem } from '../../services/inventory';
+import { daysLeft, expiryText, expiryStatus } from '../../lib/quick-parse';
+import { QuantityStepper } from './QuantityStepper';
 
 interface Props {
   items: InventoryItem[];
+  /** Apply a signed, unit-sized quantity delta to the item (zero removes it). */
+  onStep: (item: InventoryItem, delta: number) => void;
   onDelete: (id: string) => void;
-  onEdit: (item: InventoryItem) => void;
 }
 
-function expiryRowClass(status: InventoryItem['expirationStatus']): string {
-  if (status === 'expired') return 'bg-red-50 border-red-200';
-  if (status === 'expiring-soon') return 'bg-yellow-50 border-yellow-200';
-  return 'bg-white border-gray-200';
-}
+const DOT_CLASS = { expired: 'bg-accent-600', soon: 'bg-accent-400', fresh: 'bg-accent2-500' } as const;
+const EXPIRY_TEXT_CLASS = {
+  expired: 'text-accent-700',
+  soon: 'text-accent-600',
+  fresh: 'text-accent2-700',
+} as const;
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-AU', {
-    day: 'numeric', month: 'short', year: 'numeric',
+/** Sort soonest-expiry first; no-expiry items last. */
+function sortByExpiry(items: InventoryItem[]): InventoryItem[] {
+  return [...items].sort((a, b) => {
+    const da = daysLeft(a.expiresAt);
+    const db = daysLeft(b.expiresAt);
+    return (da === null ? Infinity : da) - (db === null ? Infinity : db);
   });
 }
 
-export function InventoryList({ items, onDelete, onEdit }: Props): React.JSX.Element {
+export function InventoryList({ items, onStep, onDelete }: Props): React.JSX.Element {
   if (items.length === 0) {
     return (
-      <p className="text-gray-500 text-sm py-6 text-center">
-        No ingredients yet. Add your first item above.
-      </p>
+      <p className="text-muted py-6 text-center text-sm">No ingredients yet. Add your first item above.</p>
     );
   }
 
   return (
-    <ul className="divide-y divide-gray-100" aria-label="Inventory items">
-      {items.map((item) => (
-        <li
-          key={item._id}
-          aria-label={item.name}
-          className={`flex items-center justify-between p-3 border rounded-lg mb-2 ${expiryRowClass(item.expirationStatus)}`}
-        >
-          <div className="flex-1 min-w-0">
-            <span className="font-medium text-gray-900 truncate block">{item.name}</span>
-            <span className="text-sm text-gray-600">
-              {item.quantity} {item.unit} · {item.category}
-              {item.expiresAt && (
-                <span className={item.expirationStatus === 'expired' ? 'text-red-600 font-medium' : 'text-yellow-700'}>
-                  {' · '}{formatDate(item.expiresAt)}
-                </span>
-              )}
-            </span>
-          </div>
+    <ul className="flex flex-col gap-2" aria-label="Inventory items">
+      {sortByExpiry(items).map((item) => {
+        const dl = daysLeft(item.expiresAt);
+        const status = expiryStatus(dl);
+        const expired = status === 'expired';
+        return (
+          <li
+            key={item._id}
+            aria-label={item.name}
+            className={`flex items-center gap-3.5 rounded-lg px-4 py-3 ${expired ? 'bg-accent-100' : 'bg-surface'}`}
+          >
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_CLASS[status]}`} aria-hidden />
 
-          <div className="flex gap-2 ml-3 shrink-0">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[15px] font-semibold text-ink">{item.name}</div>
+              <div className="text-muted text-xs">
+                {item.category} · {item.location}
+              </div>
+              <div className={`text-[12.5px] font-semibold ${EXPIRY_TEXT_CLASS[status]}`}>
+                {expiryText(dl)}
+              </div>
+            </div>
+
+            <QuantityStepper
+              quantity={item.quantity}
+              unit={item.unit}
+              name={item.name}
+              onStep={(delta) => onStep(item, delta)}
+            />
+
             <button
-              onClick={() => onEdit(item)}
-              disabled={item.expirationStatus === 'expired'}
-              aria-label={`Edit ${item.name}`}
-              className="text-sm px-2 py-1 rounded text-blue-600 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => onDelete(item._id)}
-              disabled={item.expirationStatus === 'expired'}
+              type="button"
               aria-label={`Delete ${item.name}`}
-              className="text-sm px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => onDelete(item._id)}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
             >
-              Delete
+              <Trash2 size={15} strokeWidth={2.75} aria-hidden />
             </button>
-          </div>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }

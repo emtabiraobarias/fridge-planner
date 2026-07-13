@@ -1,54 +1,83 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { InventoryForm } from '../components/inventory/InventoryForm';
+import { useToast } from '../context/ToastContext';
+import { QuickAdd } from '../components/inventory/QuickAdd';
+import { UseSoonStrip, type UrgentItem } from '../components/inventory/UseSoonStrip';
+import { LocationFilter, type LocationFilterValue } from '../components/inventory/LocationFilter';
 import { InventoryList } from '../components/inventory/InventoryList';
 import { RecommendationsPanel } from '../components/recommendations/RecommendationsPanel';
+import { daysLeft, isUrgent, applyStep, type ParsedQuick } from '../lib/quick-parse';
 import type { InventoryItem } from '../services/inventory';
 
 export function InventoryPage(): React.JSX.Element {
-  const { items, summary, loading, error, addItem, editItem, removeItem } = useInventory();
-  const [editingItem, setEditingItem] = useState<InventoryItem | undefined>();
+  const { items, loading, error, addItem, editItem, removeItem } = useInventory();
+  const { showToast } = useToast();
+  const [filter, setFilter] = useState<LocationFilterValue>('All');
+  const recsRef = useRef<HTMLDivElement>(null);
 
-  async function handleSubmit(data: Omit<InventoryItem, '_id' | 'expirationStatus'>): Promise<void> {
-    if (editingItem) {
-      await editItem(editingItem._id, data);
-      setEditingItem(undefined);
+  async function handleAdd(p: ParsedQuick): Promise<void> {
+    const data: Omit<InventoryItem, '_id' | 'expirationStatus'> = {
+      name: p.name,
+      quantity: p.quantity,
+      unit: p.unit,
+      category: p.category,
+      location: p.location,
+      ...(p.expiresAt ? { expiresAt: new Date(`${p.expiresAt}T00:00:00`).toISOString() } : {}),
+    };
+    await addItem(data);
+    showToast(`${p.name} added to your ${p.location}`);
+  }
+
+  async function handleStep(item: InventoryItem, delta: number): Promise<void> {
+    const next = applyStep(item.quantity, delta);
+    if (next === 0) {
+      await removeItem(item._id);
+      showToast(`${item.name} removed`);
     } else {
-      await addItem(data);
+      await editItem(item._id, { quantity: next });
     }
   }
 
+  async function handleDelete(id: string): Promise<void> {
+    const item = items.find((i) => i._id === id);
+    await removeItem(id);
+    if (item) showToast(`${item.name} removed`);
+  }
+
+  const visible = filter === 'All' ? items : items.filter((i) => i.location === filter.toLowerCase());
+
+  const urgent: UrgentItem[] = items
+    .map((i) => ({ id: i._id, name: i.name, daysLeft: daysLeft(i.expiresAt) }))
+    .filter((u) => isUrgent(u.daysLeft));
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="space-y-4">
-        <InventoryForm
-          {...(editingItem !== undefined ? { item: editingItem } : {})}
-          onSubmit={handleSubmit}
-          {...(editingItem !== undefined ? { onCancel: (): void => setEditingItem(undefined) } : {})}
+    <div className="grid grid-cols-1 gap-7 min-[900px]:grid-cols-[1fr_400px]">
+      <div className="flex flex-col gap-5">
+        <UseSoonStrip
+          items={urgent}
+          onCookThese={() => recsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         />
 
-        {loading && <p className="text-sm text-gray-500 animate-pulse">Loading inventory…</p>}
+        <QuickAdd onAdd={handleAdd} />
 
-        {error && <p role="alert" className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</p>}
+        <LocationFilter
+          value={filter}
+          onChange={setFilter}
+          visibleCount={visible.length}
+          totalCount={items.length}
+        />
 
-        {!loading && (
-          <div>
-            <div className="flex gap-3 mb-3 text-xs">
-              <span className="rounded-full bg-gray-100 px-2 py-1">{summary.total} items</span>
-              {summary.expiringSoon > 0 && (
-                <span className="rounded-full bg-yellow-100 text-yellow-800 px-2 py-1">{summary.expiringSoon} expiring soon</span>
-              )}
-              {summary.expired > 0 && (
-                <span className="rounded-full bg-red-100 text-red-800 px-2 py-1">{summary.expired} expired</span>
-              )}
-            </div>
-            <InventoryList items={items} onDelete={removeItem} onEdit={setEditingItem} />
-          </div>
+        {loading && <p className="text-muted animate-pulse text-sm">Loading inventory…</p>}
+        {error && (
+          <p role="alert" className="rounded-lg bg-accent-100 p-3 text-sm text-accent-800">
+            {error}
+          </p>
         )}
+        {!loading && <InventoryList items={visible} onStep={handleStep} onDelete={handleDelete} />}
       </div>
 
-      <div>
+      <div ref={recsRef}>
         <RecommendationsPanel />
       </div>
     </div>
