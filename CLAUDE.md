@@ -11,7 +11,7 @@ This file is the primary reference for AI assistants working in this repository.
 **Tech Stack:**
 - **Frontend:** React 18 + Next.js 15 (App Router) + Tailwind CSS (port 3000)
 - **Backend:** Next.js Route Handlers + Mongoose + MongoDB — served by the **same Next process** (port 3000). Endpoints live in `packages/client/app/api/v1/`; the server layer (models, libs, services, controllers) in `packages/client/src/server/`. **No standalone Express service** (retired in Phase C-bis — see §10/§14).
-- **AI Agents:** two Holodeck sidecars — meal-recommender (OpenAI `gpt-4o`, port 8001) + feedback-collector (Claude, port 8002)
+- **AI Agents:** two Holodeck sidecars — meal-recommender (OpenAI `gpt-4o`, port 8001) + feedback-collector (OpenAI `gpt-4o`, port 8002)
 - **Language:** TypeScript (strict mode throughout)
 - **Monorepo:** npm workspace (`packages/client`) — the Next app is the whole stack
 
@@ -224,9 +224,7 @@ Copy `.env.example` to `.env` before running locally.
 |----------|---------|----------|
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | Yes |
 | `HOLODECK_URL` | `http://localhost:8001` | Yes (AI features) |
-| `CLAUDE_CODE_OAUTH_TOKEN` | — | Preferred for AI |
-| `ANTHROPIC_API_KEY` | — | Fallback for AI |
-| `OPENAI_API_KEY` | — | Fallback if Anthropic unavailable in Holodeck |
+| `OPENAI_API_KEY` | — | Yes for AI features — sole LLM credential (both agents run on the OpenAI provider) |
 | `AUTH_ISSUER` | — | No (CR-001, production OIDC) |
 | `AUTH_AUDIENCE` | — | No (CR-001, production OIDC) |
 | `AUTH_JWKS_URI` | — | No (CR-001, production OIDC) |
@@ -358,12 +356,12 @@ One active test case ("Prioritise expiring chicken") is defined in `agent.yaml` 
 
 A **second Holodeck agent** collects bug/improvement feedback conversationally and saves structured, spec-shaped records (exportable as `/speckit.specify` markdown). One Holodeck instance serves one agent, so it runs in its **own container/port**.
 
-- **Config:** `agents/feedback-collector/agent.yaml` (+ `agent.serve.yaml` serve variant — no `${…}` anywhere, incl. comments). **Model:** `claude-sonnet-4-6`, temp **0.3**, `allowed_tools: []` (**no web tools** — it only converses; also removes an injection amplifier). Evals: `JSONProtocolCompliance`/`ClarifyingQuestionQuality`/`SpecReadiness`.
+- **Config:** `agents/feedback-collector/agent.yaml` (+ `agent.serve.yaml` serve variant — no `${…}` except the single `OPENAI_API_KEY` reference in `model.api_key`; holodeck interpolates over comments too). **Model:** OpenAI `gpt-4o` (Semantic Kernel backend — **migrated off Claude** like the meal-recommender), temp **0.3**, `api_key: ${OPENAI_API_KEY}`. **No web tools** (the SK backend exposes none — it only converses; also removes an injection amplifier). Evals: `JSONProtocolCompliance`/`ClarifyingQuestionQuality`/`SpecReadiness`.
 - **Protocol (raw JSON only):** the backend replays the whole transcript each turn (**stateless**, CR-018) framed with untrusted-data markers; the agent returns exactly one object — `{status:"collecting",reply,missing[]}` or `{status:"complete",reply,record{…}}`. At the ~30-turn cap the backend appends `FINALIZE NOW`.
 - **Local:** `docker compose up -d --build holodeck-feedback` (port **8002**). The Next app reads **`FEEDBACK_AGENT_URL`** (`http://localhost:8002` locally). When unset/unreachable the `/api/v1/feedback` chat endpoints return **502** and preserve the draft — the rest of the app is unaffected.
 - **App wiring:** `src/server/services/feedback-collector.ts` (client — fence-strip + zod discriminated-union validation), `controllers/feedback.ts`, `models/feedback-record.ts`, `lib/feedback-export.ts` (spec-template markdown), routes under `app/api/v1/feedback/**`; UI at `/feedback` (`views/FeedbackPage.tsx`, `context/FeedbackContext.tsx`, `components/feedback/*`).
-- **Base-image note (2026-07-11):** the current `holodeck-base:latest` (Debian trixie) **rejects `claude.setting_sources`** and **no longer bundles Node.js** (which the Claude provider needs). The feedback Dockerfile therefore omits `setting_sources` and `apt-get install`s `nodejs`. The older meal-recommender image predates both; rebuilding it may need the same fixes.
-- **Prod (Phase F6, wired):** the second agent image `…/fridge-planner-feedback` is published by `.github/workflows/agent-feedback-image.yml` (tag `agent-feedback-v*`, linux/amd64); `docker-compose.prod.yml` runs it as the internal `holodeck-feedback` service (`:8002`, `FEEDBACK_AGENT_IMAGE`, Claude creds), and the `app` service reads `FEEDBACK_AGENT_URL`. See `docs/deployment.md` → "Updating a running deployment".
+- **Base-image note (2026-07-11):** the current `holodeck-base:latest` (Debian trixie) **rejects `claude.setting_sources`** and **no longer bundles Node.js**. Neither matters post-OpenAI-migration (the SK backend needs no Node.js and no `claude:` block) — the feedback Dockerfile no longer installs `nodejs`. Kept for history in case an Anthropic agent returns.
+- **Prod (Phase F6, wired):** the second agent image `…/fridge-planner-feedback` is published by `.github/workflows/agent-feedback-image.yml` (tag `agent-feedback-v*`, linux/amd64); `docker-compose.prod.yml` runs it as the internal `holodeck-feedback` service (`:8002`, `FEEDBACK_AGENT_IMAGE`, `OPENAI_API_KEY`), and the `app` service reads `FEEDBACK_AGENT_URL`. See `docs/deployment.md` → "Updating a running deployment".
 
 ---
 
@@ -482,7 +480,7 @@ After updating the spec, any existing code that no longer satisfies the revised 
 ChromaDB and Ollama embeddings were added then removed (commit `983ec78`). The meal recommender doesn't need semantic search — it receives structured inventory JSON directly. Adding embedding infrastructure is over-engineering for this use case.
 
 **For Anthropic agents, don't set `auth_provider: api_key` in `agent.yaml`.**
-Applies to the **feedback-collector** (still `provider: anthropic`): use `auth_provider: oauth_token` (`CLAUDE_CODE_OAUTH_TOKEN`); `ANTHROPIC_API_KEY` is the fallback, not the default (commit `da0f65f`). *(The meal-recommender no longer uses `auth_provider` at all — it migrated to `provider: openai` with `api_key: ${OPENAI_API_KEY}`, which is the correct field for OpenAI. This rule is Anthropic-specific.)*
+Anthropic-specific rule, currently dormant: **both agents now run on `provider: openai`** with `api_key: ${OPENAI_API_KEY}` (the correct field for OpenAI — no `auth_provider`). If an Anthropic agent is ever (re)introduced, use `auth_provider: oauth_token` (`CLAUDE_CODE_OAUTH_TOKEN`); `ANTHROPIC_API_KEY` is the fallback, not the default (commit `da0f65f`).
 
 **Don't let the meal recommender return prose or markdown.**
 The original agent returned human-readable text; the system prompt was rewritten to enforce raw JSON only (commit `4082def`). Any prompt change that loosens this constraint will break the client's JSON parser.
@@ -537,3 +535,9 @@ Production deploys via a **staged runbook driven by an orchestrator**, so most f
 - App image is `ghcr.io/emtabiraobarias/fridge-planner-client`; `…/fridge-planner` (no suffix) is the Holodeck image.
 - CD is **edition-aware**: Portainer **CE** can't use stack webhooks (Business-only). On CE, keep the self-hosted-runner compose rollout (an admin installs the runner once) or stop at build-push and do Portainer **Pull and redeploy** by hand; **BE** could POST a redeploy webhook behind the gate.
 - The prod stack deploys **through Portainer**; the dev `docker compose` commands in §2 are for local development only.
+
+---
+
+## 16. Orchestration workflow
+
+You (Fable) are the orchestrator. Plan, decompose, synthesize. Reasoning-heavy phases go to deep-reasoner (Opus). Mechanical work goes to fast-worker (Sonnet). For high-stakes decisions, run deep-reasoner twice with slightly different framings and synthesize the best of both. Keep your own context lean. Delegate rather than doing mechanical work yourself.

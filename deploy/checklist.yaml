@@ -26,8 +26,8 @@ meta:
   keycloak_realm: fridge-planner
   network: fpnet
   portainer_edition: CE                            # CE | BE (affects the CD step)
-  # Runtime secret keys (see deploy/prod.env.example): OPENAI_API_KEY (meal-rec),
-  # CLAUDE_CODE_OAUTH_TOKEN/ANTHROPIC_API_KEY (feedback), BRAVE_SEARCH_API_KEY +
+  # Runtime secret keys (see deploy/prod.env.example): OPENAI_API_KEY (both agents —
+  # meal-rec + feedback), BRAVE_SEARCH_API_KEY +
   # SPOONACULAR_API_KEY (optional recipe-URL verification), plus MONGO/OIDC/KC keys.
 
 steps:
@@ -52,8 +52,8 @@ steps:
       This file ALREADY EXISTS and is well-formed (only caddy publishes ports; app pulls
       ${APP_IMAGE:-…/fridge-planner-client}; mongo/holodeck/holodeck-feedback/keycloak/keycloak-db
       internal on fpnet; ${VAR:?} fail-fast; AUTH_JWKS_URI uses the INTERNAL keycloak URL by design).
-      TWO agents: holodeck (meal-rec, OPENAI_API_KEY) + holodeck-feedback :8002 (Claude,
-      CLAUDE_CODE_OAUTH_TOKEN). App also reads FEEDBACK_AGENT_URL + optional BRAVE/SPOONACULAR keys.
+      TWO agents: holodeck (meal-rec) + holodeck-feedback :8002 — both OpenAI,
+      OPENAI_API_KEY. App also reads FEEDBACK_AGENT_URL + optional BRAVE/SPOONACULAR keys.
       VERIFY only — do not rewrite. Only propose a diff if a concrete defect is found.
     done_when: "compose parses; only caddy has ports; no AUTH_ALLOW_DEV; matches deploy/prod.env.example var names."
 

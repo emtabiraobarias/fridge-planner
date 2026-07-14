@@ -3,13 +3,16 @@
 # Derived from agent.yaml but WITHOUT the evaluations, test_cases, and observability
 # blocks: those reference dev/test env vars (AZURE_OPENAI_*, OTLP_ENDPOINT) that
 # holodeck serve tries to resolve at load time and that do not exist in production.
-# holodeck serve needs only the model + instructions + claude blocks. The system prompt
-# stays single-source (instructions/system-prompt.md) — keep the model/claude settings
+# holodeck serve needs only the model + instructions blocks. The system prompt
+# stays single-source (instructions/system-prompt.md) — keep the model settings
 # here in sync with agent.yaml if they change. Use agent.yaml for holodeck test.
 #
-# Only runtime credential: CLAUDE_CODE_OAUTH_TOKEN (via model.auth_provider), which the
-# compose injects. NOTE: holodeck substitutes env-var references over the raw file text
-# INCLUDING COMMENTS, so this file must contain no dollar-brace sequences anywhere.
+# Provider is OpenAI (Semantic Kernel backend), so the only runtime credential is
+# OPENAI_API_KEY, injected by compose and resolved via model.api_key below. CRITICAL:
+# holodeck substitutes env-var references over the raw file text INCLUDING COMMENTS,
+# so this file must contain no dollar-brace sequences other than that single
+# OPENAI_API_KEY reference in model.api_key — mention the variable name bare (no
+# dollar sign, no braces) anywhere else, including in comments.
 
 name: feedback-collector
 description: Conversational agent that collects bug reports / improvement suggestions as structured specification input
@@ -18,17 +21,13 @@ execution:
   llm_timeout: 120
 
 model:
-  provider: anthropic
-  name: claude-sonnet-4-6
-  auth_provider: oauth_token
+  provider: openai
+  name: gpt-4o
+  api_key: ${OPENAI_API_KEY}
   temperature: 0.3
   max_tokens: 2000
 
 instructions:
   file: instructions/system-prompt.md
 
-claude:
-  max_turns: 3
-  extended_thinking:
-    enabled: false
-  allowed_tools: []
+# SK/OpenAI backend has no tool support here, so no allowed_tools lockdown is needed.

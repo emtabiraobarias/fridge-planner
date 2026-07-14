@@ -4,8 +4,8 @@ name: Agent image (feedback-collector)
 # ghcr.io/emtabiraobarias/fridge-planner-feedback (distinct from the meal-recommender
 # agent image …/fridge-planner and the app image …/fridge-planner-client). The prod
 # compose's `holodeck-feedback` service pulls :latest by default (override with
-# FEEDBACK_AGENT_IMAGE). Still Claude/Anthropic (needs CLAUDE_CODE_OAUTH_TOKEN at
-# runtime + Node.js in the image — see agents/feedback-collector/Dockerfile).
+# FEEDBACK_AGENT_IMAGE). Provider is OpenAI (needs OPENAI_API_KEY at runtime — see
+# agents/feedback-collector/Dockerfile).
 #
 # Trigger: push a tag `agent-feedback-v*` (e.g. agent-feedback-v1.0.0).
 # Publishes :<version> + :latest. Per-branch file (impl/nextjs). Built linux/amd64

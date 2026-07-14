@@ -1,9 +1,10 @@
 # Feedback Collector Agent
 # Interviews a user reporting a bug / suggesting an improvement and emits a single
 # structured, spec-shaped record via a strict raw-JSON conversation protocol.
-# Provider: Anthropic Claude Sonnet 4.6. No web tools — it only converses (this also
-# removes a prompt-injection amplifier and keeps turns fast).
-# Note: holodeck serve requires Node.js at runtime when using the Anthropic provider.
+# Provider: OpenAI gpt-4o (Semantic Kernel backend) — no Claude/Anthropic dependency,
+# no Node.js runtime requirement. Under this backend Holodeck exposes no web tools
+# anyway, so the agent only converses (this also preserves the anti-prompt-injection
+# property and keeps turns fast).
 
 name: feedback-collector
 description: Conversational agent that collects bug reports / improvement suggestions as structured specification input
@@ -11,20 +12,16 @@ description: Conversational agent that collects bug reports / improvement sugges
 execution:
   llm_timeout: 120
 model:
-  provider: anthropic
-  name: claude-sonnet-4-6
-  auth_provider: oauth_token
+  provider: openai
+  name: gpt-4o
+  api_key: ${OPENAI_API_KEY}
   temperature: 0.3
   max_tokens: 2000
 
 instructions:
   file: instructions/system-prompt.md
 
-claude:
-  max_turns: 3
-  extended_thinking:
-    enabled: false
-  allowed_tools: []     # no WebSearch/WebFetch — the agent only converses
+# SK/OpenAI backend has no tool support here, so no allowed_tools lockdown is needed.
 
 evaluations:
   model:

@@ -119,18 +119,17 @@ services:
     networks: [fpnet]
 
   # ── Feedback-collector agent (spec 003 / Phase F): internal only, egress to LLM ──
-  # A SECOND Holodeck instance (one agent per instance) on :8002. Still Claude/Anthropic
-  # (unlike the meal-recommender) → needs CLAUDE_CODE_OAUTH_TOKEN (ANTHROPIC_API_KEY
-  # fallback). The app reaches it at FEEDBACK_AGENT_URL; if it's down the /api/v1/feedback
-  # chat endpoints 502 and preserve drafts, so the rest of the app is unaffected.
+  # A SECOND Holodeck instance (one agent per instance) on :8002. Provider is now
+  # OpenAI, same as the meal-recommender, so it reads OPENAI_API_KEY. The app reaches
+  # it at FEEDBACK_AGENT_URL; if it's down the /api/v1/feedback chat endpoints 502 and
+  # preserve drafts, so the rest of the app is unaffected.
   holodeck-feedback:
     image: ${FEEDBACK_AGENT_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-feedback:latest}
     restart: unless-stopped
     environment:
       HOLODECK_PORT: 8002
       HOLODECK_PROTOCOL: rest
-      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 15s

@@ -1,23 +1,15 @@
 # Feedback-collector agent image → ghcr.io/emtabiraobarias/fridge-planner-feedback
 #
-# Anthropic/Claude agent, so it uses the manual `holodeck serve` container path
-# (holodeck deploy build supports Semantic-Kernel backends only). The base image
-# carries the holodeck runtime + Node.js (required by the Anthropic provider).
+# OpenAI agent (Semantic Kernel backend), so it uses the manual `holodeck serve`
+# container path (holodeck deploy build supports Semantic-Kernel backends only).
 #
 # Port/protocol default to 8002/rest to match docker-compose.yml's holodeck-feedback
 # service and FEEDBACK_AGENT_URL=http://holodeck-feedback:8002. Runtime secret
-# CLAUDE_CODE_OAUTH_TOKEN is injected by compose, never baked in.
+# OPENAI_API_KEY is injected by compose, never baked in.
 FROM ghcr.io/justinbarias/holodeck-base:latest
 
 USER root
 WORKDIR /app
-
-# The Claude Agent SDK (Anthropic provider) requires Node.js on PATH. The current
-# holodeck-base:latest (Debian trixie) no longer bundles it, so install it explicitly —
-# this keeps the image self-sufficient regardless of base-image drift.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends nodejs npm \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
