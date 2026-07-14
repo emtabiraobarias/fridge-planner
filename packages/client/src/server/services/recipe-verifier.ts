@@ -173,6 +173,15 @@ async function searchSpoonacular(mealName: string): Promise<VerifiedRecipe | nul
 }
 
 /**
+ * FR-037: whether recipe-link verification can run at all. With neither provider key
+ * configured, no meal can ever be linked — the recommendations controller uses this to
+ * fail loudly instead of silently returning (and then dropping) every meal.
+ */
+export function isRecipeVerificationConfigured(): boolean {
+  return Boolean(process.env['BRAVE_SEARCH_API_KEY'] || process.env['SPOONACULAR_API_KEY']);
+}
+
+/**
  * Find a real, verified recipe URL for a meal name — approved domains first, then
  * Spoonacular. Returns null (never a guess) if nothing confident is found.
  */

@@ -53,6 +53,17 @@ export function MealCard({ meal, onPlan }: Props): React.JSX.Element {
 
       <p className="mt-2 text-[13px] text-ink/75">{meal.description}</p>
 
+      {meal.recipeUrl && (
+        <a
+          href={meal.recipeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1.5 inline-block text-[13px] font-semibold text-accent2-800 underline underline-offset-2 hover:text-accent2-600"
+        >
+          View recipe ↗
+        </a>
+      )}
+
       <div className="mt-3 flex flex-wrap gap-1.5">
         {meal.expiringIngredients.map((ing) => (
           <span

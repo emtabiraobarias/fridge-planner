@@ -15,6 +15,13 @@ const mockMeal = {
   expiringIngredients: ['chicken breast'],
   missingIngredients: [],
 };
+// FR-037: the controller needs ≥3 linked meals to skip the top-up round, so the
+// default agent response is a trio.
+const mockMeals = [
+  mockMeal,
+  { ...mockMeal, mealName: 'Chicken Rice Bowl' },
+  { ...mockMeal, mealName: 'Garlic Chicken Noodles' },
+];
 
 // Mock the Holodeck agent call (no real network). vi.hoisted lets the factory
 // reference the spy. Both the controller's relative import and this @server path
@@ -23,10 +30,26 @@ const { getMealRecommendations } = vi.hoisted(() => ({ getMealRecommendations: v
 vi.mock('@server/services/meal-recommender', () => ({ getMealRecommendations }));
 
 // Mock the recipe-verifier enrichment step (its own internals are unit-tested
-// separately in unit/recipe-verifier.test.ts). Defaults to a passthrough so
-// unrelated tests aren't affected; overridden in the enrichment test below.
-const { attachVerifiedRecipes } = vi.hoisted(() => ({ attachVerifiedRecipes: vi.fn() }));
-vi.mock('@server/services/recipe-verifier', () => ({ attachVerifiedRecipes }));
+// separately in unit/recipe-verifier.test.ts). Defaults to linking every meal
+// (FR-037: unlinked meals are dropped); overridden per-test where the scenario
+// needs unlinked or partially-linked results.
+const { attachVerifiedRecipes, isRecipeVerificationConfigured } = vi.hoisted(() => ({
+  attachVerifiedRecipes: vi.fn(),
+  isRecipeVerificationConfigured: vi.fn(),
+}));
+vi.mock('@server/services/recipe-verifier', () => ({
+  attachVerifiedRecipes,
+  isRecipeVerificationConfigured,
+}));
+
+function linkAll(meals: Array<Record<string, unknown>>): Promise<Array<Record<string, unknown>>> {
+  return Promise.resolve(
+    meals.map((m) => ({
+      ...m,
+      recipeUrl: `https://www.recipetineats.com/${String(m['mealName']).toLowerCase().replace(/\s+/g, '-')}/`,
+    })),
+  );
+}
 
 let mongod: MongoMemoryServer;
 let InventoryItem: typeof import('@server/models/inventory-item').InventoryItem;
@@ -52,7 +75,9 @@ beforeEach(async () => {
   await mongoose.connection.dropDatabase();
   getMealRecommendations.mockReset();
   attachVerifiedRecipes.mockReset();
-  attachVerifiedRecipes.mockImplementation((meals: unknown) => Promise.resolve(meals));
+  attachVerifiedRecipes.mockImplementation(linkAll);
+  isRecipeVerificationConfigured.mockReset();
+  isRecipeVerificationConfigured.mockReturnValue(true);
   invalidateUser(USER);
   // Reset the in-memory rate-limit windows so per-test call counts start fresh.
   (globalThis as unknown as { _rateLimitBuckets?: Map<string, unknown> })._rateLimitBuckets?.clear();
@@ -86,7 +111,7 @@ describe('POST /api/v1/recommendations', () => {
 
   it('calls the agent with non-expired inventory and returns its meals', async () => {
     await seedInv('Chicken Breast');
-    getMealRecommendations.mockResolvedValueOnce([mockMeal]);
+    getMealRecommendations.mockResolvedValueOnce(mockMeals);
     const res = await POST(req());
     expect(res.status).toBe(200);
     const body = (await res.json()) as RecResponse;
@@ -102,7 +127,7 @@ describe('POST /api/v1/recommendations', () => {
     await InventoryItem.create({
       userId: USER, name: 'Old Milk', quantity: 1, unit: 'l', category: 'Dairy', location: 'fridge', expiresAt: yesterday,
     });
-    getMealRecommendations.mockResolvedValueOnce([mockMeal]);
+    getMealRecommendations.mockResolvedValue(mockMeals);
     await POST(req());
     const arg = getMealRecommendations.mock.calls[0]?.[0] as Array<{ name: string }>;
     const names = arg.map((i) => i.name);
@@ -112,7 +137,7 @@ describe('POST /api/v1/recommendations', () => {
 
   it('serves a cached result on the second identical call (agent called once)', async () => {
     await seedInv('Chicken Breast');
-    getMealRecommendations.mockResolvedValue([mockMeal]);
+    getMealRecommendations.mockResolvedValue(mockMeals);
     await POST(req());
     const res2 = await POST(req());
     const body = (await res2.json()) as RecResponse;
@@ -133,14 +158,11 @@ describe('POST /api/v1/recommendations', () => {
 
   it('enriches agent meals with a verified recipeUrl before caching (Option A groundedness)', async () => {
     await seedInv('Chicken Breast');
-    getMealRecommendations.mockResolvedValueOnce([mockMeal]);
-    attachVerifiedRecipes.mockImplementationOnce((meals: Array<Record<string, unknown>>) =>
-      Promise.resolve(meals.map((m) => ({ ...m, recipeUrl: 'https://www.recipetineats.com/chicken-stir-fry/' }))),
-    );
+    getMealRecommendations.mockResolvedValueOnce(mockMeals);
 
     const res = await POST(req());
     const body = (await res.json()) as { recommendations: Array<{ mealName: string; recipeUrl?: string }> };
-    expect(attachVerifiedRecipes).toHaveBeenCalledWith([mockMeal]);
+    expect(attachVerifiedRecipes).toHaveBeenCalledWith(mockMeals);
     expect(body.recommendations[0]?.recipeUrl).toBe('https://www.recipetineats.com/chicken-stir-fry/');
 
     // The enriched (URL-attached) result is what gets cached, not the raw agent output.
@@ -148,6 +170,76 @@ describe('POST /api/v1/recommendations', () => {
     const body2 = (await res2.json()) as { recommendations: Array<{ recipeUrl?: string }> };
     expect(body2.recommendations[0]?.recipeUrl).toBe('https://www.recipetineats.com/chicken-stir-fry/');
     expect(getMealRecommendations).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops meals without a verified recipe link and tops up once, excluding seen names (FR-037)', async () => {
+    await seedInv('Chicken Breast');
+    // Round 1: three meals, only one gets a link.
+    getMealRecommendations.mockResolvedValueOnce(mockMeals);
+    attachVerifiedRecipes.mockImplementationOnce((meals: Array<Record<string, unknown>>) =>
+      Promise.resolve(
+        meals.map((m, i) => (i === 0 ? { ...m, recipeUrl: 'https://www.recipetineats.com/stir-fry/' } : m)),
+      ),
+    );
+    // Round 2 (top-up): two fresh meals, both linked by the default linkAll mock.
+    const topUpMeals = [
+      { ...mockMeal, mealName: 'Chicken Adobo' },
+      { ...mockMeal, mealName: 'Chicken Congee' },
+    ];
+    getMealRecommendations.mockResolvedValueOnce(topUpMeals);
+
+    const res = await POST(req());
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { recommendations: Array<{ mealName: string; recipeUrl?: string }> };
+
+    // Unlinked round-1 meals are gone; every returned meal has a link.
+    expect(body.recommendations.map((m) => m.mealName)).toEqual([
+      'Chicken Stir-fry',
+      'Chicken Adobo',
+      'Chicken Congee',
+    ]);
+    expect(body.recommendations.every((m) => Boolean(m.recipeUrl))).toBe(true);
+
+    // The top-up call excluded every already-seen meal name.
+    expect(getMealRecommendations).toHaveBeenCalledTimes(2);
+    const excludeArg = getMealRecommendations.mock.calls[1]?.[1] as string[];
+    expect(excludeArg).toEqual(mockMeals.map((m) => m.mealName));
+  });
+
+  it('returns 503 Problem JSON when no meal can be linked and verification is configured (FR-037)', async () => {
+    await seedInv('Chicken Breast');
+    getMealRecommendations.mockResolvedValue(mockMeals);
+    attachVerifiedRecipes.mockImplementation((meals: unknown) => Promise.resolve(meals)); // links nothing
+
+    const res = await POST(req());
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { title: string; detail: string };
+    expect(body.title).toBe('Recipe verification unavailable');
+    expect(body.detail).toMatch(/providers may be unavailable/i);
+    // One top-up round was still attempted before failing.
+    expect(getMealRecommendations).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns 503 without a top-up round when verification is not configured (FR-037)', async () => {
+    await seedInv('Chicken Breast');
+    getMealRecommendations.mockResolvedValue(mockMeals);
+    attachVerifiedRecipes.mockImplementation((meals: unknown) => Promise.resolve(meals)); // links nothing
+    isRecipeVerificationConfigured.mockReturnValue(false);
+
+    const res = await POST(req());
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { detail: string };
+    expect(body.detail).toMatch(/not configured/i);
+    // No point topping up when verification can never link anything.
+    expect(getMealRecommendations).toHaveBeenCalledTimes(1);
+  });
+
+  it('popular-recipe fallbacks all carry a verified recipe link (FR-037)', async () => {
+    const res = await POST(req());
+    const body = (await res.json()) as { recommendations: Array<{ recipeUrl?: string }>; fallback: string };
+    expect(body.fallback).toBe('popular');
+    expect(body.recommendations.length).toBeGreaterThan(0);
+    expect(body.recommendations.every((m) => Boolean(m.recipeUrl))).toBe(true);
   });
 
   it('rate-limits to 10 requests/minute per user (429 on the 11th)', async () => {

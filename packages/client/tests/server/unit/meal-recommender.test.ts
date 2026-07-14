@@ -60,6 +60,24 @@ describe('getMealRecommendations (Holodeck agent client)', () => {
     );
   });
 
+  it('includes an exclusion instruction in the prompt when excludeMealNames is given (FR-037)', async () => {
+    mockFetch.mockResolvedValueOnce(holodeckOk(JSON.stringify([mockMeal])));
+    await getMealRecommendations(
+      [{ name: 'chicken breast', quantity: 2, unit: 'lbs' }],
+      ['Chicken Stir-fry', 'Chicken Adobo'],
+    );
+    const body = JSON.parse((mockFetch.mock.calls[0]?.[1] as { body: string }).body) as { message: string };
+    expect(body.message).toContain('Do NOT suggest any of these meals');
+    expect(body.message).toContain('Chicken Stir-fry, Chicken Adobo');
+  });
+
+  it('omits the exclusion instruction when excludeMealNames is empty', async () => {
+    mockFetch.mockResolvedValueOnce(holodeckOk(JSON.stringify([mockMeal])));
+    await getMealRecommendations([{ name: 'chicken breast', quantity: 2, unit: 'lbs' }]);
+    const body = JSON.parse((mockFetch.mock.calls[0]?.[1] as { body: string }).body) as { message: string };
+    expect(body.message).not.toContain('Do NOT suggest');
+  });
+
   it('parses a MealRecommendation array from the holodeck message', async () => {
     mockFetch.mockResolvedValueOnce(holodeckOk(JSON.stringify([mockMeal])));
     const result = await getMealRecommendations([

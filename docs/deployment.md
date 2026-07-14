@@ -65,8 +65,9 @@ Per-branch runbook for shipping **`impl/nextjs`** to production with **gated CI/
       address; **`FEEDBACK_AGENT_URL`** reachable from the app. Provider = **OpenAI** → needs
       **`OPENAI_API_KEY`** (same key as the meal-recommender). If down, `/api/v1/feedback` 502s and
       preserves drafts — the rest of the app is unaffected.
-- [ ] *(optional)* recipe-URL verification for recommendations: `BRAVE_SEARCH_API_KEY` +
-      `SPOONACULAR_API_KEY` on the **app** (not the agent). Unset → meals return without a `recipeUrl`.
+- [ ] **Required for recommendations (FR-037):** recipe-URL verification keys `BRAVE_SEARCH_API_KEY` +
+      `SPOONACULAR_API_KEY` on the **app** (not the agent) — at least one must be set. Every shown meal
+      must carry a verified recipe link; with neither key set the recommendations endpoint returns 503.
 
 ### Secrets & prod env (in a secret manager — **never** in the image)
 - [ ] `NODE_ENV=production`
@@ -253,8 +254,8 @@ Only re-tag/rebuild the image(s) that actually changed. A code change under `pac
    AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner:1.1.0
    FEEDBACK_AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-feedback:1.0.0
    OPENAI_API_KEY=…            # BOTH agents (meal-recommender + feedback collector)
-   BRAVE_SEARCH_API_KEY=…      # optional (recipe-URL verification)
-   SPOONACULAR_API_KEY=…       # optional
+   BRAVE_SEARCH_API_KEY=…      # recipe-URL verification — at least one of these two is
+   SPOONACULAR_API_KEY=…       # REQUIRED for recommendations (FR-037: 503 without)
    ```
 
 4. **Redeploy — a rolling, volume-preserving recreate:**

@@ -17,6 +17,7 @@ interface HolodeckResponse {
 
 export async function getMealRecommendations(
   ingredients: IngredientInput[],
+  excludeMealNames: string[] = [],
 ): Promise<MealRecommendation[]> {
   const holodeckUrl = process.env['HOLODECK_URL'];
   if (!holodeckUrl) {
@@ -26,6 +27,10 @@ export async function getMealRecommendations(
   const message = [
     'Suggest 3-5 meals I can make with these ingredients.',
     'Prioritise ingredients expiring soonest to minimise food waste.',
+    // FR-037 top-up round: steer the agent away from meals already suggested this request.
+    ...(excludeMealNames.length > 0
+      ? [`Do NOT suggest any of these meals (or close variations): ${excludeMealNames.join(', ')}.`]
+      : []),
     '',
     ...ingredients.map((i) =>
       i.expiresAt

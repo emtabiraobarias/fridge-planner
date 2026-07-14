@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { verifyRecipe, attachVerifiedRecipes } from '@server/services/recipe-verifier';
+import {
+  verifyRecipe,
+  attachVerifiedRecipes,
+  isRecipeVerificationConfigured,
+} from '@server/services/recipe-verifier';
 import type { MealRecommendation } from '@server/types/meal-recommendation';
 
 // Mock global fetch so the REAL verifier logic (query building, domain filtering,
@@ -156,5 +160,13 @@ describe('recipe-verifier', () => {
     expect(enriched[0]).toMatchObject({ mealName: 'Chicken Adobo', recipeUrl: 'https://www.kawalingpinoy.com/chicken-adobo/' });
     expect(enriched[1]).not.toHaveProperty('recipeUrl');
     expect(enriched[1]).not.toHaveProperty('imageUrl');
+  });
+
+  it('isRecipeVerificationConfigured reflects whether either provider key is set (FR-037)', () => {
+    expect(isRecipeVerificationConfigured()).toBe(true); // both set by beforeEach
+    delete process.env['BRAVE_SEARCH_API_KEY'];
+    expect(isRecipeVerificationConfigured()).toBe(true); // Spoonacular alone suffices
+    delete process.env['SPOONACULAR_API_KEY'];
+    expect(isRecipeVerificationConfigured()).toBe(false);
   });
 });
