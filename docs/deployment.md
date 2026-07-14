@@ -19,10 +19,10 @@ Per-branch runbook for shipping **`impl/nextjs`** to production with **gated CI/
                       │ MongoDB Atlas  │               │ Holodeck agent sidecar      │
                       │ (managed)      │               │ (ghcr.io/.../fridge-planner)│
                       └────────────────┘               └──────────┬──────────────────┘
-                              ▲ OIDC token validation             │ LLM (Anthropic/OpenAI)
+                              ▲ OIDC token validation             │ LLM (OpenAI)
                       ┌───────┴────────┐                  ┌────────▼────────┐
-                      │ OIDC IdP       │  (issues tokens) │ Anthropic /     │
-                      │ (Auth0/Okta/…) │                  │ OpenAI          │
+                      │ OIDC IdP       │  (issues tokens) │ OpenAI          │
+                      │ (Auth0/Okta/…) │                  │                 │
                       └────────────────┘                  └─────────────────┘
 ```
 
@@ -62,8 +62,8 @@ Per-branch runbook for shipping **`impl/nextjs`** to production with **gated CI/
 - [ ] **Meal-recommender** (`ghcr.io/emtabiraobarias/fridge-planner`, `:8001`) on a **private** address;
       **`HOLODECK_URL`** reachable from the app. Provider = **OpenAI** → needs **`OPENAI_API_KEY`**.
 - [ ] **Feedback collector** (`ghcr.io/emtabiraobarias/fridge-planner-feedback`, `:8002`) on a **private**
-      address; **`FEEDBACK_AGENT_URL`** reachable from the app. Provider = **Claude** → needs
-      **`CLAUDE_CODE_OAUTH_TOKEN`** (or `ANTHROPIC_API_KEY`). If down, `/api/v1/feedback` 502s and
+      address; **`FEEDBACK_AGENT_URL`** reachable from the app. Provider = **OpenAI** → needs
+      **`OPENAI_API_KEY`** (same key as the meal-recommender). If down, `/api/v1/feedback` 502s and
       preserves drafts — the rest of the app is unaffected.
 - [ ] *(optional)* recipe-URL verification for recommendations: `BRAVE_SEARCH_API_KEY` +
       `SPOONACULAR_API_KEY` on the **app** (not the agent). Unset → meals return without a `recipeUrl`.
@@ -157,8 +157,8 @@ all connection values into the secret store (E4).
 **Single-node internal-LAN variant (current target).** Instead of Cloud Run + Atlas, run the whole
 stack on one host reachable only over the LAN. Artifacts committed for this:
 - [`docker-compose.prod.yml`](../docker-compose.prod.yml) — Caddy (edge) + app (pulled image) + MongoDB
-  (internal, auth on) + **two agents** (`holodeck` meal-rec :8001 OpenAI, `holodeck-feedback` :8002
-  Claude) + Keycloak (+ its Postgres). **Only Caddy publishes host ports (80/443); everything else is
+  (internal, auth on) + **two agents** (`holodeck` meal-rec :8001, `holodeck-feedback` :8002 —
+  both OpenAI) + Keycloak (+ its Postgres). **Only Caddy publishes host ports (80/443); everything else is
   reachable only on the `fpnet` network.**
 - [`deploy/Caddyfile`](../deploy/Caddyfile) — `fridgeplanner.lan` → app, `auth.fridgeplanner.lan` →
   Keycloak; **Stage 1** uses `local_certs` (internal CA, no internet); **Stage 2** drops the global block
@@ -216,7 +216,7 @@ The two agents (`holodeck`, `holodeck-feedback`) are **stateless** — feedback 
 |---|---|---|
 | `…/fridge-planner-client` (`APP_IMAGE`) | `nextjs-v*` → `deploy-nextjs.yml` | UI + API + **recipe-verifier** |
 | `…/fridge-planner` (`AGENT_IMAGE`) | `agent-v*` → `agent-image.yml` | meal-recommender (**OpenAI**) |
-| `…/fridge-planner-feedback` (`FEEDBACK_AGENT_IMAGE`) | `agent-feedback-v*` → `agent-feedback-image.yml` | feedback collector (**Claude**) |
+| `…/fridge-planner-feedback` (`FEEDBACK_AGENT_IMAGE`) | `agent-feedback-v*` → `agent-feedback-image.yml` | feedback collector (**OpenAI**) |
 
 Only re-tag/rebuild the image(s) that actually changed. A code change under `packages/client/`
 → `nextjs-v*`; a change under `agents/meal-recommender/` → `agent-v*`; under
@@ -252,8 +252,7 @@ Only re-tag/rebuild the image(s) that actually changed. A code change under `pac
    APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:4.1.0
    AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner:1.1.0
    FEEDBACK_AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-feedback:1.0.0
-   OPENAI_API_KEY=…            # meal-recommender (new — was CLAUDE_* before the OpenAI migration)
-   CLAUDE_CODE_OAUTH_TOKEN=…   # feedback agent (unchanged)
+   OPENAI_API_KEY=…            # BOTH agents (meal-recommender + feedback collector)
    BRAVE_SEARCH_API_KEY=…      # optional (recipe-URL verification)
    SPOONACULAR_API_KEY=…       # optional
    ```
@@ -295,11 +294,15 @@ migration. Keep the last-known-good tags noted in `deploy/state.json`.
 The currently-running stack predates the OpenAI meal-rec + recipe-verifier + feedback-agent changes.
 To move it to this version without data loss, do a **normal update** (above) with these specifics:
 - Publish **all three** images (`nextjs-v*`, `agent-v*`, `agent-feedback-v*`).
-- Add `OPENAI_API_KEY` to the env; the meal-rec `holodeck` service no longer reads
-  `CLAUDE_CODE_OAUTH_TOKEN` (that now feeds only `holodeck-feedback`). Keep the Claude token set for
-  the feedback agent.
+- Add `OPENAI_API_KEY` to the env; neither agent reads `CLAUDE_CODE_OAUTH_TOKEN` /
+  `ANTHROPIC_API_KEY` any more (both migrated to the OpenAI provider) — the Claude
+  credentials can be removed from the stack env.
 - The new `holodeck-feedback` service is **additive** — it starts alongside the others; no existing
   volume or service is replaced. `mongodb_data` (your existing inventory/plans) is untouched.
+- **Troubleshooting:** if a (re)built agent image passes `/health` but the first chat turn fails with
+  `Agent execution failed: No module named 'agents'`, the image was built without the `openai-agents`
+  extra that Holodeck ≥0.7 needs for `provider: openai`. Both agent Dockerfiles install it
+  (`pip install "holodeck-ai[openai-agents]==<holodeck version>"`) — rebuild from the current branch.
 
 ---
 
