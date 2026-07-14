@@ -1,7 +1,8 @@
 # Feedback-collector agent image → ghcr.io/emtabiraobarias/fridge-planner-feedback
 #
-# OpenAI agent (Semantic Kernel backend), so it uses the manual `holodeck serve`
-# container path (holodeck deploy build supports Semantic-Kernel backends only).
+# OpenAI-provider agent on the manual `holodeck serve` container path. Which
+# backend serves it depends on the holodeck version in the base image: Semantic
+# Kernel on 0.6.x, the OpenAI Agents SDK backend on >=0.7 (see RUN below).
 #
 # Port/protocol default to 8002/rest to match docker-compose.yml's holodeck-feedback
 # service and FEEDBACK_AGENT_URL=http://holodeck-feedback:8002. Runtime secret
@@ -10,6 +11,13 @@ FROM ghcr.io/justinbarias/holodeck-base:latest
 
 USER root
 WORKDIR /app
+
+# Holodeck >=0.7 routes provider:openai to the OpenAI Agents SDK backend, whose
+# `openai-agents` package is an optional extra NOT bundled in holodeck-base —
+# without it the first chat turn fails with "No module named 'agents'" (health
+# stays green because the backend initialises lazily). Pin the extra to the base
+# image's own holodeck version so the two can't drift apart.
+RUN pip install --no-cache-dir "holodeck-ai[openai-agents]==$(pip show holodeck-ai | awk '/^Version/{print $2}')"
 
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

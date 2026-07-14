@@ -13,6 +13,14 @@ FROM ghcr.io/justinbarias/holodeck-base:latest
 USER root
 WORKDIR /app
 
+# Holodeck >=0.7 routes provider:openai to the OpenAI Agents SDK backend, whose
+# `openai-agents` package is an optional extra NOT bundled in holodeck-base —
+# without it the first chat turn fails with "No module named 'agents'" (health
+# stays green because the backend initialises lazily). The running prod image
+# predates this (built off a 0.6.x base, SK backend); any REBUILD needs this
+# line. Pin the extra to the base image's own holodeck version.
+RUN pip install --no-cache-dir "holodeck-ai[openai-agents]==$(pip show holodeck-ai | awk '/^Version/{print $2}')"
+
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 # Serve-only config (no evaluations/observability env refs) — see agent.serve.yaml.
