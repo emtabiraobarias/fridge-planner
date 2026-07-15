@@ -85,11 +85,15 @@ if [ "$AGENT" = "1" ]; then
   echo "8b) POST recommendations/verify-links (FR-037 lazy phase)"
   c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d "{\"mealNames\":$names}" --max-time 120 "$BASE/recommendations/verify-links")
   chk "200 OK" 200 "$c"
-  if [ -n "${BRAVE_SEARCH_API_KEY:-}" ] || [ -n "${SPOONACULAR_API_KEY:-}" ]; then
-    chk "verification available" true "$(field .available)"
-  else
-    chk "verification reported unavailable (no keys)" false "$(field .available)"
-  fi
+  # The app's provider keys aren't visible from this shell, so assert internal
+  # consistency instead of guessing: available must be a boolean, and when it is
+  # false the links map must be empty.
+  avail=$(field .available)
+  case "$avail" in
+    true)  chk "verification available (app has a provider key)" true "$avail" ;;
+    false) chk "unavailable → zero links" 0 "$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);process.stdout.write(String(Object.keys(b.links||{}).length))})" < /tmp/smoke-body.json)" ;;
+    *)     chk "available flag is boolean" "true|false" "$avail" ;;
+  esac
   echo "   links=$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);process.stdout.write(String(Object.keys(b.links||{}).length))})" < /tmp/smoke-body.json)"
 else
   echo "8) [skipped — --no-agent]"
