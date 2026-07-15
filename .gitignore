@@ -19,3 +19,4 @@ packages/client/e2e/.auth/
 .claude/*
 !.claude/commands/
 !.claude/commands/**
+packages/client/.next-e2e/
