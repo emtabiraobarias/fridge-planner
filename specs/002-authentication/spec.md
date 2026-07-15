@@ -57,6 +57,7 @@ An authenticated user cannot reach another user's data.
 - **FR-D-007**: System MUST provide a configurable development/test authentication mode that injects a deterministic identity without a live IdP (so automated suites and local dev need no external dependency). Production MUST use real OIDC validation and MUST NOT accept the dev mode.
 - **FR-D-008**: The `X-User-Id` development header MUST NOT be a valid production authentication path once real auth is enforced.
 - **FR-D-009**: The client MUST surface an authentication failure (e.g., `401`) as a prompt to (re-)authenticate, not a generic error. *(UX — realized per-branch in each frontend.)*
+- **FR-D-010**: An expired access token MUST be renewed **transparently** (OIDC refresh-token grant, single-flight, with a one-shot retry of the failed request) without user interaction and without losing client-side state; the re-authentication prompt of FR-D-009 is reserved for the case where renewal itself fails. The IdP session MUST allow at least **half a day (12 h) of idle time** before renewal fails (IdP realm setting: SSO Session Idle ≥ 12 h, Session Max ≥ 12 h; the access-token lifespan itself stays short). *(Added 2026-07-16 from user feedback 6a56a2cc: users lost unsaved changes when auth timed out.)*
 
 ### Constraints (Non-Functional)
 - **CR-D-001 (topology-agnostic):** the above MUST hold regardless of server architecture. The enforcement mechanism is per-branch: `impl/vite` via Express middleware; `impl/nextjs` via the Next.js server layer (`src/server`). See each branch's `plan.md`.
