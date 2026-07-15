@@ -50,8 +50,17 @@ inventoryItemSchema.pre('save', function () {
 });
 
 inventoryItemSchema.pre('findOneAndUpdate', function () {
-  const update = this.getUpdate() as Partial<IInventoryItem> | null;
-  if (update && 'expiresAt' in update) {
+  const update = this.getUpdate() as
+    | (Partial<IInventoryItem> & { $set?: Record<string, unknown>; $unset?: Record<string, unknown> })
+    | null;
+  if (!update) return;
+  // Clearing the expiry ($unset) → status derives from "no date" ('none'). Written
+  // via $set so it can coexist with the $unset operator in one update document.
+  if (update.$unset && 'expiresAt' in update.$unset) {
+    update.$set = { ...update.$set, expirationStatus: getExpirationStatus(undefined) };
+    return;
+  }
+  if ('expiresAt' in update) {
     update.expirationStatus = getExpirationStatus(
       update.expiresAt as Date | undefined,
     );

@@ -1,5 +1,5 @@
 'use client';
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import type { InventoryItem } from '../../services/inventory';
 import { daysLeft, expiryText, expiryStatus } from '../../lib/quick-parse';
 import { QuantityStepper } from './QuantityStepper';
@@ -9,6 +9,8 @@ interface Props {
   /** Apply a signed, unit-sized quantity delta to the item (zero removes it). */
   onStep: (item: InventoryItem, delta: number) => void;
   onDelete: (id: string) => void;
+  /** Open the scoped editor — expiry + location (FR-UI-019 revised). */
+  onEdit: (item: InventoryItem) => void;
 }
 
 const DOT_CLASS = { expired: 'bg-accent-600', soon: 'bg-accent-400', fresh: 'bg-accent2-500' } as const;
@@ -27,7 +29,7 @@ function sortByExpiry(items: InventoryItem[]): InventoryItem[] {
   });
 }
 
-export function InventoryList({ items, onStep, onDelete }: Props): React.JSX.Element {
+export function InventoryList({ items, onStep, onDelete, onEdit }: Props): React.JSX.Element {
   if (items.length === 0) {
     return (
       <p className="text-muted py-6 text-center text-sm">No ingredients yet. Add your first item above.</p>
@@ -64,6 +66,15 @@ export function InventoryList({ items, onStep, onDelete }: Props): React.JSX.Ele
               name={item.name}
               onStep={(delta) => onStep(item, delta)}
             />
+
+            <button
+              type="button"
+              aria-label={`Edit ${item.name}`}
+              onClick={() => onEdit(item)}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
+            >
+              <Pencil size={15} strokeWidth={2.75} aria-hidden />
+            </button>
 
             <button
               type="button"

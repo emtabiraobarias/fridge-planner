@@ -117,6 +117,35 @@ describe('Route Handler: PUT /api/v1/inventory/[id]', () => {
     expect(json.quantity).toBe(5);
   });
 
+  it('updates location and expiry, recomputing expirationStatus (FR-002 / FR-UI-019 revised)', async () => {
+    const id = await create();
+    const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+    const res = await PUT(
+      req(`/api/v1/inventory/${id}`, { method: 'PUT', body: { location: 'freezer', expiresAt: tomorrow } }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { location: string; expiresAt: string; expirationStatus: string };
+    expect(json.location).toBe('freezer');
+    expect(json.expiresAt).toBeTruthy();
+    // Recomputed by the model pre-hook, never set by the controller (CLAUDE.md §14).
+    expect(json.expirationStatus).toBe('expiring-soon');
+  });
+
+  it('clears the expiry with expiresAt:null → status "none" (FR-002 / FR-UI-019 revised)', async () => {
+    const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+    const id = await create({ expiresAt: tomorrow });
+    const res = await PUT(
+      req(`/api/v1/inventory/${id}`, { method: 'PUT', body: { expiresAt: null, location: 'pantry' } }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { location: string; expiresAt?: string; expirationStatus: string };
+    expect(json.expiresAt).toBeUndefined();
+    expect(json.expirationStatus).toBe('none');
+    expect(json.location).toBe('pantry');
+  });
+
   it('returns 404 when updating another user’s item (isolation)', async () => {
     const id = await create({}, 'u2');
     const res = await PUT(req(`/api/v1/inventory/${id}`, { method: 'PUT', body: { quantity: 5 }, userId: 'u1' }), {

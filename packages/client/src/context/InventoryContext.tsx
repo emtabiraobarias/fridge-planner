@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import type { ReactNode } from 'react';
 import type { InventoryItem, InventorySummary } from '../services/inventory';
 import {
+  type InventoryItemUpdate,
   fetchInventory,
   createItem,
   updateItem,
@@ -15,7 +16,7 @@ interface InventoryContextValue {
   error: string;
   refresh: () => Promise<void>;
   addItem: (data: Omit<InventoryItem, '_id' | 'expirationStatus'>) => Promise<void>;
-  editItem: (id: string, data: Partial<Omit<InventoryItem, '_id' | 'expirationStatus'>>) => Promise<void>;
+  editItem: (id: string, data: InventoryItemUpdate) => Promise<void>;
   removeItem: (id: string) => Promise<void>;
 }
 
@@ -52,7 +53,7 @@ export function InventoryProvider({ children }: { children: ReactNode }): React.
     await refresh();
   }, [refresh]);
 
-  const editItem = useCallback(async (id: string, data: Partial<Omit<InventoryItem, '_id' | 'expirationStatus'>>): Promise<void> => {
+  const editItem = useCallback(async (id: string, data: InventoryItemUpdate): Promise<void> => {
     await updateItem(id, data);
     await refresh();
   }, [refresh]);

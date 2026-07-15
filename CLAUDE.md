@@ -497,7 +497,7 @@ The server layer is Node-only (Mongoose, secrets) and guarded with `import 'serv
 Phase C-bis retired Express into Next.js Route Handlers (one process on `:3000`); `packages/server` was deleted. Add backend behaviour as a Route Handler + `src/server/controllers/*`, not a new service. (This is branch-scoped — `impl/vite` still runs Express.)
 
 **Don't manually set `expirationStatus` in `findOneAndUpdate` calls.**
-`expirationStatus` is auto-computed by a Mongoose `pre('findOneAndUpdate')` hook in `src/server/models/inventory-item.ts` whenever `expiresAt` changes. Writing it directly in an update will produce a stale value or get overwritten; always let the hook manage it.
+`expirationStatus` is auto-computed by a Mongoose `pre('findOneAndUpdate')` hook in `src/server/models/inventory-item.ts` whenever `expiresAt` changes — including the **clear path** (`expiresAt: null` in the PUT body → `$unset` + status `none`). Writing it directly in an update will produce a stale value or get overwritten; always let the hook manage it. **Hot-reload gotcha:** the model is reused across `next dev` reloads (`mongoose.models` guard), so schema/hook edits do NOT take effect until the dev server restarts — verified live 2026-07-15.
 
 **Don't add state management libraries (Redux, Zustand, etc.).**
 All shared state uses React Context + custom hooks. Adding a third-party store would duplicate the existing pattern and violate the architecture constraint in `constitution.md`.

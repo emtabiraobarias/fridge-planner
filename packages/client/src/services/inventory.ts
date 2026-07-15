@@ -58,7 +58,12 @@ export async function createItem(data: Omit<InventoryItem, '_id' | 'expirationSt
   return res.json() as Promise<InventoryItem>;
 }
 
-export async function updateItem(id: string, data: Partial<Omit<InventoryItem, '_id' | 'expirationStatus'>>): Promise<InventoryItem> {
+/** Updatable fields — expiresAt accepts null to CLEAR the expiry (FR-UI-019 revised). */
+export type InventoryItemUpdate = Partial<Omit<InventoryItem, '_id' | 'expirationStatus' | 'expiresAt'>> & {
+  expiresAt?: string | null;
+};
+
+export async function updateItem(id: string, data: InventoryItemUpdate): Promise<InventoryItem> {
   const res = await apiFetch(`${BASE}/inventory/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

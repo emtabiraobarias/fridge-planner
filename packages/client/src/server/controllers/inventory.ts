@@ -18,7 +18,11 @@ const createSchema = z.object({
   expiresAt: z.string().datetime({ offset: true }).optional(),
 });
 
-const updateSchema = createSchema.partial();
+// FR-002 / FR-UI-019 (revised): expiry is UPDATABLE and CLEARABLE — null means
+// "remove the expiry date" (item becomes non-perishable, status 'none').
+const updateSchema = createSchema.partial().extend({
+  expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
+});
 
 function invalidInput(error: z.ZodError): ControllerResult {
   return problem(400, 'Invalid input', error.issues.map((i) => i.message).join('; '));
@@ -91,8 +95,14 @@ export async function updateInventory(
   if (!parsed.success) return invalidInput(parsed.error);
 
   const data = parsed.data;
-  const update: Record<string, unknown> = { ...data };
-  if (data.expiresAt) update['expiresAt'] = new Date(data.expiresAt);
+  const { expiresAt, ...rest } = data;
+  // expiresAt: string → set; null → clear ($unset; the model's pre-hook derives
+  // expirationStatus for both paths — never set it manually here, see CLAUDE.md §14);
+  // absent → untouched.
+  const update: Record<string, unknown> =
+    expiresAt === null
+      ? { $set: { ...rest }, $unset: { expiresAt: 1 } }
+      : { ...rest, ...(expiresAt !== undefined ? { expiresAt: new Date(expiresAt) } : {}) };
 
   const item = await InventoryItem.findOneAndUpdate(
     { _id: id, userId },

@@ -6,15 +6,22 @@ import { QuickAdd } from '../components/inventory/QuickAdd';
 import { UseSoonStrip, type UrgentItem } from '../components/inventory/UseSoonStrip';
 import { LocationFilter, type LocationFilterValue } from '../components/inventory/LocationFilter';
 import { InventoryList } from '../components/inventory/InventoryList';
+import { EditItemSheet } from '../components/inventory/EditItemSheet';
 import { RecommendationsPanel } from '../components/recommendations/RecommendationsPanel';
 import { daysLeft, isUrgent, applyStep, type ParsedQuick } from '../lib/quick-parse';
-import type { InventoryItem } from '../services/inventory';
+import type { InventoryItem, InventoryItemUpdate } from '../services/inventory';
 
 export function InventoryPage(): React.JSX.Element {
   const { items, loading, error, addItem, editItem, removeItem } = useInventory();
   const { showToast } = useToast();
   const [filter, setFilter] = useState<LocationFilterValue>('All');
+  const [editing, setEditing] = useState<InventoryItem | null>(null);
   const recsRef = useRef<HTMLDivElement>(null);
+
+  async function handleEditSave(id: string, data: InventoryItemUpdate): Promise<void> {
+    await editItem(id, data);
+    showToast(`${editing?.name ?? 'Item'} updated`);
+  }
 
   async function handleAdd(p: ParsedQuick): Promise<void> {
     const data: Omit<InventoryItem, '_id' | 'expirationStatus'> = {
@@ -76,12 +83,17 @@ export function InventoryPage(): React.JSX.Element {
             {error}
           </p>
         )}
-        {!loading && <InventoryList items={visible} onStep={handleStep} onDelete={handleDelete} />}
+        {!loading && (
+          <InventoryList items={visible} onStep={handleStep} onDelete={handleDelete} onEdit={setEditing} />
+        )}
       </div>
 
       <div ref={recsRef}>
         <RecommendationsPanel />
       </div>
+
+      {/* Scoped editor: expiry + location (spec 004 FR-UI-019 revised) */}
+      <EditItemSheet item={editing} onClose={() => setEditing(null)} onSave={handleEditSave} />
     </div>
   );
 }
