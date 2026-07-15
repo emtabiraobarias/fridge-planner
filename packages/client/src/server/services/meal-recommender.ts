@@ -27,9 +27,14 @@ export async function getMealRecommendations(
   const message = [
     'Suggest 3-5 meals I can make with these ingredients.',
     'Prioritise ingredients expiring soonest to minimise food waste.',
-    // FR-037 top-up round: steer the agent away from meals already suggested this request.
+    // FR-037 top-up round: steer the agent away from meals already suggested this
+    // request, and toward conventionally named dishes — common names are what the
+    // recipe-verifier's title search matches, so the retry round converts far better.
     ...(excludeMealNames.length > 0
-      ? [`Do NOT suggest any of these meals (or close variations): ${excludeMealNames.join(', ')}.`]
+      ? [
+          `Do NOT suggest any of these meals (or close variations): ${excludeMealNames.join(', ')}.`,
+          'Prefer well-known dishes with common, conventional names (e.g. classic Filipino or Western recipes) rather than inventive combinations.',
+        ]
       : []),
     '',
     ...ingredients.map((i) =>

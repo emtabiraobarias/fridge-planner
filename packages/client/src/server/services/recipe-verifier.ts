@@ -15,7 +15,12 @@ const APPROVED_DOMAINS = [
 ] as const;
 
 const FETCH_TIMEOUT_MS = 8_000;
-const MIN_TITLE_SIMILARITY = 0.34;
+// Jaccard word overlap between the generated meal name and a candidate title. 0.25
+// (was 0.34) because long descriptive agent names dilute the score: "Garlic Butter
+// Chicken Thighs with Rice" vs "Garlic Chicken" is the same dish at ~0.33, while
+// genuinely unrelated titles score ~0-0.15. Raising this again starves FR-037's
+// linked-meal minimum; lowering it much further risks attaching wrong recipes.
+const MIN_TITLE_SIMILARITY = 0.25;
 
 interface BraveWebResult {
   title: string;

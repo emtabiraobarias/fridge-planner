@@ -69,6 +69,9 @@ describe('getMealRecommendations (Holodeck agent client)', () => {
     const body = JSON.parse((mockFetch.mock.calls[0]?.[1] as { body: string }).body) as { message: string };
     expect(body.message).toContain('Do NOT suggest any of these meals');
     expect(body.message).toContain('Chicken Stir-fry, Chicken Adobo');
+    // The top-up round also steers toward conventionally named dishes so the
+    // verifier's title search converts (FR-037 tuning).
+    expect(body.message).toContain('well-known dishes with common, conventional names');
   });
 
   it('omits the exclusion instruction when excludeMealNames is empty', async () => {
@@ -76,6 +79,7 @@ describe('getMealRecommendations (Holodeck agent client)', () => {
     await getMealRecommendations([{ name: 'chicken breast', quantity: 2, unit: 'lbs' }]);
     const body = JSON.parse((mockFetch.mock.calls[0]?.[1] as { body: string }).body) as { message: string };
     expect(body.message).not.toContain('Do NOT suggest');
+    expect(body.message).not.toContain('well-known dishes with common, conventional names');
   });
 
   it('parses a MealRecommendation array from the holodeck message', async () => {

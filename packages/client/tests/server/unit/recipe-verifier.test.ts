@@ -74,6 +74,28 @@ describe('recipe-verifier', () => {
     expect(result).toBeNull();
   });
 
+  it('accepts a same-dish match with a shorter conventional title (threshold 0.25 tuning)', async () => {
+    // "Garlic Butter Chicken Thighs with Rice" vs "Garlic Chicken": Jaccard 2/6 ≈ 0.33 —
+    // a correct match that the old 0.34 threshold rejected. Guards the tuned threshold.
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(braveHit('Garlic Chicken', 'https://www.recipetineats.com/garlic-chicken/')),
+    );
+    const result = await verifyRecipe('Garlic Butter Chicken Thighs with Rice');
+    expect(result).toEqual({ recipeUrl: 'https://www.recipetineats.com/garlic-chicken/' });
+  });
+
+  it('still rejects a weak single-word overlap below the tuned threshold', async () => {
+    // "Chicken Adobo" vs "Chicken Pot Pie Casserole Delight": Jaccard 1/6 ≈ 0.17 < 0.25 —
+    // sharing one ingredient word must not count as the same dish.
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse(braveHit('Chicken Pot Pie Casserole Delight', 'https://www.recipetineats.com/chicken-pot-pie/')),
+      )
+      .mockResolvedValueOnce({ ok: false }); // Spoonacular fallback misses too
+    const result = await verifyRecipe('Chicken Adobo');
+    expect(result).toBeNull();
+  });
+
   it('falls back to Spoonacular when no approved-domain match is found', async () => {
     mockFetch
       .mockResolvedValueOnce(jsonResponse(braveEmpty()))
