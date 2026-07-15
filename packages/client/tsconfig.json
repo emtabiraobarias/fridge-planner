@@ -35,11 +35,12 @@
     }
   },
   "include": [
+    ".next/types/**/*.ts",
     "app",
     "next.config.ts",
     "src",
     "tests",
-    ".next/types/**/*.ts"
+    ".next-e2e/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
