@@ -79,6 +79,23 @@ export type RecommendationsResult = {
   fallback?: 'popular' | 'cache';
 };
 
+export interface RecipeLinksResult {
+  links: Record<string, { recipeUrl: string; imageUrl?: string }>;
+  /** false → verification cannot run at all (no provider keys) — FR-037 notice case. */
+  available: boolean;
+}
+
+/** FR-037 lazy phase: verify recipe links for already-displayed meals. */
+export async function fetchRecipeLinks(mealNames: string[]): Promise<RecipeLinksResult> {
+  const res = await apiFetch(`${BASE}/recommendations/verify-links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mealNames }),
+  });
+  ensureOk(res, 'verify recipe links');
+  return (await res.json()) as RecipeLinksResult;
+}
+
 /**
  * User-facing message for a failed recommendations fetch: prefers the server's
  * Problem JSON detail (thrown by fetchRecommendations below) over the caller's

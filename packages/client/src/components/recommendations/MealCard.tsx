@@ -24,10 +24,12 @@ interface Props {
   meal: MealRecommendation;
   /** When provided, renders a "Plan it" pill that starts calendar placement. */
   onPlan?: (meal: MealRecommendation) => void;
+  /** FR-037 lazy phase in flight: show a placeholder until the verified link lands. */
+  linkPending?: boolean;
 }
 
 /** Organic meal card (spec 004 §3.2). */
-export function MealCard({ meal, onPlan }: Props): React.JSX.Element {
+export function MealCard({ meal, onPlan, linkPending }: Props): React.JSX.Element {
   const expiringSet = new Set(meal.expiringIngredients.map((s) => s.toLowerCase()));
   const nonExpiringUsed = meal.usesIngredients.filter((i) => !expiringSet.has(i.toLowerCase()));
 
@@ -62,6 +64,9 @@ export function MealCard({ meal, onPlan }: Props): React.JSX.Element {
         >
           View recipe ↗
         </a>
+      )}
+      {!meal.recipeUrl && linkPending && (
+        <p className="text-muted mt-1.5 animate-pulse text-[12px]">Finding recipe…</p>
       )}
 
       <div className="mt-3 flex flex-wrap gap-1.5">

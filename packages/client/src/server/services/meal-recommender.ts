@@ -25,7 +25,9 @@ export async function getMealRecommendations(
   }
 
   const message = [
-    'Suggest 3-5 meals I can make with these ingredients.',
+    // FR-014: 5-10 candidate net — enough meals survive the client-side removal of
+    // any whose recipe link can't be verified (FR-037 lazy phase).
+    'Suggest 5-10 meals I can make with these ingredients.',
     'Prioritise ingredients expiring soonest to minimise food waste.',
     // FR-037 top-up round: steer the agent away from meals already suggested this
     // request, and toward conventionally named dishes — common names are what the

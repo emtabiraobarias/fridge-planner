@@ -196,6 +196,33 @@ export async function verifyRecipe(mealName: string): Promise<VerifiedRecipe | n
   return searchSpoonacular(mealName);
 }
 
+// Per-meal-name result cache for the FR-037 lazy verify-links phase. Keyed globally
+// (recipe pages aren't user-specific). Hits cache long; misses cache SHORT — a null
+// can mean "no such recipe" but also "provider rate-limited/down", and locking a
+// transient failure in for an hour would starve that meal of its link on every
+// refresh.
+const LINK_HIT_TTL_MS = 60 * 60 * 1000; // 1 hour
+const LINK_MISS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const linkCache = new Map<string, { value: VerifiedRecipe | null; expires: number }>();
+
+/** Cached wrapper around verifyRecipe (1h hits / 5min misses). */
+export async function verifyRecipeCached(mealName: string): Promise<VerifiedRecipe | null> {
+  const key = mealName.trim().toLowerCase();
+  const hit = linkCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.value;
+  const value = await verifyRecipe(mealName);
+  linkCache.set(key, {
+    value,
+    expires: Date.now() + (value ? LINK_HIT_TTL_MS : LINK_MISS_TTL_MS),
+  });
+  return value;
+}
+
+/** Test seam: empty the per-name link cache. */
+export function clearLinkCache(): void {
+  linkCache.clear();
+}
+
 /** Enrich a recommendation list with verified recipe URLs (parallel across meals, best-effort). */
 export async function attachVerifiedRecipes(meals: MealRecommendation[]): Promise<MealRecommendation[]> {
   const verified = await Promise.all(meals.map((m) => verifyRecipe(m.mealName)));

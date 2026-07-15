@@ -27,7 +27,8 @@ interface Props {
 export function RecommendationsPanel({
   fetchRecommendations: fetchFn = fetchRecommendationsService,
 }: Props): React.JSX.Element {
-  const { state, meals, error, cachedAt, fallback, setLoading, setMeals, setError } = useRecommendations();
+  const { state, meals, error, cachedAt, fallback, linksPending, setLoading, setMeals, setError, checkLinks } =
+    useRecommendations();
   const { items } = useInventory();
   const { startPlacing } = usePlacement();
   const router = useRouter();
@@ -41,14 +42,21 @@ export function RecommendationsPanel({
     }
   }, [items.length > 0]); // dep is a boolean: fires only when inventory transitions from empty to non-empty
 
+  // Fetch → show immediately → kick off the FR-037 lazy link phase (fallback sets
+  // already carry pre-verified links, so they skip it).
+  async function fetchAndApply(): Promise<void> {
+    const result = await fetchFn();
+    setMeals(result.recommendations, result.fallback ?? null);
+    if (!result.fallback) void checkLinks(result.recommendations);
+  }
+
   async function handleFetch(): Promise<void> {
     const age = cachedAt !== null ? Date.now() - cachedAt : Infinity;
     if (meals.length > 0 && age < CLIENT_CACHE_TTL_MS) return;
 
     if (meals.length > 0 && age >= CLIENT_CACHE_TTL_MS) {
       try {
-        const result = await fetchFn();
-        setMeals(result.recommendations, result.fallback ?? null);
+        await fetchAndApply();
       } catch {
         // stale data remains visible
       }
@@ -57,8 +65,7 @@ export function RecommendationsPanel({
 
     setLoading();
     try {
-      const result = await fetchFn();
-      setMeals(result.recommendations, result.fallback ?? null);
+      await fetchAndApply();
     } catch (err) {
       // Prefer the server's Problem JSON detail (e.g. FR-037's "recipe verification
       // unavailable") over a generic message, so the user knows what actually failed.
@@ -108,7 +115,7 @@ export function RecommendationsPanel({
         {meals.length > 0 && (
           <ul className="mt-4 space-y-3">
             {meals.map((meal, i) => (
-              <MealCard key={i} meal={meal} onPlan={handlePlan} />
+              <MealCard key={i} meal={meal} onPlan={handlePlan} linkPending={linksPending} />
             ))}
           </ul>
         )}

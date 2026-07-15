@@ -8,7 +8,8 @@ import { usePlacement } from '../../context/PlacementContext';
 
 /** Mini meal cards below the week grid; each starts tap-to-place (spec 004 §3.3). */
 export function SuggestionsRail(): React.JSX.Element {
-  const { state, meals, error, setLoading, setMeals, setError } = useRecommendations();
+  const { state, meals, error, linksPending, setLoading, setMeals, setError, checkLinks } =
+    useRecommendations();
   const { placing, startPlacing } = usePlacement();
 
   async function handleGet(): Promise<void> {
@@ -16,6 +17,8 @@ export function SuggestionsRail(): React.JSX.Element {
     try {
       const result = await fetchRecommendationsService();
       setMeals(result.recommendations, result.fallback ?? null);
+      // FR-037 lazy phase (fallback sets already carry pre-verified links).
+      if (!result.fallback) void checkLinks(result.recommendations);
     } catch (err) {
       setError(recommendationsErrorMessage(err, 'Could not load suggestions.'));
     }
@@ -63,6 +66,9 @@ export function SuggestionsRail(): React.JSX.Element {
                 >
                   View recipe ↗
                 </a>
+              )}
+              {!meal.recipeUrl && linksPending && (
+                <p className="text-muted mt-1 animate-pulse text-[11px]">Finding recipe…</p>
               )}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {meal.expiringIngredients.slice(0, 3).map((ing) => (

@@ -12,6 +12,14 @@ vi.mock('../../src/services/inventory', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/services/inventory')>()),
   fetchInventory: vi.fn().mockResolvedValue({ items: [], summary: { total: 0, expired: 0, expiringSoon: 0 } }),
   fetchRecommendations: vi.fn(),
+  // FR-037 lazy phase default: verify every requested name so no meal gets removed
+  // out from under the render-oriented tests. Overridden in the lazy-phase tests.
+  fetchRecipeLinks: vi.fn((names: string[]) =>
+    Promise.resolve({
+      available: true,
+      links: Object.fromEntries(names.map((n) => [n, { recipeUrl: `https://example.test/${encodeURIComponent(n)}` }])),
+    }),
+  ),
   createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
@@ -103,6 +111,25 @@ describe('RecommendationsPanel', () => {
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/verification providers may be unavailable/i);
+  });
+
+  it('lazy-loads recipe links: link appears after results render, unlinked meals are removed (FR-037)', async () => {
+    const services = await import('../../src/services/inventory');
+    (services.fetchRecipeLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      available: true,
+      links: { 'Chicken Stir-fry': { recipeUrl: 'https://www.recipetineats.com/stir-fry/' } },
+    });
+    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({
+      recommendations: [mockMeal, { ...mockMeal, mealName: 'Mystery Stew' }],
+    });
+    renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
+    fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
+
+    // Link lands once the lazy phase resolves; the unverifiable meal is removed.
+    const link = await screen.findByRole('link', { name: /view recipe/i });
+    expect(link).toHaveAttribute('href', 'https://www.recipetineats.com/stir-fry/');
+    expect(screen.getByText('Chicken Stir-fry')).toBeInTheDocument();
+    expect(screen.queryByText('Mystery Stew')).not.toBeInTheDocument();
   });
 
   it('shows a fallback notice + the meals when the server returns a fallback (SG-02)', async () => {

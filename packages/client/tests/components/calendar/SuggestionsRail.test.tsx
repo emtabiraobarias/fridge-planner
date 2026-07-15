@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SuggestionsRail } from '../../../src/components/calendar/SuggestionsRail';
@@ -6,10 +6,14 @@ import { RecommendationsProvider } from '../../../src/context/RecommendationsCon
 import { PlacementProvider } from '../../../src/context/PlacementContext';
 import type { MealRecommendation } from '../../../src/types/meal-recommendation';
 
-const { fetchRecommendations } = vi.hoisted(() => ({ fetchRecommendations: vi.fn() }));
+const { fetchRecommendations, fetchRecipeLinks } = vi.hoisted(() => ({
+  fetchRecommendations: vi.fn(),
+  fetchRecipeLinks: vi.fn(),
+}));
 vi.mock('../../../src/services/inventory', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../src/services/inventory')>()),
   fetchRecommendations,
+  fetchRecipeLinks,
 }));
 
 const linkedMeal: MealRecommendation = {
@@ -36,6 +40,14 @@ function renderRail(): void {
 
 beforeEach(() => {
   fetchRecommendations.mockReset();
+  fetchRecipeLinks.mockReset();
+  // Default: verify everything (no removal). Lazy-phase tests override per-case.
+  fetchRecipeLinks.mockImplementation((names: string[]) =>
+    Promise.resolve({
+      available: true,
+      links: Object.fromEntries(names.map((n) => [n, { recipeUrl: `https://example.test/${encodeURIComponent(n)}` }])),
+    }),
+  );
 });
 
 describe('SuggestionsRail', () => {
@@ -63,14 +75,24 @@ describe('SuggestionsRail', () => {
     expect(alert).toHaveTextContent(/verification is not configured/i);
   });
 
-  it('renders no recipe link for a meal without recipeUrl', async () => {
+  it('removes meals whose link cannot be verified once the lazy phase completes (FR-037)', async () => {
     const { recipeUrl: _drop, ...unlinked } = linkedMeal;
-    fetchRecommendations.mockResolvedValueOnce({ recommendations: [unlinked] });
+    fetchRecommendations.mockResolvedValueOnce({
+      recommendations: [unlinked, { ...unlinked, mealName: 'Verifiable Curry' }],
+    });
+    fetchRecipeLinks.mockResolvedValueOnce({
+      available: true,
+      links: { 'Verifiable Curry': { recipeUrl: 'https://www.recipetineats.com/curry/' } },
+    });
     renderRail();
 
     await userEvent.click(screen.getByRole('button', { name: /get suggestions/i }));
 
-    expect(await screen.findByText('Chicken Adobo')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /view recipe/i })).not.toBeInTheDocument();
+    expect(await screen.findByText('Verifiable Curry')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Chicken Adobo')).not.toBeInTheDocument());
+    expect(screen.getByRole('link', { name: /view recipe/i })).toHaveAttribute(
+      'href',
+      'https://www.recipetineats.com/curry/',
+    );
   });
 });

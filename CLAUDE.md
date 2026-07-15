@@ -129,9 +129,10 @@ Base URL: `http://localhost:3000/api/v1` (served by Next.js Route Handlers in th
 ### Recommendations
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/recommendations` | Get AI meal suggestions (no body required) |
+| POST | `/recommendations` | Get AI meal suggestions immediately — links NOT awaited (no body required) |
+| POST | `/recommendations/verify-links` | FR-037 lazy phase: `{ mealNames: string[] }` (≤10) → `{ links, available }` |
 
-Rate limit: **10 req/min** (vs 100/min for other endpoints)
+Rate limit: **10 req/min** for `/recommendations` (30/min for `verify-links`; 100/min elsewhere)
 
 ### Meal Plans
 | Method | Path | Description |
@@ -346,7 +347,7 @@ One active test case ("Prioritise expiring chicken") is defined in `agent.yaml` 
 
 **Caching:** `services/recommendations-cache.ts` caches results by `(userId, ingredients)` key with a **15-minute TTL**. Cache is invalidated per-user (`invalidateUser(userId)`) on any inventory mutation.
 
-**Recipe-URL grounding (Option A):** the OpenAI backend has **no web-search tool** (Holodeck exposes none for non-Claude providers), so the agent is instructed to **never author `recipeUrl`/`imageUrl`** (no fabricated links). Instead, `src/server/services/recipe-verifier.ts` attaches a URL server-side, only when a real page is found: Brave `site:`-restricted search of the 4 approved domains (panlasangpinoy.com, recipetineats.com, kawalingpinoy.com, taste.com.au), then a Spoonacular fallback, gated by title-similarity — else the field is omitted. **FR-037 (2026-07-15): a verified link is now REQUIRED on every displayed meal** — the controller drops unlinked meals, tops up once via a second agent call (excluding seen names) when fewer than 3 remain, and returns **503 Problem JSON** when zero meals can be linked. At least one of `BRAVE_SEARCH_API_KEY` / `SPOONACULAR_API_KEY` must therefore be set for recommendations to work; `POPULAR_RECIPES` fallbacks carry hand-verified links. Runs in the recommendations controller before caching.
+**Recipe-URL grounding (Option A):** the OpenAI backend has **no web-search tool** (Holodeck exposes none for non-Claude providers), so the agent is instructed to **never author `recipeUrl`/`imageUrl`** (no fabricated links). Instead, `src/server/services/recipe-verifier.ts` attaches a URL server-side, only when a real page is found: Brave `site:`-restricted search of the 4 approved domains (panlasangpinoy.com, recipetineats.com, kawalingpinoy.com, taste.com.au), then a Spoonacular fallback, gated by title-similarity — else the field is omitted. **FR-037 async revision (2026-07-15): immediate results + lazy links.** The results endpoint returns the agent's meals (a **5-10 candidate net**, FR-014) without awaiting verification; the client then POSTs `/recommendations/verify-links` (name→link map, per-name 1h server cache via `verifyRecipeCached`), attaches links as they arrive, and **removes any meal left unlinked** (settling to linked-only; `available:false` → notice + all removed). At least one of `BRAVE_SEARCH_API_KEY` / `SPOONACULAR_API_KEY` must be set for usable recommendations; `POPULAR_RECIPES` fallbacks carry hand-verified links and skip the lazy phase.
 
 **Observability:** Full tracing enabled in `agent.yaml` — traces, metrics, and structured logs are exported via OTLP to `${OTLP_ENDPOINT}`. Evaluation results are saved to `agents/meal-recommender/results/`.
 

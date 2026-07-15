@@ -25,7 +25,7 @@ model:
   name: gpt-4o
   api_key: ${OPENAI_API_KEY}
   temperature: 0.5
-  max_tokens: 2000
+  max_tokens: 4000
 
 instructions:
   file: instructions/system-prompt.md

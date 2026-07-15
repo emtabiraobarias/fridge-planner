@@ -2,6 +2,8 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   verifyRecipe,
+  verifyRecipeCached,
+  clearLinkCache,
   attachVerifiedRecipes,
   isRecipeVerificationConfigured,
 } from '@server/services/recipe-verifier';
@@ -182,6 +184,27 @@ describe('recipe-verifier', () => {
     expect(enriched[0]).toMatchObject({ mealName: 'Chicken Adobo', recipeUrl: 'https://www.kawalingpinoy.com/chicken-adobo/' });
     expect(enriched[1]).not.toHaveProperty('recipeUrl');
     expect(enriched[1]).not.toHaveProperty('imageUrl');
+  });
+
+  it('verifyRecipeCached caches hits AND misses per meal name (FR-037 lazy phase)', async () => {
+    clearLinkCache();
+    // Hit: first call fetches, second call is served from cache (no new fetch).
+    mockFetch.mockResolvedValueOnce(jsonResponse(braveHit('Chicken Adobo', 'https://www.kawalingpinoy.com/chicken-adobo/')));
+    const first = await verifyRecipeCached('Chicken Adobo');
+    expect(first?.recipeUrl).toBe('https://www.kawalingpinoy.com/chicken-adobo/');
+    const callsAfterFirst = mockFetch.mock.calls.length;
+    const second = await verifyRecipeCached('chicken adobo'); // case-insensitive key
+    expect(second?.recipeUrl).toBe('https://www.kawalingpinoy.com/chicken-adobo/');
+    expect(mockFetch.mock.calls.length).toBe(callsAfterFirst);
+
+    // Miss: cached too — no re-fetch for a name that found nothing.
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(braveEmpty()))
+      .mockResolvedValueOnce(jsonResponse({ results: [] }));
+    expect(await verifyRecipeCached('Obscure Dish')).toBeNull();
+    const callsAfterMiss = mockFetch.mock.calls.length;
+    expect(await verifyRecipeCached('Obscure Dish')).toBeNull();
+    expect(mockFetch.mock.calls.length).toBe(callsAfterMiss);
   });
 
   it('isRecipeVerificationConfigured reflects whether either provider key is set (FR-037)', () => {

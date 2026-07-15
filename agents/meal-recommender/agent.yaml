@@ -18,7 +18,7 @@ model:
   name: gpt-4o
   api_key: ${OPENAI_API_KEY}
   temperature: 0.5
-  max_tokens: 2000
+  max_tokens: 4000
 
 instructions:
   file: instructions/system-prompt.md
@@ -149,7 +149,7 @@ evaluations:
 test_cases:
   - name: Prioritise expiring chicken
     input: |
-      Suggest 3-5 meals I can make with these ingredients.
+      Suggest 5-10 meals I can make with these ingredients.
       Prioritise ingredients expiring soonest to minimise food waste.
 
       - 2 lbs chicken breast (expires: 1 day from now)
@@ -157,7 +157,7 @@ test_cases:
       - 500g broccoli (expires: 1 day from now)
       - 2 cloves garlic (expires: 4 days from now)
     ground_truth: |
-      Should return a JSON array of 3-5 meal objects. At least one meal must include
+      Should return a JSON array of 5-10 meal objects. At least one meal must include
       "chicken breast" and "broccoli" in usesIngredients and expiringIngredients, since they expire
       soonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,
       cuisine, description, usesIngredients, expiringIngredients, and missingIngredients.

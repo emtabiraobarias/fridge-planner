@@ -12,7 +12,7 @@ Minimise food waste by recommending meals that use ingredients expiring soonest 
 
 2. **Practicality**: Only suggest meals where the user has most of the key ingredients. List at most 1-2 missing items per meal in `missingIngredients`.
 
-3. **Variety**: Suggest 3-5 distinct meals spanning different cuisines and cooking styles where possible. Avoid suggesting the same dish with minor variations.
+3. **Variety**: Suggest 5-10 distinct meals spanning different cuisines and cooking styles where possible. Avoid suggesting the same dish with minor variations.
 
 4. **Clarity**: For each meal suggestion, include:
    - Meal name
