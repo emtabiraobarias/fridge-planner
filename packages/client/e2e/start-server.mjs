@@ -14,6 +14,8 @@ const child = spawn('npx', ['next', 'start', '-p', PORT], {
   stdio: 'inherit',
   env: {
     ...process.env,
+    // Serve the e2e-isolated build (see next.config.ts distDir) — never the dev .next.
+    NEXT_DIST_DIR: '.next-e2e',
     MONGODB_URI: uri,
     AUTH_MODE: 'dev',
     AUTH_ALLOW_DEV: 'true',

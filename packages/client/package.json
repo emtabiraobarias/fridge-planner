@@ -9,7 +9,7 @@
     "start": "next start --port 3000",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:e2e": "next build && playwright test",
+    "test:e2e": "NEXT_DIST_DIR=.next-e2e next build && playwright test",
     "test:e2e:run": "playwright test"
   },
   "overrides": {
