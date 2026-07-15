@@ -1,11 +1,14 @@
 'use client';
-import { fetchRecommendations as fetchRecommendationsService } from '../../services/inventory';
+import {
+  fetchRecommendations as fetchRecommendationsService,
+  recommendationsErrorMessage,
+} from '../../services/inventory';
 import { useRecommendations } from '../../context/RecommendationsContext';
 import { usePlacement } from '../../context/PlacementContext';
 
 /** Mini meal cards below the week grid; each starts tap-to-place (spec 004 §3.3). */
 export function SuggestionsRail(): React.JSX.Element {
-  const { state, meals, setLoading, setMeals, setError } = useRecommendations();
+  const { state, meals, error, setLoading, setMeals, setError } = useRecommendations();
   const { placing, startPlacing } = usePlacement();
 
   async function handleGet(): Promise<void> {
@@ -13,8 +16,8 @@ export function SuggestionsRail(): React.JSX.Element {
     try {
       const result = await fetchRecommendationsService();
       setMeals(result.recommendations, result.fallback ?? null);
-    } catch {
-      setError('Could not load suggestions.');
+    } catch (err) {
+      setError(recommendationsErrorMessage(err, 'Could not load suggestions.'));
     }
   }
 
@@ -36,6 +39,12 @@ export function SuggestionsRail(): React.JSX.Element {
           </button>
         )}
       </div>
+
+      {state === 'error' && (
+        <p role="alert" className="mt-4 rounded-lg bg-accent-100 p-3 text-sm text-accent-800">
+          {error}
+        </p>
+      )}
 
       {meals.length > 0 && (
         <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

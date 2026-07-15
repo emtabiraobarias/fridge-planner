@@ -7,7 +7,10 @@ import { PlacementProvider } from '../../../src/context/PlacementContext';
 import type { MealRecommendation } from '../../../src/types/meal-recommendation';
 
 const { fetchRecommendations } = vi.hoisted(() => ({ fetchRecommendations: vi.fn() }));
-vi.mock('../../../src/services/inventory', () => ({ fetchRecommendations }));
+vi.mock('../../../src/services/inventory', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/services/inventory')>()),
+  fetchRecommendations,
+}));
 
 const linkedMeal: MealRecommendation = {
   mealName: 'Chicken Adobo',
@@ -46,6 +49,18 @@ describe('SuggestionsRail', () => {
     expect(link).toHaveAttribute('href', 'https://panlasangpinoy.com/filipino-chicken-adobo-recipe/');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+  });
+
+  it('surfaces the server Problem JSON detail when the fetch fails (FR-037 503)', async () => {
+    fetchRecommendations.mockRejectedValueOnce(
+      new Error('Recipe-link verification is not configured (BRAVE_SEARCH_API_KEY / SPOONACULAR_API_KEY unset), so no recommendation can carry the required recipe link.'),
+    );
+    renderRail();
+
+    await userEvent.click(screen.getByRole('button', { name: /get suggestions/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/verification is not configured/i);
   });
 
   it('renders no recipe link for a meal without recipeUrl', async () => {

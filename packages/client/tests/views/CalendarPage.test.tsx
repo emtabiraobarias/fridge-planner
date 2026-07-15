@@ -19,7 +19,8 @@ vi.mock('../../src/services/meal-plans', () => ({
   replaceEntries: vi.fn().mockResolvedValue({}),
 }));
 
-vi.mock('../../src/services/inventory', () => ({
+vi.mock('../../src/services/inventory', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/services/inventory')>()),
   fetchRecommendations: vi.fn().mockResolvedValue({ recommendations: [] }),
 }));
 

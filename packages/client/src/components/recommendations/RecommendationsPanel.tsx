@@ -1,7 +1,11 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchRecommendations as fetchRecommendationsService, type RecommendationsResult } from '../../services/inventory';
+import {
+  fetchRecommendations as fetchRecommendationsService,
+  recommendationsErrorMessage,
+  type RecommendationsResult,
+} from '../../services/inventory';
 import { useRecommendations } from '../../context/RecommendationsContext';
 import { useInventory } from '../../context/InventoryContext';
 import { usePlacement } from '../../context/PlacementContext';
@@ -55,8 +59,10 @@ export function RecommendationsPanel({
     try {
       const result = await fetchFn();
       setMeals(result.recommendations, result.fallback ?? null);
-    } catch {
-      setError('Could not load recommendations. Please try again.');
+    } catch (err) {
+      // Prefer the server's Problem JSON detail (e.g. FR-037's "recipe verification
+      // unavailable") over a generic message, so the user knows what actually failed.
+      setError(recommendationsErrorMessage(err, 'Could not load recommendations. Please try again.'));
     }
   }
 

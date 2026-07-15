@@ -7,7 +7,9 @@ import { PlacementProvider } from '../../src/context/PlacementContext';
 import type { MealRecommendation } from '../../src/types/meal-recommendation';
 import type { RecommendationsResult } from '../../src/services/inventory';
 
-vi.mock('../../src/services/inventory', () => ({
+vi.mock('../../src/services/inventory', async (importOriginal) => ({
+  // Keep the real recommendationsErrorMessage — the error-detail tests depend on it.
+  ...(await importOriginal<typeof import('../../src/services/inventory')>()),
   fetchInventory: vi.fn().mockResolvedValue({ items: [], summary: { total: 0, expired: 0, expiringSoon: 0 } }),
   fetchRecommendations: vi.fn(),
   createItem: vi.fn(),
@@ -92,6 +94,15 @@ describe('RecommendationsPanel', () => {
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
+  });
+
+  it('surfaces the server Problem JSON detail on failure instead of the generic message (FR-037)', async () => {
+    const detail =
+      'No recipe link could be verified for any recommended meal. The verification providers may be unavailable — try again shortly.';
+    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockRejectedValue(new Error(detail));
+    renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
+    fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/verification providers may be unavailable/i);
   });
 
   it('shows a fallback notice + the meals when the server returns a fallback (SG-02)', async () => {

@@ -79,12 +79,35 @@ export type RecommendationsResult = {
   fallback?: 'popular' | 'cache';
 };
 
+/**
+ * User-facing message for a failed recommendations fetch: prefers the server's
+ * Problem JSON detail (thrown by fetchRecommendations below) over the caller's
+ * generic fallback text.
+ */
+export function recommendationsErrorMessage(err: unknown, generic: string): string {
+  const detail =
+    err instanceof Error && err.message && !err.message.startsWith('Failed to') ? err.message : '';
+  return detail || generic;
+}
+
 export async function fetchRecommendations(): Promise<RecommendationsResult> {
   const res = await apiFetch(`${BASE}/recommendations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
   });
+  // Surface the server's Problem JSON `detail` (e.g. FR-037's 503 "recipe verification
+  // unavailable") so the UI can explain the failure instead of a generic message.
+  // 401 still goes through ensureOk's auth flow below.
+  if (!res.ok && res.status !== 401) {
+    let detail = '';
+    try {
+      detail = ((await res.json()) as { detail?: string }).detail ?? '';
+    } catch {
+      // non-JSON error body — fall through to the generic message
+    }
+    throw new Error(detail || `Failed to fetch recommendations: ${res.status}`);
+  }
   ensureOk(res, "fetch recommendations");
   const data = await res.json() as RecommendationsResult;
   return { recommendations: data.recommendations, ...(data.fallback ? { fallback: data.fallback } : {}) };
