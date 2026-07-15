@@ -1,25 +1,23 @@
 name: Deploy (impl/nextjs)
 
-# Phase E — E2: gated CD for the Next.js implementation.
+# Phase E — E2: CD for the Next.js implementation, Portainer-CE edition.
 #
-# ┌─ STATUS: DRAFT / TEMPLATE ─────────────────────────────────────────────────┐
-# │ This workflow is committed for reference but is NOT yet operational. It      │
-# │ depends on infrastructure (E3) and secrets (E4) that do not exist yet:       │
-# │   • a container registry the server can pull from (GHCR is used below),      │
-# │   • a production host running Docker + a prod compose file,                  │
-# │   • a self-hosted runner on that host (or SSH access — see the deploy job),  │
-# │   • the `production` GitHub Environment with required reviewers + secrets.    │
-# │ Until those exist, tagging `nextjs-v*` will FAIL at the deploy job. That is   │
-# │ expected. Wire E3/E4, then remove this banner.                               │
-# └─────────────────────────────────────────────────────────────────────────────┘
+# DECISION (2026-07-15): the production stack is a **git-backed Portainer stack** on
+# Portainer **CE**, so CI stops at build-push and the rollout is a manual Portainer
+# "Pull and redeploy" (the CE-sanctioned option — see CLAUDE.md §15 and
+# docs/deployment.md → "Updating a running deployment"). The former `deploy` job
+# (self-hosted runner + docker compose on the host) was removed: the host has no
+# compose directory for a runner to cd into (Portainer manages the checkout), and
+# CE has no stack webhooks to call instead. If the stack ever moves to Portainer BE
+# (webhooks) or a host compose dir (Path B), resurrect the deploy job from git
+# history (removed at tag nextjs-v4.1.1).
 #
-# Flow:  push tag `nextjs-v*`  →  build & push image (digest-pinned)
-#                              →  GATE: `production` Environment (required reviewer approves)
-#                              →  deploy on the host  →  post-deploy smoke  →  (rollback on fail)
+# Flow:  push tag `nextjs-v*`  →  build & push image (:<version>, :sha-<sha>, :latest)
+#                              →  run-summary prints the manual rollout steps
 #
 # Per-branch file (impl/nextjs only) — must never be merged to `main`.
-# The app image is SEPARATE from the Holodeck image (ghcr.io/.../fridge-planner);
-# we publish the Next app as `…/fridge-planner-client`.
+# The app image is SEPARATE from the Holodeck images; we publish the Next app as
+# `…/fridge-planner-client`.
 
 on:
   push:
@@ -33,7 +31,7 @@ env:
   IMAGE: ghcr.io/emtabiraobarias/fridge-planner-client
 
 jobs:
-  # ── 1. Build the standalone Next image and push it, pinned by digest ──────────
+  # ── Build the standalone Next image and push it, pinned by digest ─────────────
   build-push:
     name: build & push image
     runs-on: ubuntu-latest
@@ -75,104 +73,28 @@ jobs:
             NEXT_PUBLIC_OIDC_ISSUER=https://auth.fridgeplanner.lan:8443/realms/fridge-planner
             NEXT_PUBLIC_OIDC_CLIENT_ID=fridge-planner-app
             NEXT_PUBLIC_OIDC_REDIRECT_URI=https://fridgeplanner.lan:8443/auth/callback
-          # Both a human-readable version tag and an immutable sha tag.
+          # A human-readable version tag, an immutable sha tag, and :latest (the prod
+          # compose's APP_IMAGE default — lets Portainer "Pull and redeploy" pick up the
+          # release; pinning APP_IMAGE to :<version> in the stack env is still preferred).
           tags: |
             ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
             ${{ env.IMAGE }}:sha-${{ github.sha }}
+            ${{ env.IMAGE }}:latest
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Report digest
-        run: echo "Pushed ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}"
-
-  # ── 2. Gated deploy to the production host ────────────────────────────────────
-  deploy:
-    name: deploy to production
-    needs: build-push
-    # THE GATE: a protected Environment with "Required reviewers" pauses the run
-    # here until a reviewer approves. Configure under repo Settings → Environments.
-    environment:
-      name: production
-      url: ${{ vars.PRODUCTION_URL }}
-    # For an on-prem / LAN server that GitHub cannot reach inbound, run this job on a
-    # SELF-HOSTED RUNNER installed on the box (recommended). Label it `production`:
-    runs-on: [self-hosted, production]
-    # ── ALTERNATIVE (publicly reachable host): keep `runs-on: ubuntu-latest` and
-    #    deploy over SSH instead of the local docker steps below — see the commented
-    #    "SSH deploy" step at the bottom. ──
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4 # for docker-compose.prod.yml + smoke script
-
-      - name: Log in to GHCR (pull the new image)
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # The prod env lives in a root-owned env file ON THE SERVER (chmod 600), NOT in
-      # the image and NOT in the repo. The compose file references it via `env_file:`.
-      # AUTH_MODE=oidc and AUTH_ALLOW_DEV MUST be unset there (FR-D-008).
-      - name: Pull & roll out (zero secrets in this step)
-        env:
-          APP_IMAGE: ${{ env.IMAGE }}:${{ needs.build-push.outputs.version }}
+      - name: Rollout instructions (manual — Portainer CE, git-backed stack)
         run: |
-          set -euo pipefail
-          cd "${PROD_COMPOSE_DIR:-/opt/fridge-planner}"
-          echo "Deploying $APP_IMAGE"
-          # Pin the exact image the gate approved, then recreate just the app service.
-          APP_IMAGE="$APP_IMAGE" docker compose -f docker-compose.prod.yml pull app
-          APP_IMAGE="$APP_IMAGE" docker compose -f docker-compose.prod.yml up -d app
-
-      # Post-deploy smoke against the REAL URL. Confirms (a) health, (b) oidc is
-      # actually enforced (no token → 401), (c) a token-bearing call works.
-      - name: Post-deploy smoke
-        env:
-          BASE_URL: ${{ vars.PRODUCTION_URL }}
-          SMOKE_TOKEN: ${{ secrets.SMOKE_BEARER_TOKEN }} # a short-lived test token from the IdP
-        run: |
-          set -euo pipefail
-          echo "1) health"
-          curl -fsS "${BASE_URL}/api/health" >/dev/null && echo "  ✓ 200"
-          echo "2) oidc enforced — unauthenticated /api/v1 must be 401"
-          code=$(curl -s -o /dev/null -w '%{http_code}' "${BASE_URL}/api/v1/inventory")
-          [ "$code" = "401" ] || { echo "  ✗ expected 401, got $code"; exit 1; }
-          echo "  ✓ 401"
-          if [ -n "${SMOKE_TOKEN:-}" ]; then
-            echo "3) authenticated call must be 2xx"
-            code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${SMOKE_TOKEN}" "${BASE_URL}/api/v1/inventory")
-            case "$code" in 2*) echo "  ✓ $code";; *) echo "  ✗ expected 2xx, got $code"; exit 1;; esac
-          else
-            echo "3) [skipped — no SMOKE_BEARER_TOKEN configured]"
-          fi
-
-      # On smoke failure, roll back to the previous image. Requires the previous
-      # version to be recorded; simplest is to keep `…:sha-<prev>` and re-up it.
-      - name: Rollback on failure
-        if: failure()
-        run: |
-          echo "::warning::Deploy smoke failed — roll back manually to the previous image:"
-          echo "  cd /opt/fridge-planner && APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:<prev> docker compose -f docker-compose.prod.yml up -d app"
-          # TODO(E2): automate by capturing the running image digest before the pull
-          # and re-upping it here.
-
-  # ──────────────────────────────────────────────────────────────────────────────
-  # SSH-DEPLOY ALTERNATIVE (when the host is reachable from a GitHub-hosted runner,
-  # e.g. via a public IP, VPN, or Tailscale). Replace the `deploy` job's runs-on with
-  # `ubuntu-latest` and its rollout step with:
-  #
-  #   - name: Deploy over SSH
-  #     uses: appleboy/ssh-action@v1
-  #     with:
-  #       host: ${{ secrets.DEPLOY_HOST }}
-  #       username: ${{ secrets.DEPLOY_USER }}
-  #       key: ${{ secrets.DEPLOY_SSH_KEY }}
-  #       script: |
-  #         cd /opt/fridge-planner
-  #         APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:${{ needs.build-push.outputs.version }} \
-  #           docker compose -f docker-compose.prod.yml pull app
-  #         APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:${{ needs.build-push.outputs.version }} \
-  #           docker compose -f docker-compose.prod.yml up -d app
-  # ──────────────────────────────────────────────────────────────────────────────
+          {
+            echo "## Image published"
+            echo '```'
+            echo "${{ env.IMAGE }}:${{ steps.meta.outputs.version }}"
+            echo "${{ env.IMAGE }}@${{ steps.build.outputs.digest }}"
+            echo '```'
+            echo "## Manual rollout (Portainer)"
+            echo "1. Portainer → Stacks → fridge-planner → (recommended) set stack env \`APP_IMAGE=${{ env.IMAGE }}:${{ steps.meta.outputs.version }}\`"
+            echo "2. **Pull and redeploy** (re-pulls the git compose + images)."
+            echo "3. Smoke: \`curl -fsS \$BASE_URL/api/health\` → 200; unauthenticated \`/api/v1/inventory\` → 401."
+            echo "4. Rollback = set \`APP_IMAGE\` back to the previous version tag and redeploy."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -141,15 +141,17 @@ A reference template is committed; it **fails at the deploy job until E3 infra +
 design — the banner in the file says so). What it does:
 - Trigger: `on: push: tags: ['nextjs-v*']`.
 - **build-push** job: build `packages/client/Dockerfile` → push `ghcr.io/.../fridge-planner-client`
-  tagged `:<version>` + `:sha-<sha>` (digest-pinned). *(Note the app image is **separate** from the
-  Holodeck image `ghcr.io/.../fridge-planner`.)*
-- **deploy** job: `environment: production` (**required reviewers = the gate**). For an on-prem/LAN box,
-  runs on a **self-hosted runner** labelled `production` doing `docker compose -f docker-compose.prod.yml
-  pull/up client`; a commented **SSH-deploy** alternative is included for a publicly-reachable host.
-- **Post-deploy smoke** against the real URL: `GET /api/health` → 200; `GET /api/v1/inventory` (no
-  token) → **401** (confirms oidc enforced); a token-bearing request → 2xx. Fail → rollback (manual TODO).
-- **Still needed before it runs:** a `docker-compose.prod.yml` on the host, the `production` Environment
-  + reviewers, GHCR pull access, and the `PRODUCTION_URL` var / `SMOKE_BEARER_TOKEN` secret.
+  tagged `:<version>` + `:sha-<sha>` (digest-pinned) + `:latest`. *(Note the app image is **separate**
+  from the Holodeck image `ghcr.io/.../fridge-planner`.)*
+- **Rollout is MANUAL (decided 2026-07-15):** the prod stack is a **git-backed Portainer CE stack**, so
+  the workflow stops at build-push and prints the rollout steps in the run summary. In Portainer:
+  (recommended) pin `APP_IMAGE` to the new `:<version>` in the stack env → **Pull and redeploy**. The
+  former `deploy` job (self-hosted runner labelled `production` + host `docker compose`) was removed —
+  a git-backed stack has no host compose dir for a runner; recover it from git history (pre
+  `nextjs-v4.1.1`) if the topology ever changes.
+- **Post-deploy smoke (run by hand):** `GET /api/health` → 200; `GET /api/v1/inventory` (no
+  token) → **401** (confirms oidc enforced); a token-bearing request → 2xx. Rollback = repoint
+  `APP_IMAGE` at the previous version tag and redeploy.
 
 ### E3 — Infra prerequisites
 Stand up everything in the checklist above (domain/TLS, registry, host, Atlas, Holodeck, IdP). Capture
@@ -262,7 +264,7 @@ Only re-tag/rebuild the image(s) that actually changed. A code change under `pac
    - **Portainer (CE, this deployment):** open the stack → **Update the stack** (or **Pull and
      redeploy**) with **"Re-pull image"** enabled and **"Remove volumes" OFF**. Portainer recreates
      only the containers whose image/config changed; named volumes are reused.
-   - **Or from a host shell** (self-hosted-runner / SSH):
+   - **Or from a host shell** (SSH, if the host ever exposes one for this stack):
      ```sh
      cd /opt/fridge-planner
      docker compose -f docker-compose.prod.yml pull            # fetch new image tags

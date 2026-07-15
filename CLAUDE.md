@@ -524,7 +524,7 @@ Production deploys via a **staged runbook driven by an orchestrator**, so most f
 - `docs/deployment.md` — the prose runbook.
 - `.claude/skills/deploy-runbook/SKILL.md` — the orchestrator. Invoke `/deploy-runbook` (or "continue the deployment"); `/deploy-runbook status` shows progress.
 - `.claude/agents/deploy-file-writer.md` — subagent that verifies/edits the deploy files + CI. Never deploys, never touches Portainer.
-- `.github/workflows/deploy-nextjs.yml` — the **existing** gated CD workflow (digest-pinned build-push, `production` environment gate, OIDC-enforcement smoke, rollback stub). Publishes `…/fridge-planner-client`. The orchestrator **edits** it in Stage 2 (OIDC build-args, deploy-path reconcile) — never regenerates it.
+- `.github/workflows/deploy-nextjs.yml` — the **existing** CD workflow: digest-pinned build-push (`:<version>` + `:sha-*` + `:latest`) with the manual Portainer rollout printed in the run summary. **The self-hosted-runner deploy job was removed 2026-07-15** (prod is a git-backed Portainer **CE** stack — no host compose dir for a runner, no CE webhooks; resurrect from git history at tag `nextjs-v4.1.1` if the topology changes). The orchestrator **edits** it in Stage 2 (OIDC build-args) — never regenerates it.
 
 **The automation boundary:**
 - **agent (automated in repo):** verify/edit `docker-compose.prod.yml`, `deploy/Caddyfile`, `.github/workflows/deploy-nextjs.yml`. Most are verify-only (files already exist and are correct).
@@ -534,7 +534,7 @@ Production deploys via a **staged runbook driven by an orchestrator**, so most f
 - Secrets never enter the repo — only `deploy/prod.env.example` (placeholders) is committed. Real values go in Portainer stack env (Path A) or a host `.env` next to the compose (Path B).
 - `AUTH_ALLOW_DEV` must never appear in any committed file or production env.
 - App image is `ghcr.io/emtabiraobarias/fridge-planner-client`; `…/fridge-planner` (no suffix) is the Holodeck image.
-- CD is **edition-aware**: Portainer **CE** can't use stack webhooks (Business-only). On CE, keep the self-hosted-runner compose rollout (an admin installs the runner once) or stop at build-push and do Portainer **Pull and redeploy** by hand; **BE** could POST a redeploy webhook behind the gate.
+- CD is **edition-aware**: Portainer **CE** can't use stack webhooks (Business-only). **Decided 2026-07-15:** the prod stack is git-backed on CE, so CI **stops at build-push** and rollout is a manual Portainer **Pull and redeploy** (the self-hosted-runner deploy job was removed — a git-backed stack has no host compose dir for a runner to operate on); **BE** could POST a redeploy webhook behind the gate.
 - The prod stack deploys **through Portainer**; the dev `docker compose` commands in §2 are for local development only.
 
 ---
