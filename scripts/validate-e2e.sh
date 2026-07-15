@@ -19,7 +19,9 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 DB="fridge-planner-e2e"
-PORT=3000
+# NOT 3000: a running `next dev` owns that port, and a silent EADDRINUSE here made
+# the health check (and the whole smoke) hit the dev server instead of this build.
+PORT="${E2E_PORT:-3199}"
 AGENT_FLAG="${1:-}"
 APP_PID=""
 
@@ -37,15 +39,16 @@ docker compose up -d mongodb >/dev/null
 [ "$WANT_AGENT" = 1 ] && docker compose up -d holodeck >/dev/null
 for _ in $(seq 1 30); do mongo 'db.adminCommand("ping")' | grep -q 'ok' && break; sleep 1; done
 
-echo "[2/4] production build (next build)"
-npm -w packages/client run build || { echo "❌ build failed"; exit 1; }
+echo "[2/4] production build (next build → .next-e2e, isolated from any dev server)"
+NEXT_DIST_DIR=.next-e2e npm -w packages/client run build || { echo "❌ build failed"; exit 1; }
 
 echo "[3/4] start (next start) on :$PORT against $DB"
 # AUTH_MODE=dev + AUTH_ALLOW_DEV=true: run the X-User-Id dev seam under the production
 # build so the smoke round-trips without a live IdP (FR-D-007). Real prod sets neither.
-MONGODB_URI="mongodb://localhost:27017/$DB" HOLODECK_URL="http://localhost:8001" \
+NEXT_DIST_DIR=.next-e2e \
+  MONGODB_URI="mongodb://localhost:27017/$DB" HOLODECK_URL="http://localhost:8001" \
   AUTH_MODE=dev AUTH_ALLOW_DEV=true \
-  npm -w packages/client run start >/tmp/e2e-app.log 2>&1 &
+  npx --prefix packages/client next start packages/client --port "$PORT" >/tmp/e2e-app.log 2>&1 &
 APP_PID=$!
 ready=0
 for _ in $(seq 1 60); do
