@@ -73,21 +73,24 @@ chk "every fallback meal carries recipeUrl (FR-037)" true "$(field '.recommendat
 echo "   fallback=$(field .fallback)"
 
 if [ "$AGENT" = "1" ]; then
-  # FR-037: every displayed meal must carry a verified recipeUrl. With at least one
-  # recipe-search key the live path must return 200 with all meals linked; with NO
-  # keys the endpoint must fail loudly (503) rather than serve unlinked meals.
+  # FR-037 (async revision): the results endpoint returns immediately (no link
+  # blocking); links are fetched via the follow-up verify-links endpoint. With a
+  # recipe-search key configured the follow-up reports available=true; without,
+  # available=false (the CLIENT then removes unlinked meals + shows a notice).
+  echo "8) POST recommendations with inventory -> LIVE agent, immediate results (FR-037) — US2 / EC-08"
+  c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' --max-time 220 "$BASE/recommendations")
+  chk "200 OK" 200 "$c"
+  echo "   fallback=$(field '.fallback||"(none — real agent result)"')  count=$(field .recommendations.length)"
+  names=$(field 'JSON.stringify(.recommendations.map(m=>m.mealName))')
+  echo "8b) POST recommendations/verify-links (FR-037 lazy phase)"
+  c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d "{\"mealNames\":$names}" --max-time 120 "$BASE/recommendations/verify-links")
+  chk "200 OK" 200 "$c"
   if [ -n "${BRAVE_SEARCH_API_KEY:-}" ] || [ -n "${SPOONACULAR_API_KEY:-}" ]; then
-    echo "8) POST recommendations with inventory -> LIVE agent, verified links (FR-037) — US2 / EC-08"
-    c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' --max-time 220 "$BASE/recommendations")
-    chk "200 OK" 200 "$c"
-    chk "every meal carries recipeUrl (FR-037)" true "$(field '.recommendations.every(m=>!!m.recipeUrl)')"
-    echo "   fallback=$(field '.fallback||"(none — real agent result)"')  count=$(field .recommendations.length)"
+    chk "verification available" true "$(field .available)"
   else
-    echo "8) POST recommendations with inventory, NO recipe keys -> 503 fail-loudly (FR-037)"
-    c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' --max-time 220 "$BASE/recommendations")
-    chk "503 Service Unavailable (Problem JSON)" 503 "$c"
-    echo "   title=$(field .title)"
+    chk "verification reported unavailable (no keys)" false "$(field .available)"
   fi
+  echo "   links=$(field 'Object.keys(.links).length')"
 else
   echo "8) [skipped — --no-agent]"
 fi
