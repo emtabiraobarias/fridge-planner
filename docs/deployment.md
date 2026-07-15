@@ -108,7 +108,19 @@ The SPA used to send **no `Authorization` header** (only the dev `X-User-Id` sea
   the callback exchanges the code (+ verifier) at the token endpoint and `setToken`s the result.
 - `NEXT_PUBLIC_OIDC_*` are baked at build time via Dockerfile ARGs + `deploy-nextjs.yml` build-args.
 - Post-login 401 race fixed by seeding the token from sessionStorage at `http.ts` module load.
-- *(Token refresh on expiry is still a future nicety; the 401 → re-login signal covers expiry for now.)*
+- ~~*(Token refresh on expiry is still a future nicety; the 401 → re-login signal covers expiry for now.)*~~
+  **Done 2026-07-16 (FR-D-010, feedback 6a56a2cc):** the code→token exchange now keeps the
+  `refresh_token`; `apiFetch` renews an expired access token transparently (single-flight refresh
+  grant + one-shot retry) so users no longer lose in-flight work; the 401 → re-login prompt only
+  fires when renewal itself fails.
+
+**Keycloak session settings for the 12h idle window (MANUAL — realm admin):**
+For FR-D-010's "half a day" to hold, set in Keycloak admin → realm `fridge-planner` →
+**Realm settings → Sessions**:
+- **SSO Session Idle**: `12h` (refresh works while the user returns within 12h)
+- **SSO Session Max**: `12h` (or longer — hard ceiling per login)
+Leave **Access Token Lifespan** (Tokens tab) short (default 5 min is fine — the client refreshes).
+No client-config change needed: the public PKCE client already receives refresh tokens.
 
 ### Stage 1 (internal LAN) — ✅ COMPLETE (verified end-to-end)
 Deployed to a single Portainer/TrueNAS node; `s8int-smoke` passed (trusted TLS, OIDC login round-trip,

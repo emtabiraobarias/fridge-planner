@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { setAuthToken } from '../services/http';
+import { setAuthToken, setRefreshToken, onTokenRefreshed } from '../services/http';
 
 // E0 (Phase E): client-side OIDC. E0a = token store + Bearer injection (services/http).
 // E0b (here) = the full authorization-code + PKCE flow against Keycloak:
@@ -63,12 +63,18 @@ export async function createAuthorizationRequest(
   return { url: `${authorizationEndpoint()}?${params.toString()}`, verifier, state };
 }
 
-/** Exchange an authorization code for an access token (PKCE), validating the returned state. */
+export interface TokenPair {
+  accessToken: string;
+  /** null when the IdP issues no refresh token — the session then ends with the access token. */
+  refreshToken: string | null;
+}
+
+/** Exchange an authorization code for tokens (PKCE), validating the returned state. */
 export async function exchangeCodeForToken(
   origin: string,
   code: string,
   returnedState: string,
-): Promise<string> {
+): Promise<TokenPair> {
   const savedState = window.sessionStorage.getItem(OIDC_STATE_KEY);
   const verifier = window.sessionStorage.getItem(PKCE_VERIFIER_KEY);
   if (!savedState || savedState !== returnedState) {
@@ -88,11 +94,13 @@ export async function exchangeCodeForToken(
     body,
   });
   if (!res.ok) throw new Error(`Token exchange failed (${res.status})`);
-  const data = (await res.json()) as { access_token?: string };
+  const data = (await res.json()) as { access_token?: string; refresh_token?: string };
   if (!data.access_token) throw new Error('Token response missing access_token');
   window.sessionStorage.removeItem(PKCE_VERIFIER_KEY);
   window.sessionStorage.removeItem(OIDC_STATE_KEY);
-  return data.access_token;
+  // FR-D-010: keep the refresh token — it is what lets the session survive access-token
+  // expiry (transparent renewal in services/http) up to the IdP's 12h idle window.
+  return { accessToken: data.access_token, refreshToken: data.refresh_token ?? null };
 }
 
 interface AuthState {
@@ -118,6 +126,10 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     setAuthToken(accessToken);
   }, [accessToken]);
 
+  // FR-D-010: when the service layer transparently renews the token, follow it here so
+  // React state (and sessionStorage, written below via setToken) stay consistent.
+  useEffect(() => onTokenRefreshed((token) => setToken(token)), []);
+
   function setToken(token: string | null): void {
     setAccessToken(token);
     if (typeof window === 'undefined') return;
@@ -136,11 +148,13 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
   }
 
   async function completeLogin(code: string, state: string): Promise<void> {
-    const token = await exchangeCodeForToken(window.location.origin, code, state);
-    setToken(token);
+    const pair = await exchangeCodeForToken(window.location.origin, code, state);
+    setRefreshToken(pair.refreshToken);
+    setToken(pair.accessToken);
   }
 
   function logout(): void {
+    setRefreshToken(null);
     setToken(null);
   }
 

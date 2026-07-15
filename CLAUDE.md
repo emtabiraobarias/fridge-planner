@@ -235,7 +235,7 @@ Copy `.env.example` to `.env` before running locally.
 
 > Single Next process on `:3000`, same-origin — so **no `PORT`/`CORS_ORIGIN`/`BACKEND_URL`** (removed with Express in Phase C-bis). For local `next dev`, put `MONGODB_URI` + `HOLODECK_URL` in `packages/client/.env.local`.
 
-> **Auth note (spec 002 / Phase D):** `src/server/auth.ts` `authenticate(request)` validates an OIDC Bearer JWT (`jose`: JWKS signature + `iss`/`aud`/`exp`) and returns the `sub` claim as `userId`. `AUTH_MODE=dev` (default off-production) keeps the `X-User-Id` seam for local dev + tests; `AUTH_MODE=oidc` is required in production (the dev seam is refused there). Handlers call `await authenticate(request)`; a failure throws `AuthError` → `withRoute` returns 401 Problem JSON.
+> **Auth note (spec 002 / Phase D):** client-side, `services/http.ts` transparently renews expired access tokens via the OIDC refresh grant (single-flight + one retry, FR-D-010) — the 12h idle window is a Keycloak realm setting (SSO Session Idle/Max), see docs/deployment.md. Server-side, `src/server/auth.ts` `authenticate(request)` validates an OIDC Bearer JWT (`jose`: JWKS signature + `iss`/`aud`/`exp`) and returns the `sub` claim as `userId`. `AUTH_MODE=dev` (default off-production) keeps the `X-User-Id` seam for local dev + tests; `AUTH_MODE=oidc` is required in production (the dev seam is refused there). Handlers call `await authenticate(request)`; a failure throws `AuthError` → `withRoute` returns 401 Problem JSON.
 
 ---
 

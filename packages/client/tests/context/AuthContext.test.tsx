@@ -58,12 +58,16 @@ describe('exchangeCodeForToken (E0b)', () => {
   it('posts code + verifier to the token endpoint and returns the access token', async () => {
     window.sessionStorage.setItem('fp_oidc_state', 'st8');
     window.sessionStorage.setItem('fp_pkce_verifier', 'ver1');
-    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ access_token: 'tok-xyz' }) });
+    const f = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'tok-xyz', refresh_token: 'refresh-abc' }),
+    });
     vi.stubGlobal('fetch', f);
 
-    const token = await exchangeCodeForToken('https://app.example.com:8443', 'auth-code', 'st8');
+    const pair = await exchangeCodeForToken('https://app.example.com:8443', 'auth-code', 'st8');
 
-    expect(token).toBe('tok-xyz');
+    // FR-D-010: the refresh token is kept, not discarded.
+    expect(pair).toEqual({ accessToken: 'tok-xyz', refreshToken: 'refresh-abc' });
     const [endpoint, init] = f.mock.calls[0] as [string, RequestInit];
     expect(endpoint).toBe(
       'https://auth.example.com:8443/realms/fridge-planner/protocol/openid-connect/token',
