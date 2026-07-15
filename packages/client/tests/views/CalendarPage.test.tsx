@@ -8,12 +8,14 @@ import { PlacementProvider, usePlacement } from '../../src/context/PlacementCont
 import { ToastProvider } from '../../src/context/ToastContext';
 import { Toast } from '../../src/components/shared/Toast';
 import type { MealRecommendation } from '../../src/types/meal-recommendation';
+import * as weekUtils from '../../src/lib/date-utils';
 
 const addEntry = vi.fn().mockResolvedValue({});
 const removeEntry = vi.fn().mockResolvedValue({});
+const fetchMealPlan = vi.fn().mockResolvedValue(null);
 
 vi.mock('../../src/services/meal-plans', () => ({
-  fetchMealPlan: vi.fn().mockResolvedValue(null),
+  fetchMealPlan: (...a: unknown[]) => fetchMealPlan(...a),
   addEntry: (...a: unknown[]) => addEntry(...a),
   removeEntry: (...a: unknown[]) => removeEntry(...a),
   replaceEntries: vi.fn().mockResolvedValue({}),
@@ -66,6 +68,7 @@ function renderPage(): ReturnType<typeof render> {
 describe('CalendarPage tap-to-place', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchMealPlan.mockResolvedValue(null);
   });
 
   it('renders the week header', async () => {
@@ -114,5 +117,57 @@ describe('CalendarPage tap-to-place', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByText(/Placing/)).not.toBeInTheDocument();
     expect(addEntry).not.toHaveBeenCalled();
+  });
+});
+
+describe('CalendarPage planned meals (FR-022 / FR-024)', () => {
+  const plannedDay = (): string => {
+    // Any day of the currently-displayed week — recompute like the page does.
+    const { getWeekStart, getWeekDays } = weekUtils;
+    return getWeekDays(getWeekStart(0))[2]!;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchMealPlan.mockResolvedValue({
+      weekStart: weekUtils.getWeekStart(0),
+      entries: [
+        {
+          slotId: 'slot-1',
+          date: plannedDay(),
+          mealType: 'dinner',
+          meal: { ...meal, recipeUrl: 'https://www.recipetineats.com/thai-green-curry/' },
+        },
+      ],
+    });
+  });
+
+  it('opens the detail modal with a recipe link when a planned meal is clicked (FR-024)', async () => {
+    renderPage();
+    const tile = await screen.findByLabelText('dinner: Thai Green Curry');
+    await userEvent.click(tile);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Thai Green Curry');
+    const link = screen.getByRole('link', { name: /view recipe/i });
+    expect(link).toHaveAttribute('href', 'https://www.recipetineats.com/thai-green-curry/');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('clear (×) removes the entry without opening the modal', async () => {
+    renderPage();
+    await screen.findByLabelText('dinner: Thai Green Curry');
+    await userEvent.click(screen.getByRole('button', { name: /clear dinner thai green curry/i }));
+
+    await waitFor(() => expect(removeEntry).toHaveBeenCalledWith(expect.any(String), 'slot-1'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('renders the planned meal as a draggable (FR-022 drag-and-drop rearrangement)', async () => {
+    renderPage();
+    const tile = await screen.findByLabelText('dinner: Thai Green Curry');
+    // dnd-kit wires draggables with role/aria — the concrete drag interaction is
+    // covered by the Playwright e2e (calendar-dnd.e2e.ts).
+    expect(tile).toHaveAttribute('aria-roledescription', 'draggable');
   });
 });

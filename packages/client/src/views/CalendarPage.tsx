@@ -1,12 +1,22 @@
 'use client';
 import { useState } from 'react';
 import { Check } from 'lucide-react';
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
 import type { MealPlanEntry, MealType } from '../types/meal-plan';
 import { useMealPlan } from '../context/MealPlanContext';
 import { usePlacement } from '../context/PlacementContext';
 import { useToast } from '../context/ToastContext';
 import { getWeekDays } from '../lib/date-utils';
 import { SuggestionsRail } from '../components/calendar/SuggestionsRail';
+import { PlannedMealTile } from '../components/calendar/PlannedMealTile';
+import { EmptySlotTarget } from '../components/calendar/EmptySlotTarget';
+import { MealDetailModal } from '../components/calendar/MealDetailModal';
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -32,13 +42,29 @@ function rangeLabel(days: string[]): string {
 }
 
 export function CalendarPage(): React.JSX.Element {
-  const { plan, currentWeekStart, setWeekOffset, assignMeal, unassignMeal } = useMealPlan();
+  const { plan, currentWeekStart, setWeekOffset, assignMeal, unassignMeal, moveMeal } = useMealPlan();
   const { placing, clearPlacing } = usePlacement();
   const { showToast } = useToast();
   const [weekOffset, setWeekOffsetLocal] = useState(0);
+  const [selectedEntry, setSelectedEntry] = useState<MealPlanEntry | null>(null);
+
+  // 6px activation distance: a plain click opens the detail modal (FR-024); only an
+  // actual drag movement starts a move (FR-022).
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const weekDays = getWeekDays(currentWeekStart);
   const today = todayUtcDate();
+
+  async function handleDragEnd(event: DragEndEvent): Promise<void> {
+    const entry = event.active.data.current?.['entry'] as MealPlanEntry | undefined;
+    const target = event.over?.data.current as { date: string; mealType: MealType } | undefined;
+    if (!entry || !target) return;
+    if (entry.date === target.date && entry.mealType === target.mealType) return;
+    await moveMeal(entry.slotId, target.date, target.mealType);
+    showToast(
+      `${entry.meal.mealName} moved to ${DOW_SHORT[dowIndex(target.date)]} ${target.mealType}`,
+    );
+  }
 
   function shiftWeek(delta: number): void {
     const next = weekOffset + delta;
@@ -106,73 +132,55 @@ export function CalendarPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* Week grid */}
-      <div className="overflow-x-auto">
-        <div className="grid min-w-[720px] grid-cols-7 gap-2.5">
-          {weekDays.map((day) => {
-            const isToday = day.slice(0, 10) === today;
-            return (
-              <div
-                key={day}
-                className={`rounded-lg bg-surface p-2.5 ${isToday ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
-              >
-                <div className="mb-2 text-center">
-                  <div className="text-[12px] font-semibold uppercase text-ink/60">{DOW[dowIndex(day)]}</div>
-                  <div className="font-heading text-[19px] text-ink">{dayNumber(day)}</div>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {MEAL_TYPES.map((mealType) => {
-                    const entry = getEntry(day, mealType);
-                    if (entry) {
+      {/* Week grid — DndContext enables dragging planned meals between slots (FR-022) */}
+      <DndContext sensors={sensors} onDragEnd={(e) => void handleDragEnd(e)}>
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[720px] grid-cols-7 gap-2.5">
+            {weekDays.map((day) => {
+              const isToday = day.slice(0, 10) === today;
+              return (
+                <div
+                  key={day}
+                  className={`rounded-lg bg-surface p-2.5 ${isToday ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
+                >
+                  <div className="mb-2 text-center">
+                    <div className="text-[12px] font-semibold uppercase text-ink/60">{DOW[dowIndex(day)]}</div>
+                    <div className="font-heading text-[19px] text-ink">{dayNumber(day)}</div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {MEAL_TYPES.map((mealType) => {
+                      const entry = getEntry(day, mealType);
+                      if (entry) {
+                        return (
+                          <PlannedMealTile
+                            key={mealType}
+                            entry={entry}
+                            onOpen={setSelectedEntry}
+                            onClear={(slotId) => void unassignMeal(slotId)}
+                          />
+                        );
+                      }
                       return (
-                        <div
+                        <EmptySlotTarget
                           key={mealType}
-                          className="relative rounded-md bg-accent2-200 px-2.5 py-2"
-                          aria-label={`${mealType}: ${entry.meal.mealName}`}
-                        >
-                          <div className="text-[10px] font-semibold uppercase text-accent2-700">{mealType}</div>
-                          <div className="pr-4 text-[12.5px] font-semibold leading-tight text-accent2-900">
-                            {entry.meal.mealName}
-                          </div>
-                          <div className="text-[11px] text-accent2-700">{entry.meal.prepTimeMinutes} min</div>
-                          <button
-                            type="button"
-                            aria-label={`Clear ${mealType} ${entry.meal.mealName}`}
-                            onClick={() => void unassignMeal(entry.slotId)}
-                            className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full text-accent2-800 hover:bg-accent2-300"
-                          >
-                            ×
-                          </button>
-                        </div>
+                          date={day}
+                          mealType={mealType}
+                          dayNumber={dayNumber(day)}
+                          placingMode={Boolean(placing)}
+                          onPlace={(d, mt) => void placeInto(d, mt)}
+                        />
                       );
-                    }
-                    const placingMode = Boolean(placing);
-                    return (
-                      <button
-                        key={mealType}
-                        type="button"
-                        disabled={!placingMode}
-                        aria-label={`${mealType} slot ${dayNumber(day)}${placingMode ? ', place here' : ', empty'}`}
-                        onClick={() => void placeInto(day, mealType)}
-                        className={`flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-md border-[1.5px] border-dashed text-[10px] uppercase transition-colors ${
-                          placingMode
-                            ? 'cursor-pointer border-accent bg-accent-100 text-accent hover:bg-accent-200'
-                            : 'border-divider text-ink/50'
-                        }`}
-                      >
-                        <span>{mealType}</span>
-                        <span className={placingMode ? 'text-base font-bold text-accent' : 'text-base text-ink/25'}>
-                          +
-                        </span>
-                      </button>
-                    );
-                  })}
+                    })}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      </DndContext>
+
+      {/* FR-024: click a planned meal → details + recipe link */}
+      <MealDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
 
       <SuggestionsRail />
     </div>
