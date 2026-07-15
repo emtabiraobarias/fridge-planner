@@ -69,13 +69,25 @@ echo "   entries=$(field '.plan?.entries.length')"
 echo "7) POST recommendations as EMPTY user -> popular fallback (no agent) — EC-01"
 c=$(code -X POST -H "X-User-Id: smoke-empty" -H "Content-Type: application/json" -d '{}' "$BASE/recommendations")
 chk "200 OK" 200 "$c"
+chk "every fallback meal carries recipeUrl (FR-037)" true "$(field '.recommendations.every(m=>!!m.recipeUrl)')"
 echo "   fallback=$(field .fallback)"
 
 if [ "$AGENT" = "1" ]; then
-  echo "8) POST recommendations with inventory -> LIVE agent (200; real result or graceful fallback) — US2 / EC-08"
-  c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' --max-time 220 "$BASE/recommendations")
-  chk "200 OK" 200 "$c"
-  echo "   fallback=$(field '.fallback||"(none — real agent result)"')  count=$(field .recommendations.length)"
+  # FR-037: every displayed meal must carry a verified recipeUrl. With at least one
+  # recipe-search key the live path must return 200 with all meals linked; with NO
+  # keys the endpoint must fail loudly (503) rather than serve unlinked meals.
+  if [ -n "${BRAVE_SEARCH_API_KEY:-}" ] || [ -n "${SPOONACULAR_API_KEY:-}" ]; then
+    echo "8) POST recommendations with inventory -> LIVE agent, verified links (FR-037) — US2 / EC-08"
+    c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' --max-time 220 "$BASE/recommendations")
+    chk "200 OK" 200 "$c"
+    chk "every meal carries recipeUrl (FR-037)" true "$(field '.recommendations.every(m=>!!m.recipeUrl)')"
+    echo "   fallback=$(field '.fallback||"(none — real agent result)"')  count=$(field .recommendations.length)"
+  else
+    echo "8) POST recommendations with inventory, NO recipe keys -> 503 fail-loudly (FR-037)"
+    c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' --max-time 220 "$BASE/recommendations")
+    chk "503 Service Unavailable (Problem JSON)" 503 "$c"
+    echo "   title=$(field .title)"
+  fi
 else
   echo "8) [skipped — --no-agent]"
 fi
