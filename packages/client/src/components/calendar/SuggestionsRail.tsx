@@ -45,6 +45,16 @@ export function SuggestionsRail(): React.JSX.Element {
               <p className="text-muted mt-0.5 text-xs">
                 {meal.cuisine} · {meal.prepTimeMinutes} min
               </p>
+              {meal.recipeUrl && (
+                <a
+                  href={meal.recipeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-xs font-semibold text-accent2-800 underline underline-offset-2 hover:text-accent2-600"
+                >
+                  View recipe ↗
+                </a>
+              )}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {meal.expiringIngredients.slice(0, 3).map((ing) => (
                   <span
