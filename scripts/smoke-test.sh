@@ -81,7 +81,7 @@ if [ "$AGENT" = "1" ]; then
   c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' --max-time 220 "$BASE/recommendations")
   chk "200 OK" 200 "$c"
   echo "   fallback=$(field '.fallback||"(none — real agent result)"')  count=$(field .recommendations.length)"
-  names=$(field 'JSON.stringify(.recommendations.map(m=>m.mealName))')
+  names=$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);process.stdout.write(JSON.stringify((b.recommendations||[]).map(m=>m.mealName).slice(0,10)))})" < /tmp/smoke-body.json)
   echo "8b) POST recommendations/verify-links (FR-037 lazy phase)"
   c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d "{\"mealNames\":$names}" --max-time 120 "$BASE/recommendations/verify-links")
   chk "200 OK" 200 "$c"
@@ -90,7 +90,7 @@ if [ "$AGENT" = "1" ]; then
   else
     chk "verification reported unavailable (no keys)" false "$(field .available)"
   fi
-  echo "   links=$(field 'Object.keys(.links).length')"
+  echo "   links=$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);process.stdout.write(String(Object.keys(b.links||{}).length))})" < /tmp/smoke-body.json)"
 else
   echo "8) [skipped — --no-agent]"
 fi
