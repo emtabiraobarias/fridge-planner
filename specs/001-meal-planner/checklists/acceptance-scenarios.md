@@ -21,7 +21,7 @@
 - **US1-S3** — View a recommended meal → owned ingredients are marked separately from to-purchase ones.
 - **US1-S4** — Perishables nearing expiry → recommendations prioritize soon-to-expire ingredients.
 - *(US1-S5 removed in spec — intentionally skipped; do not renumber.)*
-- **US1-S6** — Use an ingredient in a planned meal → inventory quantities update to reflect consumption. ☑ **Verified 2026-06-20** (BUG #7, `7dca07a`) — reversible: removing/replacing a meal restores quantities (FR-005).
+- **US1-S6** — Use an ingredient in a planned meal → inventory quantities update to reflect consumption. ☑ **Verified 2026-06-20** (BUG #7, `7dca07a`) — reversible: removing/replacing a meal restores quantities (FR-005). ⚠ **Superseded by spec `006` (2026-07-18, FR-005 revised):** consumption now happens at **cooked confirmation**, not planning — re-verify against spec `006` FR-MC-006..015 / MC-* scenarios once implemented.
 - **US1-S7** — Ingredient expiring tomorrow (before midnight) → highlighted **yellow** with indicator.
 - **US1-S8** — Ingredient expired today or earlier (midnight cutoff) → highlighted **red**, interaction disabled.
 - **US1-S9** — Expired items present → LLM agent does **not** receive expired items as available.
@@ -40,8 +40,8 @@
 ## US3 — Smart Grocery List with Aggregation (P3)
 
 - **US3-S1** — 3 meals each needing 1 onion → grocery list shows "Onions: 3 total" as one line.
-- **US3-S2** — 3 meals each requiring milk → one aggregated line item "Milk ×3" (servings count). *(Quantity/unit normalization deferred — FR-028.)*
-- **US3-S3** — Meals require eggs and inventory has eggs → eggs appear as a needed line item. *(Net deduction "4 (6−2)" deferred — FR-027.)*
+- **US3-S2** — 3 meals each requiring milk → one aggregated line item: real summed amounts where quantities are grounded (spec `006` FR-MC-016/017), servings count "Milk ×3" as fallback. *(FR-028 un-deferred 2026-07-18 → spec `006`.)*
+- **US3-S3** — Meals require eggs and inventory has eggs → grounded lines net off owned non-expired stock ("4 needed (6−2)", spec `006` FR-MC-016); ungrounded lines appear whole (fallback). *(FR-027 un-deferred 2026-07-18 → spec `006`.)*
 - **US3-S4** — Grocery list grouped by category (Produce, Dairy, Meat, Pantry, …).
 - **US3-S5** — Check off an item → marked purchased, crossed out / moved to completed.
 - **US3-S6** — Confirm purchased items → added to inventory with purchased quantities.
