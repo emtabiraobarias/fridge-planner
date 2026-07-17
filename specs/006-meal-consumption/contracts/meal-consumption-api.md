@@ -18,7 +18,7 @@ Entry lifecycle transition (cook / un-cook). Route file already hosts DELETE.
 }
 ```
 
-- `consumption` = the user-confirmed review (FR-MC-009): one line per resolved ingredient; `quantity: 0` = marked not consumed; lines for ingredients the review showed as "not from your kitchen" are omitted by the client (server also ignores unmatchable lines, recording nothing for them).
+- `consumption` = the user-confirmed review (FR-MC-009): one line per resolved ingredient; `quantity: 0` = marked not consumed; lines for ingredients the review showed as "not from your kitchen" are omitted by the client. A submitted line the server cannot match to live inventory deducts nothing and is **recorded on the receipt as not consumed** (`quantityConsumed: 0`), per FR-MC-009/012.
 - Zod: discriminated union on `action`; `consumption` array ≤ 20; `quantity` finite ≥ 0; `inventoryItemId` optional (legacy/name-matched lines).
 - Server re-validates every line against **live** inventory (user-scoped) and clamps to owned stock (FR-MC-002); the receipt records actuals.
 
