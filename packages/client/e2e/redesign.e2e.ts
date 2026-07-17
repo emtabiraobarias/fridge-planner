@@ -21,7 +21,9 @@ test('Kitchen: smart quick-add + use-soon + focus outline', async ({ page }) => 
   // Live parse preview.
   await input.fill('2L milk expires friday');
   await expect(page.getByText("I'll add:")).toBeVisible();
-  await expect(page.getByText('Dairy · fridge')).toBeVisible();
+  // Spec 005: category + location are separate correctable chips now.
+  await expect(page.getByRole('button', { name: /category: Dairy/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /location: fridge/ })).toBeVisible();
   await input.press('Enter');
   await expect(page.getByText('Milk', { exact: true })).toBeVisible();
 
