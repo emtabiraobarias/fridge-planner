@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { parseQuickAll, type ParsedQuick, type ParsedQuickItem } from '../../lib/quick-parse';
 import {
@@ -31,7 +31,7 @@ function withAcceptedSuggestions(
 
 /** Natural-language smart quick-add with tap-to-correct parse preview + staple chips (spec 004 §3.1, 005 US1-US3). */
 export function QuickAdd({ onAdd }: Props): React.JSX.Element {
-  const { enhance, recordCorrection, recordAdd } = useQuickAdd();
+  const { enhance, recordCorrection, recordAdd, requestAssist } = useQuickAdd();
   const [text, setText] = useState('');
   const [overrides, setOverrides] = useState<OverrideMap>({});
   const [accepted, setAccepted] = useState<Record<string, string>>({});
@@ -39,6 +39,12 @@ export function QuickAdd({ onAdd }: Props): React.JSX.Element {
   const enhanced = enhance(parseQuickAll(text));
   const { items: corrected } = applyOverrides(enhanced, overrides);
   const parsed = withAcceptedSuggestions(corrected, accepted);
+
+  // AI assist for the low-confidence long tail — debounced + fail-open in the context (US4).
+  useEffect(() => {
+    const target = enhanced.find((i) => i.category === 'Other' && i.provenance.category === 'guess');
+    if (target) requestAssist(target);
+  }, [enhanced, requestAssist]);
 
   function handleCorrect(
     item: ParsedQuickItem,

@@ -102,15 +102,15 @@
 
 ### Tests for User Story 4 (write first, must FAIL)
 
-- [ ] T025 [P] [US4] Server tests in `packages/client/tests/server/parse-assist.test.ts` (mock `global.fetch`): 200 with enum-valid interpretation; invalid fields dropped field-wise (FR-IQ-020); `interpretation: null` passthrough; 503 when `OPENAI_API_KEY` unset; TTL cache — second identical text does NOT re-fetch (FR-IQ-022); 429 beyond 20/min; 401 unauthenticated
-- [ ] T026 [P] [US4] Client trigger tests in `packages/client/tests/context/quick-add-assist.test.tsx`: assist called only when merged `category === 'Other'` with a usable name; debounced; merges only into `guess` fields as `assisted`; 503/timeout/error → silent fail-open; submit never waits for in-flight assist
+- [x] T025 [P] [US4] Server tests in `packages/client/tests/server/parse-assist.test.ts` (mock `global.fetch`): 200 with enum-valid interpretation; invalid fields dropped field-wise (FR-IQ-020); `interpretation: null` passthrough; 503 when `OPENAI_API_KEY` unset; TTL cache — second identical text does NOT re-fetch (FR-IQ-022); 429 beyond 20/min; 401 unauthenticated
+- [x] T026 [P] [US4] Client trigger tests in `packages/client/tests/context/quick-add-assist.test.tsx`: assist called only when merged `category === 'Other'` with a usable name; debounced; merges only into `guess` fields as `assisted`; 503/timeout/error → silent fail-open; submit never waits for in-flight assist
 
 ### Implementation for User Story 4
 
-- [ ] T027 [P] [US4] Implement `packages/client/src/server/services/parse-assist.ts`: plain-`fetch` OpenAI Chat Completions call (`gpt-4o-mini`, JSON-schema structured output, short timeout), field-wise Zod gating against the exact Category/Location/unit enums, 1h in-memory TTL cache keyed by normalised text (pattern: `recommendations-cache`), `import 'server-only'`
-- [ ] T028 [US4] Add `parseAssisted(text)` to `packages/client/src/server/controllers/quick-add.ts` + Route Handler `packages/client/app/api/v1/quick-add/parse/route.ts` (`authenticate` → `rateLimit` 20/min → controller → `withRoute`; 503 Problem JSON when unconfigured)
-- [ ] T029 [US4] Client integration: add `assistParse` to `packages/client/src/services/quick-add.ts`; wire the debounced low-confidence trigger + `assisted` merge + fail-open handling into `packages/client/src/context/QuickAddContext.tsx`
-- [ ] T030 [US4] Full suite + lint green
+- [x] T027 [P] [US4] Implement `packages/client/src/server/services/parse-assist.ts`: plain-`fetch` OpenAI Chat Completions call (`gpt-4o-mini`, JSON-schema structured output, short timeout), field-wise Zod gating against the exact Category/Location/unit enums, 1h in-memory TTL cache keyed by normalised text (pattern: `recommendations-cache`), `import 'server-only'`
+- [x] T028 [US4] Add `parseAssisted(text)` to `packages/client/src/server/controllers/quick-add.ts` + Route Handler `packages/client/app/api/v1/quick-add/parse/route.ts` (`authenticate` → `rateLimit` 20/min → controller → `withRoute`; 503 Problem JSON when unconfigured)
+- [x] T029 [US4] Client integration: add `assistParse` to `packages/client/src/services/quick-add.ts`; wire the debounced low-confidence trigger + `assisted` merge + fail-open handling into `packages/client/src/context/QuickAddContext.tsx`
+- [x] T030 [US4] Full suite + lint green
 
 **Checkpoint**: all four stories functional; assistance strictly optional per deployment.
 

@@ -3,7 +3,13 @@ import { createContext, useCallback, useContext, useRef, useState } from 'react'
 import type { ParsedQuickItem } from '../lib/quick-parse';
 import { daysLeft } from '../lib/quick-parse';
 import type { OverridableField } from '../lib/quick-add-overrides';
-import { getAliases, putAlias, type QuickAddAlias } from '../services/quick-add';
+import {
+  assistParse,
+  getAliases,
+  putAlias,
+  type AssistInterpretation,
+  type QuickAddAlias,
+} from '../services/quick-add';
 
 /**
  * Per-user quick-add alias memory (spec 005 US3). Loads the user's learned
@@ -28,6 +34,8 @@ interface QuickAddContextValue {
   ) => void;
   /** Record a shelf-life observation when an add carries an explicitly stated expiry. */
   recordAdd: (item: ParsedQuickItem, today?: Date) => void;
+  /** Debounced AI-assist request for a low-confidence item; fail-open, at most one in flight (US4/D7). */
+  requestAssist: (item: ParsedQuickItem) => void;
 }
 
 const noopValue: QuickAddContextValue = {
@@ -35,6 +43,7 @@ const noopValue: QuickAddContextValue = {
   enhance: (items) => items,
   recordCorrection: () => undefined,
   recordAdd: () => undefined,
+  requestAssist: () => undefined,
 };
 
 const QuickAddContext = createContext<QuickAddContextValue>(noopValue);
@@ -66,9 +75,39 @@ function mergeAlias(item: ParsedQuickItem, alias: QuickAddAlias, today: Date): P
   return out;
 }
 
+const ASSIST_DEBOUNCE_MS = 600;
+
+function mergeAssist(
+  item: ParsedQuickItem,
+  assist: AssistInterpretation,
+  today: Date,
+): ParsedQuickItem {
+  const out: ParsedQuickItem = { ...item, provenance: { ...item.provenance } };
+  for (const field of ALIAS_FIELDS) {
+    const value = assist[field];
+    // Assisted ranks below explicit text and learned aliases (FR-IQ-016/020).
+    if (value && out.provenance[field] === 'guess') {
+      out[field] = value as never;
+      out.provenance[field] = 'assisted';
+    }
+  }
+  if (assist.quantity !== undefined && out.provenance.quantity === 'guess') {
+    out.quantity = assist.quantity;
+    out.provenance.quantity = 'assisted';
+  }
+  if (assist.shelfLifeDays !== undefined && !out.expiresAt && !out.suggestedExpiresAt) {
+    out.suggestedExpiresAt = isoDatePlusDays(assist.shelfLifeDays, today);
+  }
+  return out;
+}
+
 export function QuickAddProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [aliases, setAliases] = useState<Map<string, QuickAddAlias> | null>(null);
   const loadStarted = useRef(false);
+  const assistResults = useRef(new Map<string, AssistInterpretation | null>());
+  const assistRequested = useRef(new Set<string>());
+  const assistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [, bumpAssistVersion] = useState(0);
 
   const ensureLoaded = useCallback((): void => {
     if (loadStarted.current) return;
@@ -81,14 +120,33 @@ export function QuickAddProvider({ children }: { children: React.ReactNode }): R
   const enhance = useCallback(
     (items: ParsedQuickItem[], today: Date = new Date()): ParsedQuickItem[] => {
       if (items.length > 0) ensureLoaded();
-      if (!aliases) return items;
       return items.map((item) => {
-        const alias = aliases.get(nameKey(item.name));
-        return alias ? mergeAlias(item, alias, today) : item;
+        const alias = aliases?.get(nameKey(item.name));
+        const merged = alias ? mergeAlias(item, alias, today) : item;
+        const assist = assistResults.current.get(nameKey(item.name));
+        return assist ? mergeAssist(merged, assist, today) : merged;
       });
     },
     [aliases, ensureLoaded],
   );
+
+  const requestAssist = useCallback((item: ParsedQuickItem): void => {
+    // Only the fallback category counts as low confidence (research D7).
+    if (item.category !== 'Other' || item.provenance.category !== 'guess') return;
+    const key = nameKey(item.name);
+    if (!key || assistRequested.current.has(key)) return;
+    if (assistTimer.current) clearTimeout(assistTimer.current); // debounce: latest wins
+    assistTimer.current = setTimeout(() => {
+      if (assistRequested.current.has(key)) return;
+      assistRequested.current.add(key);
+      assistParse(item.name)
+        .then((interpretation) => {
+          assistResults.current.set(key, interpretation);
+          bumpAssistVersion((v) => v + 1); // re-render so enhance picks the result up
+        })
+        .catch(() => assistResults.current.set(key, null)); // fail-open, no retry this session
+    }, ASSIST_DEBOUNCE_MS);
+  }, []);
 
   const recordCorrection = useCallback(
     (item: ParsedQuickItem, field: OverridableField, value: string | number | null): void => {
@@ -115,7 +173,9 @@ export function QuickAddProvider({ children }: { children: React.ReactNode }): R
   }, []);
 
   return (
-    <QuickAddContext.Provider value={{ ready: aliases !== null, enhance, recordCorrection, recordAdd }}>
+    <QuickAddContext.Provider
+      value={{ ready: aliases !== null, enhance, recordCorrection, recordAdd, requestAssist }}
+    >
       {children}
     </QuickAddContext.Provider>
   );

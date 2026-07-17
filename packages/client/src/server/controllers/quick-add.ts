@@ -2,25 +2,8 @@ import 'server-only';
 import { z } from 'zod';
 import { IngredientAlias, type IIngredientAlias } from '../models/ingredient-alias';
 import { CATEGORIES, LOCATIONS } from '../models/inventory-item';
+import { assistedInterpretation, CANONICAL_UNITS } from '../services/parse-assist';
 import { problem, type ControllerResult } from '../http';
-
-/** Canonical display units the quick-add parser emits (spec 005 FR-IQ-002). */
-const CANONICAL_UNITS = [
-  'count',
-  'g',
-  'kg',
-  'ml',
-  'L',
-  'pcs',
-  'pack',
-  'bag',
-  'can',
-  'bottle',
-  'dozen',
-  'bunch',
-  'jar',
-  'loaf',
-] as const;
 
 const patchSchema = z
   .object({
@@ -104,4 +87,24 @@ export async function upsertAlias(
     setDefaultsOnInsert: true,
   });
   return { status: 200, body: { alias: toView(doc!.toObject()) } };
+}
+
+const parseSchema = z.object({ text: z.string().min(1).max(200) });
+
+// POST /api/v1/quick-add/parse — AI assist, fail-open by contract (FR-IQ-021)
+export async function parseAssisted(body: unknown): Promise<ControllerResult> {
+  const parsed = parseSchema.safeParse(body);
+  if (!parsed.success) {
+    return problem(400, 'Invalid input', parsed.error.issues.map((i) => i.message).join('; '));
+  }
+  const apiKey = process.env['OPENAI_API_KEY'];
+  if (!apiKey) {
+    return problem(503, 'Assistance unavailable', 'AI parse assistance is not configured');
+  }
+  try {
+    const interpretation = await assistedInterpretation(parsed.data.text, apiKey);
+    return { status: 200, body: { interpretation } };
+  } catch {
+    return problem(503, 'Assistance unavailable', 'AI parse assistance is temporarily unavailable');
+  }
 }

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useGroceryList } from '../context/GroceryListContext';
 import { useInventory } from '../context/InventoryContext';
@@ -49,12 +49,18 @@ export function GroceryListPage(): React.JSX.Element {
   const { currentWeekStart } = useMealPlan();
   const { showToast } = useToast();
 
-  const { enhance, recordCorrection } = useQuickAdd();
+  const { enhance, recordCorrection, requestAssist } = useQuickAdd();
   const [generating, setGenerating] = useState(false);
   const [text, setText] = useState('');
   const [overrides, setOverrides] = useState<OverrideMap>({});
   const enhanced = enhance(parseQuickAll(text));
   const { items: parsedPreview } = applyOverrides(enhanced, overrides);
+
+  // AI assist for uncategorised names — debounced + fail-open in the context (US4).
+  useEffect(() => {
+    const target = enhanced.find((i) => i.category === 'Other' && i.provenance.category === 'guess');
+    if (target) requestAssist(target);
+  }, [enhanced, requestAssist]);
 
   const items = groceryList?.items ?? [];
   const purchased = items.filter((i) => i.isPurchased);
