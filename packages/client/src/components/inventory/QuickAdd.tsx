@@ -9,6 +9,7 @@ import {
   type OverridableField,
 } from '../../lib/quick-add-overrides';
 import { ParsePreview } from '../shared/ParsePreview';
+import { useQuickAdd } from '../../context/QuickAddContext';
 
 interface Props {
   onAdd: (parsed: ParsedQuick) => void;
@@ -16,29 +17,55 @@ interface Props {
 
 const STAPLES = ['Milk', 'Eggs', 'Bread', 'Butter', 'Bananas', 'Chicken'];
 
-/** Natural-language smart quick-add with tap-to-correct parse preview + staple chips (spec 004 §3.1, 005 US1/US2). */
+/** Apply a tapped shelf-life suggestion: expiry set as `learned` (never an observation — analyze U2). */
+function withAcceptedSuggestions(
+  items: ParsedQuickItem[],
+  accepted: Record<string, string>,
+): ParsedQuickItem[] {
+  return items.map((item) => {
+    const date = accepted[item.name.toLowerCase()];
+    if (!date || item.expiresAt) return item;
+    return { ...item, expiresAt: date, provenance: { ...item.provenance, expiresAt: 'learned' } };
+  });
+}
+
+/** Natural-language smart quick-add with tap-to-correct parse preview + staple chips (spec 004 §3.1, 005 US1-US3). */
 export function QuickAdd({ onAdd }: Props): React.JSX.Element {
+  const { enhance, recordCorrection, recordAdd } = useQuickAdd();
   const [text, setText] = useState('');
   const [overrides, setOverrides] = useState<OverrideMap>({});
-  const parsedRaw = parseQuickAll(text);
-  const { items: parsed } = applyOverrides(parsedRaw, overrides);
+  const [accepted, setAccepted] = useState<Record<string, string>>({});
+  // Pipeline: deterministic parse → learned-alias merge → user corrections → accepted suggestions.
+  const enhanced = enhance(parseQuickAll(text));
+  const { items: corrected } = applyOverrides(enhanced, overrides);
+  const parsed = withAcceptedSuggestions(corrected, accepted);
 
   function handleCorrect(
     item: ParsedQuickItem,
     field: OverridableField,
     value: string | number | null,
   ): void {
-    // Record against the RAW parse so `replaced` compares to what the text yields (research D3).
-    const raw = parsedRaw.find((r) => r.name.toLowerCase() === item.name.toLowerCase());
-    if (!raw) return;
-    setOverrides((m) => setOverride(m, raw, field, value));
+    // Record against the pre-override item so `replaced` compares to what the text+aliases yield (research D3).
+    const base = enhanced.find((r) => r.name.toLowerCase() === item.name.toLowerCase());
+    if (!base) return;
+    setOverrides((m) => setOverride(m, base, field, value));
+    recordCorrection(base, field, value);
+  }
+
+  function handleAcceptSuggestion(item: ParsedQuickItem): void {
+    if (!item.suggestedExpiresAt) return;
+    setAccepted((m) => ({ ...m, [item.name.toLowerCase()]: item.suggestedExpiresAt! }));
   }
 
   function submit(): void {
     if (parsed.length === 0) return;
-    parsed.forEach((item) => onAdd(item));
+    parsed.forEach((item) => {
+      onAdd(item);
+      recordAdd(item);
+    });
     setText('');
     setOverrides({});
+    setAccepted({});
   }
 
   return (
@@ -75,7 +102,7 @@ export function QuickAdd({ onAdd }: Props): React.JSX.Element {
         </button>
       </div>
 
-      <ParsePreview items={parsed} onCorrect={handleCorrect} />
+      <ParsePreview items={parsed} onCorrect={handleCorrect} onAcceptSuggestion={handleAcceptSuggestion} />
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="text-muted text-xs">Staples:</span>

@@ -77,18 +77,18 @@
 
 ### Tests for User Story 3 (write first, must FAIL)
 
-- [ ] T016 [P] [US3] Server handler tests in `packages/client/tests/server/quick-add.test.ts` (`// @vitest-environment node`, `mongodb-memory-server`, real `Request` objects): GET empty → `{aliases: []}`; PUT upsert + field overwrite; 400 on non-enum category/location/unit and empty body; `observedShelfLifeDays` FIFO cap at 5; `suggestedShelfLifeDays` = median only when ≥2 observations; FR-036 isolation (user B never sees user A's aliases); 401 unauthenticated
-- [ ] T017 [P] [US3] Client tests in `packages/client/tests/context/quick-add-context.test.tsx`: aliases load once and merge as `learned` provenance (explicit text still wins — "tortillas in the freezer" case); correction triggers PUT; expiry suggestion offered but not auto-applied
+- [x] T016 [P] [US3] Server handler tests in `packages/client/tests/server/quick-add.test.ts` (`// @vitest-environment node`, `mongodb-memory-server`, real `Request` objects): GET empty → `{aliases: []}`; PUT upsert + field overwrite; 400 on non-enum category/location/unit and empty body; `observedShelfLifeDays` FIFO cap at 5; `suggestedShelfLifeDays` = median only when ≥2 observations; FR-036 isolation (user B never sees user A's aliases); 401 unauthenticated
+- [x] T017 [P] [US3] Client tests in `packages/client/tests/context/quick-add-context.test.tsx`: aliases load once and merge as `learned` provenance (explicit text still wins — "tortillas in the freezer" case); correction triggers PUT; expiry suggestion offered but not auto-applied
 
 ### Implementation for User Story 3
 
-- [ ] T018 [P] [US3] Create Mongoose model `packages/client/src/server/models/ingredient-alias.ts` per data-model.md (unique compound index `(userId, nameKey)`, `expiryObservations` capped at 5, hot-reload guard, `import 'server-only'`)
-- [ ] T019 [US3] Implement `packages/client/src/server/controllers/quick-add.ts`: `listAliases(userId)` (with median-derived `suggestedShelfLifeDays`) and `upsertAlias(userId, nameKey, patch)` returning `ControllerResult`, Zod validation, Problem JSON via `problem()`
-- [ ] T020 [US3] Add Route Handlers `packages/client/app/api/v1/quick-add/aliases/route.ts` (GET) and `packages/client/app/api/v1/quick-add/aliases/[nameKey]/route.ts` (PUT, `await ctx.params`): `connectDb` → `authenticate` → `rateLimit` (100/min) → controller, wrapped in `withRoute`
-- [ ] T021 [US3] Add browser service `packages/client/src/services/quick-add.ts` (`getAliases`, `putAlias` via the existing `apiFetch` Bearer wrapper)
-- [ ] T022 [US3] Build `packages/client/src/context/QuickAddContext.tsx` + hook: lazy-load aliases on first quick-add focus, merge into parse results as `learned` (precedence explicit > learned > guess), record chip corrections + adds with explicitly typed/corrected expiry back via `putAlias` (suggestion-accepted expiries are NOT recorded — analyze U2); mount provider in `packages/client/app/providers.tsx`
-- [ ] T023 [US3] Surface the one-tap expiry suggestion chip in `packages/client/src/components/shared/ParsePreview.tsx` (`suggestedExpiresAt` → applied only on tap, FR-IQ-017)
-- [ ] T024 [US3] Full suite + lint green; verify no `src/server` import leaks into client bundle (`next build`)
+- [x] T018 [P] [US3] Create Mongoose model `packages/client/src/server/models/ingredient-alias.ts` per data-model.md (unique compound index `(userId, nameKey)`, `expiryObservations` capped at 5, hot-reload guard, `import 'server-only'`)
+- [x] T019 [US3] Implement `packages/client/src/server/controllers/quick-add.ts`: `listAliases(userId)` (with median-derived `suggestedShelfLifeDays`) and `upsertAlias(userId, nameKey, patch)` returning `ControllerResult`, Zod validation, Problem JSON via `problem()`
+- [x] T020 [US3] Add Route Handlers `packages/client/app/api/v1/quick-add/aliases/route.ts` (GET) and `packages/client/app/api/v1/quick-add/aliases/[nameKey]/route.ts` (PUT, `await ctx.params`): `connectDb` → `authenticate` → `rateLimit` (100/min) → controller, wrapped in `withRoute`
+- [x] T021 [US3] Add browser service `packages/client/src/services/quick-add.ts` (`getAliases`, `putAlias` via the existing `apiFetch` Bearer wrapper)
+- [x] T022 [US3] Build `packages/client/src/context/QuickAddContext.tsx` + hook: lazy-load aliases on first quick-add focus, merge into parse results as `learned` (precedence explicit > learned > guess), record chip corrections + adds with explicitly typed/corrected expiry back via `putAlias` (suggestion-accepted expiries are NOT recorded — analyze U2); mount provider in `packages/client/app/providers.tsx`
+- [x] T023 [US3] Surface the one-tap expiry suggestion chip in `packages/client/src/components/shared/ParsePreview.tsx` (`suggestedExpiresAt` → applied only on tap, FR-IQ-017)
+- [x] T024 [US3] Full suite + lint green; verify no `src/server` import leaks into client bundle (`next build`)
 
 **Checkpoint**: US1–US3 — the quick-add now personalises per user.
 

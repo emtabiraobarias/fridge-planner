@@ -14,6 +14,7 @@ import {
   type OverridableField,
 } from '../lib/quick-add-overrides';
 import { ParsePreview } from '../components/shared/ParsePreview';
+import { useQuickAdd } from '../context/QuickAddContext';
 import type { GroceryListItem, CompleteItemPayload, GroceryCategory } from '../types/grocery-list';
 import { GROCERY_CATEGORIES } from '../types/grocery-list';
 
@@ -48,11 +49,12 @@ export function GroceryListPage(): React.JSX.Element {
   const { currentWeekStart } = useMealPlan();
   const { showToast } = useToast();
 
+  const { enhance, recordCorrection } = useQuickAdd();
   const [generating, setGenerating] = useState(false);
   const [text, setText] = useState('');
   const [overrides, setOverrides] = useState<OverrideMap>({});
-  const parsedRaw = parseQuickAll(text);
-  const { items: parsedPreview } = applyOverrides(parsedRaw, overrides);
+  const enhanced = enhance(parseQuickAll(text));
+  const { items: parsedPreview } = applyOverrides(enhanced, overrides);
 
   const items = groceryList?.items ?? [];
   const purchased = items.filter((i) => i.isPurchased);
@@ -73,9 +75,10 @@ export function GroceryListPage(): React.JSX.Element {
     field: OverridableField,
     value: string | number | null,
   ): void {
-    const raw = parsedRaw.find((r) => r.name.toLowerCase() === item.name.toLowerCase());
-    if (!raw) return;
-    setOverrides((m) => setOverride(m, raw, field, value));
+    const base = enhanced.find((r) => r.name.toLowerCase() === item.name.toLowerCase());
+    if (!base) return;
+    setOverrides((m) => setOverride(m, base, field, value));
+    recordCorrection(base, field, value);
   }
 
   async function handleQuickAdd(): Promise<void> {
