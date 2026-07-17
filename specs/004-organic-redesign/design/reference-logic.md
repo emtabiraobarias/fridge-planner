@@ -4,9 +4,13 @@
 
 ---
 
-## 1. `parseQuick(text) → parsed item | null`
+## 1. `parseQuick(text) → parsed item | null` · `parseQuickAll(text) → parsed items[]`
 
-Parses a natural-language phrase (e.g. `"2L milk expires friday"`) into `{ name, quantity, unit, category, location, expiresAt }`. Returns `null` when there is no usable item name.
+> **Revised by spec 005 (Intelligent Quick-Add Understanding, FR-IQ-001..009).** Spec 005 is now the canonical contract for quick-add parsing; this section is its worked reference. Additions over the original 004 algorithm: explicit storage locations, unit synonyms, expanded expiry vocabulary with year rollover, trailing quantities, comma multi-item input, and per-field **provenance**.
+
+Parses a natural-language phrase (e.g. `"500 grams mince in the freezer use by 20/7"`) into `{ name, quantity, unit, category, location, expiresAt, provenance }`. Returns `null` when there is no usable item name. `parseQuickAll` splits on commas and parses each segment independently, skipping empty and bare-number segments (FR-IQ-006).
+
+**Provenance** (FR-IQ-011/016): each of `quantity, unit, category, location, expiresAt` carries one of `explicit` (read from the text) · `learned` (per-user alias memory) · `assisted` (AI fallback) · `guess` (built-in default). The deterministic parser emits only `explicit`/`guess`; alias and assist layers upgrade `guess` fields later, and **never** downgrade `explicit`. Precedence per field: explicit > learned > assisted > guess.
 
 ### Constants
 
@@ -24,60 +28,61 @@ Parses a natural-language phrase (e.g. `"2L milk expires friday"`) into `{ name,
 
 Default when nothing matches: category `Other`, location `fridge`.
 
-**Recognised units** (lowercased): `kg, g, l, ml, count, x, pcs, pack, bag, can, dozen, bunch, jar, loaf`. A recognised `l` is normalised to display `L`.
+**Unit synonyms → canonical display unit** (FR-IQ-002 — units are display vocabulary, not a server enum). A word recognised as a unit never stays in the name; a word that is not in this table is never treated as a unit:
 
-**Days of week** (index 0 = Sunday): `sunday, monday, tuesday, wednesday, thursday, friday, saturday`.
+| Synonyms (lowercased) | canonical |
+|---|---|
+| `g, gram, grams` | g |
+| `kg, kilo, kilos, kilogram, kilograms` | kg |
+| `l, litre, litres, liter, liters` | L |
+| `ml, millilitre(s), milliliter(s)` | ml |
+| `count, x` | count |
+| `pcs, piece, pieces` | pcs |
+| `pack, packs, packet, packets` | pack |
+| `can, cans, tin, tins` | can |
+| `bottle, bottles` | bottle |
+| `bag(s)` / `dozen` / `bunch` / `jar(s)` / `loaf, loaves` | themselves |
+
+**Storage locations** (FR-IQ-001): `fridge, freezer, pantry` — matched as `in (the) X` / `to (the) X` anywhere in the segment, or a bare location word ending the segment. The phrase is stripped from the name and overrides the category-derived default. Category keywords (e.g. "frozen") are never location phrases.
+
+**Expiry keywords** (FR-IQ-003, case-insensitive): `expires, expire, exp, use by, use-by, best before`.
+
+**Days of week** (index 0 = Sunday): `sunday, monday, tuesday, wednesday, thursday, friday, saturday`. **Month names**: full or ≥3-letter prefix (`july`/`jul`).
 
 ### Algorithm
 
 ```
+parseQuickAll(text):
+    return [ parseQuick(seg) for seg in text.split(',') ] minus nulls   # FR-IQ-006
+
 parseQuick(text):
     t = text.trim()
     if t is empty: return null
-    expiresAt = null
 
-    # ── expiry: "expires <token>" / "exp <token>" ──
-    expMatch = match  \b(?:exp(?:ires)?)\s+([a-z0-9/]+)\b   (case-insensitive) on t
-    if expMatch:
-        token = lowercase(expMatch.group1)
-        if token matches ^(\d+)\s*(d|w)$:              # relative: "3d", "2w"
-            n, unitChar = groups
-            expiresAt = TODAY + n * (7 if unitChar=='w' else 1) days
-        else if token matches ^\d{1,2}/\d{1,2}$:        # "16/7" = dd/mm (current year)
-            dd, mm = token.split('/')
-            expiresAt = date(currentYear, mm, dd)
-        else:                                           # weekday name (prefix match, ≥3 chars)
-            dowIdx = index of day-of-week whose name startsWith token[0:3]
-            if dowIdx found and len(token) >= 3:
-                diff = (dowIdx - TODAY.weekday + 7) mod 7
-                if diff == 0: diff = 7                   # never today → next occurrence
-                expiresAt = TODAY + diff days
-        if expiresAt set: remove expMatch text from t, trim
+    # ── 1. expiry clause (FR-IQ-003/004) ──
+    # keyword = expires|expire|exp|use by|use-by|best before ; capture 1-2 tokens after it
+    #   two-token forms:  "16 july" / "jul 16"       → day+month (rolls to NEXT year if before TODAY)
+    #   one-token forms:  today · tomorrow · Nd/Nw · dd/mm (rolls forward if past) · weekday name
+    #                     (≥3-char prefix; weekday never resolves to today → next occurrence)
+    # resolved → strip exactly the keyword + used token(s); unresolvable → strip NOTHING
+    # (clause stays whole in the name — never half-stripped)
 
-    # ── leading quantity + optional unit: "2L milk", "500 g mince", "6 eggs" ──
-    quantity = 1 ; unit = 'count'
-    qtyMatch = match  ^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s+  on t
-    if qtyMatch:
-        quantity = number(qtyMatch.group1)
-        u = lowercase(qtyMatch.group2 or '')
-        if u is a recognised unit:
-            unit = ('L' if u=='l' else u)
-            t = t after qtyMatch
-        else if u is empty:                              # bare number, e.g. "6 eggs"
-            t = t after qtyMatch
-        else:                                            # group2 is the item word, not a unit
-            t = t after just the number, trim            # keep the word as part of the name
+    # ── 2. explicit location (FR-IQ-001) ──
+    # "in (the) fridge|freezer|pantry" / "to (the) …" anywhere, or bare location word at segment end
+    # → location (provenance explicit), phrase stripped from name; else location = category default (guess)
 
-    name = collapse-whitespace(t).trim()
-    if name is empty: return null
+    # ── 3. quantity — leading wins over trailing (FR-IQ-005) ──
+    # leading:  ^(number)(unit-word?)  as before, but unit words resolve via the SYNONYM table
+    # trailing: "name 2L" · "name x6" · "name 2"  (only when no leading match;
+    #           a trailing non-unit word means NO trailing quantity — "tomatoes 2 large" keeps its name)
+    # none → quantity 1 count (guess/guess); bare number → unit count stays a guess
 
-    category, location = first CAT_GUESS whose regex tests name, else ('Other','fridge')
-    prettyName = title-case each word of name           # \b\w → uppercase
+    name = collapse-whitespace(rest).trim()
+    if name is empty or name is a bare number: return null
 
-    return {
-        name: prettyName, quantity, unit, category, location,
-        expiresAt: expiresAt ? ISO date (yyyy-mm-dd) : null
-    }
+    category, location-default = first CAT_GUESS whose regex tests name, else ('Other','fridge')
+    return { title-case(name), quantity, unit, category, location, expiresAt as yyyy-mm-dd | null,
+             provenance per field: explicit where parsed above, else guess (category is always a guess) }
 ```
 
 > **`TODAY`**: use the real current date at local midnight in production. (The prototype pinned `TODAY = 2026-07-12` so its screenshots were deterministic; the worked examples below use that pin.)
@@ -97,6 +102,32 @@ parseQuick(text):
 | `olive oil` | Olive Oil | 1 | count | Condiments | pantry | null |
 | `` (empty) | — | — | — | — | — | returns `null` |
 | `12` (number only) | — | — | — | — | — | returns `null` (no name) |
+
+**Spec-005 additions** (same pinned `TODAY = 2026-07-12`; provenance `explicit` unless noted):
+
+| Input | name | qty | unit | category | location | expiresAt | Notes |
+|---|---|---|---|---|---|---|---|
+| `chicken thighs in the freezer` | Chicken Thighs | 1 | count | Meat | **freezer** | null | location explicit, stripped (FR-IQ-001) |
+| `bread in the freezer` | Bread | 1 | count | Grains | **freezer** | null | explicit beats category default |
+| `chicken freezer` | Chicken | 1 | count | Meat | freezer | null | bare location at segment end |
+| `frozen peas` | Frozen Peas | 1 | count | Frozen | freezer | null | "frozen" is a category keyword, kept in name; location is a *guess* |
+| `500 grams mince` | Mince | 500 | **g** | Meat | fridge | null | unit synonym (FR-IQ-002) |
+| `3 tins tuna` | Tuna | 3 | **can** | Seafood | fridge | null | tin → can |
+| `2 bottles soy sauce` | Soy Sauce | 2 | **bottle** | Condiments | pantry | null | new canonical unit |
+| `1 can crushed tomatoes` | Crushed Tomatoes | 1 | can | Produce | fridge | null | container noun as unit |
+| `a can of beans` | A Can Of Beans | 1 | count | Other | fridge | null | no leading digit → no unit strip |
+| `tomatoes 2 large` | Tomatoes 2 Large | 1 | count | Produce | fridge | null | non-unit trailing word never a unit |
+| `yogurt use by tomorrow` | Yogurt | 1 | count | Dairy | fridge | 2026-07-13 | keyword + token (FR-IQ-003) |
+| `ham best before friday` | Ham | 1 | count | Other | fridge | 2026-07-17 | |
+| `cheese expires today` | Cheese | 1 | count | Dairy | fridge | 2026-07-12 | today allowed (unlike weekdays) |
+| `chicken exp 16 july` | Chicken | 1 | count | Meat | fridge | 2026-07-16 | month-name date |
+| `beef expires 5 march` | Beef | 1 | count | Meat | fridge | **2027**-03-05 | past day/month → next year (FR-IQ-004) |
+| `ham expires 2/1` | Ham | 1 | count | Other | fridge | **2027**-01-02 | dd/mm rollover |
+| `cheese expires someday` | Cheese Expires Someday | 1 | count | Dairy | fridge | null | unresolvable → clause kept whole |
+| `milk 2L` | Milk | **2** | **L** | Dairy | fridge | null | trailing quantity (FR-IQ-005) |
+| `eggs x6` / `6x eggs` | Eggs | 6 | count | Dairy | fridge | null | x-notation |
+| `milk 2L, 6 eggs, sourdough` | 3 items | | | | | | `parseQuickAll` (FR-IQ-006); Sourdough → Other |
+| `milk,, 12,` | Milk only | 1 | count | Dairy | fridge | null | empty/bare-number segments skipped |
 
 ---
 
@@ -167,14 +198,14 @@ Filled slots are never placement targets. A filled slot's × clears that entry (
 ## 5. Grocery quick-add + checkout
 
 ```
-grocAdd(text):
-    p = parseQuick(text)
-    add grocery item {
-        name:     p ? p.name : text,
-        qty:      p ? (p.quantity + (p.unit=='count' ? '' : ' ' + p.unit)) : '1',
-        category: p ? p.category : 'Other',
-        purchased: false, source: ''       # manually added
-    }
+grocAdd(text):                             # spec 005: shared parser, multi-item (FR-IQ-006/007)
+    for p in parseQuickAll(text):
+        add grocery item {
+            name:     p.name,
+            qty:      p.quantity + (p.unit=='count' ? '' : ' ' + p.unit),
+            category: p.category,
+            purchased: false, source: ''   # manually added
+        }
 
 completeShopping():                        # the inline "Done shopping" button
     bought = grocery items where purchased == true
