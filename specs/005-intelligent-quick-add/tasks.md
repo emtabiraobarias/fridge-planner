@@ -121,8 +121,8 @@
 - [x] T031 [P] Playwright coverage: extend `packages/client/e2e/` with quick-add flows on Kitchen + Groceries (parse → chips → correct → add; multi-item; 320px screenshot of the chip row) and commit screenshots per repo convention
 - [x] T032 Release gate: `npm run lint`, `npm test` (coverage ≥70%), `npm -w packages/client run build`, `bash scripts/validate-e2e.sh --no-agent` all green
 - [ ] T033 Doc cascade **on `main`** (never from this branch): revise `specs/004-organic-redesign/design/reference-logic.md` §1 to the extended algorithm + full worked-example corpus (FR-IQ-009, satisfies SC-IQ-001/006 measurement base); update `ROADMAP_PROGRESS.md` (backlog #1 → done, LAST LEFT OFF); then `bash scripts/sync-impls.sh`
-- [ ] T034 [P] Per-branch doc cascade on `impl/nextjs`: CLAUDE.md §4 endpoint table (+ rate limits) and §3 tree for `quick-add` routes/controller/model/service; note `OPENAI_API_KEY` now also powers quick-add assist in §6/.env.example if wording changed
-- [ ] T035 Run the quickstart.md manual smokes end-to-end (IQ1–IQ4) against `npm run dev` + Mongo and record results in the roadmap LAST LEFT OFF entry
+- [x] T034 [P] Per-branch doc cascade on `impl/nextjs`: CLAUDE.md §4 endpoint table (+ rate limits) and §3 tree for `quick-add` routes/controller/model/service; note `OPENAI_API_KEY` now also powers quick-add assist in §6/.env.example if wording changed
+- [x] T035 Run the quickstart.md manual smokes end-to-end (IQ1–IQ4) against `npm run dev` + Mongo and record results in the roadmap LAST LEFT OFF entry
 
 ---
 

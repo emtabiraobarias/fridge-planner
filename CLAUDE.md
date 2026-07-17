@@ -74,14 +74,16 @@ fridge-planner/
 │       │   ├── calendar/page.tsx     # /calendar route
 │       │   ├── grocery/page.tsx      # /grocery route
 │       │   └── api/v1/               # ROUTE HANDLERS (the backend): inventory/, grocery-lists/[weekStart]/*,
-│       │                             # meal-plans/[weekStart]/*, recommendations/ — thin; call src/server controllers
+│       │                             # meal-plans/[weekStart]/*, recommendations/, quick-add/ (aliases + parse assist)
+│       │                             # — thin; call src/server controllers
 │       ├── src/
-│       │   ├── components/           # calendar/, grocery/, inventory/, recommendations/, shared/
-│       │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
+│       │   ├── components/           # calendar/, grocery/, inventory/, recommendations/, shared/ (incl. ParsePreview)
+│       │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext,
+│       │   │                         # QuickAddContext (alias memory + AI-assist merge, spec 005)
 │       │   ├── views/                # InventoryPage, CalendarPage, GroceryListPage (all 'use client')
-│       │   ├── services/             # inventory.ts, meal-plans.ts, grocery-lists.ts (browser API fetch wrappers)
+│       │   ├── services/             # inventory.ts, meal-plans.ts, grocery-lists.ts, quick-add.ts (browser API fetch wrappers)
 │       │   ├── types/                # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
-│       │   ├── lib/                  # date-utils.ts
+│       │   ├── lib/                  # date-utils.ts, quick-parse.ts (NL parser, spec 005), quick-add-overrides.ts
 │       │   └── server/               # SERVER LAYER (Node-only; `import 'server-only'`):
 │       │       ├── db.ts             #   globalThis-cached Mongoose connection
 │       │       ├── auth.ts           #   authenticate(): OIDC JWT verify (jose) + dev seam (X-User-Id)
@@ -90,9 +92,9 @@ fridge-planner/
 │       │       ├── route-helpers.ts  #   withRoute() error wrapper + problemResponse()
 │       │       ├── rate-limit.ts     #   in-memory fixed-window limiter
 │       │       ├── logger.ts         #   framework-neutral structured logger
-│       │       ├── controllers/      #   inventory, grocery-lists, meal-plans, recommendations (extracted logic)
-│       │       ├── models/           #   inventory-item, meal-plan, grocery-list (Mongoose; hot-reload guarded)
-│       │       ├── services/         #   meal-recommender (Holodeck client), recommendations-cache
+│       │       ├── controllers/      #   inventory, grocery-lists, meal-plans, recommendations, quick-add (extracted logic)
+│       │       ├── models/           #   inventory-item, meal-plan, grocery-list, ingredient-alias (Mongoose; hot-reload guarded)
+│       │       ├── services/         #   meal-recommender (Holodeck client), recommendations-cache, parse-assist (OpenAI quick-add fallback)
 │       │       ├── lib/              #   expiration, ingredient-consumption, grocery-list-generator,
 │       │       │                     #   ingredient-categorizer, ingredient-matcher, unit-normalizer
 │       │       └── types/            #   meal-plan, meal-recommendation, grocery-list
@@ -132,7 +134,14 @@ Base URL: `http://localhost:3000/api/v1` (served by Next.js Route Handlers in th
 | POST | `/recommendations` | Get AI meal suggestions immediately — links NOT awaited (no body required) |
 | POST | `/recommendations/verify-links` | FR-037 lazy phase: `{ mealNames: string[] }` (≤10) → `{ links, available }` |
 
-Rate limit: **10 req/min** for `/recommendations` (30/min for `verify-links`; 100/min elsewhere)
+Rate limit: **10 req/min** for `/recommendations` (30/min for `verify-links`; 20/min for `/quick-add/parse`; 100/min elsewhere)
+
+### Quick-Add (spec 005 — intelligent understanding)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/quick-add/aliases` | The user's learned aliases (category/location/unit + median shelf-life suggestion at ≥2 observations) |
+| PUT | `/quick-add/aliases/:nameKey` | Upsert a learned field and/or record an `observedShelfLifeDays` (FIFO-capped at 5) |
+| POST | `/quick-add/parse` | AI-assist for low-confidence parses — `{ text }` (≤200) → `{ interpretation \| null }`; **503 when `OPENAI_API_KEY` unset** (client fails open) |
 
 ### Meal Plans
 | Method | Path | Description |
@@ -225,7 +234,7 @@ Copy `.env.example` to `.env` before running locally.
 |----------|---------|----------|
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | Yes |
 | `HOLODECK_URL` | `http://localhost:8001` | Yes (AI features) |
-| `OPENAI_API_KEY` | — | Yes for AI features — sole LLM credential (both agents run on the OpenAI provider) |
+| `OPENAI_API_KEY` | — | Yes for AI features — sole LLM credential (both agents run on the OpenAI provider; also powers the quick-add parse assist, which returns 503 / fails open without it) |
 | `AUTH_ISSUER` | — | No (CR-001, production OIDC) |
 | `AUTH_AUDIENCE` | — | No (CR-001, production OIDC) |
 | `AUTH_JWKS_URI` | — | No (CR-001, production OIDC) |
