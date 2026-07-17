@@ -6,7 +6,7 @@ import { useInventory } from '../context/InventoryContext';
 import { useMealPlan } from '../context/MealPlanContext';
 import { useToast } from '../context/ToastContext';
 import { GroceryListItemRow } from '../components/grocery/GroceryListItemRow';
-import { parseQuick } from '../lib/quick-parse';
+import { parseQuick, parseQuickAll } from '../lib/quick-parse';
 import type { GroceryListItem, CompleteItemPayload, GroceryCategory } from '../types/grocery-list';
 import { GROCERY_CATEGORIES } from '../types/grocery-list';
 
@@ -59,14 +59,16 @@ export function GroceryListPage(): React.JSX.Element {
   }
 
   async function handleQuickAdd(): Promise<void> {
-    const p = parseQuick(text);
-    if (!p) return;
-    await addItem({
-      displayName: p.name,
-      quantity: p.quantity,
-      unit: groceryUnit(p.unit),
-      category: p.category as GroceryCategory,
-    });
+    const parsed = parseQuickAll(text);
+    if (parsed.length === 0) return;
+    for (const p of parsed) {
+      await addItem({
+        displayName: p.name,
+        quantity: p.quantity,
+        unit: groceryUnit(p.unit),
+        category: p.category as GroceryCategory,
+      });
+    }
     setText('');
   }
 

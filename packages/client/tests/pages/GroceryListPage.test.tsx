@@ -155,4 +155,20 @@ describe('GroceryListPage (organic redesign)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Regenerate/i }));
     await waitFor(() => expect(mockGenerate).toHaveBeenCalledTimes(1));
   });
+
+  it('quick-adds every comma-separated item (spec 005 FR-IQ-006/007)', async () => {
+    const { addGroceryItem } = await import('../../src/services/grocery-lists');
+    const mockAdd = vi.mocked(addGroceryItem);
+    mockFetch.mockResolvedValue(mockListWithItems);
+    mockAdd.mockResolvedValue(mockListWithItems);
+    render(<Wrapper />);
+    await waitFor(() => screen.getByLabelText(/add grocery item/i));
+    fireEvent.change(screen.getByLabelText(/add grocery item/i), {
+      target: { value: '2 lemons, olive oil' },
+    });
+    fireEvent.keyDown(screen.getByLabelText(/add grocery item/i), { key: 'Enter' });
+    await waitFor(() => expect(mockAdd).toHaveBeenCalledTimes(2));
+    expect(mockAdd.mock.calls[0]![1]).toMatchObject({ displayName: 'Lemons', quantity: 2 });
+    expect(mockAdd.mock.calls[1]![1]).toMatchObject({ displayName: 'Olive Oil', category: 'Condiments' });
+  });
 });

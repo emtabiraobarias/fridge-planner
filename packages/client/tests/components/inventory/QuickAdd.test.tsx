@@ -44,4 +44,40 @@ describe('QuickAdd', () => {
     await userEvent.click(screen.getByRole('button', { name: '+ Eggs' }));
     expect((screen.getByLabelText(/quick add item/i) as HTMLInputElement).value).toBe('eggs');
   });
+
+  // ── spec 005 US1 — multi-item + extended grammar (FR-IQ-001/002/006) ──
+
+  it('previews and submits every comma-separated item (FR-IQ-006)', async () => {
+    const onAdd = vi.fn();
+    render(<QuickAdd onAdd={onAdd} />);
+    const input = screen.getByLabelText(/quick add item/i) as HTMLInputElement;
+    await userEvent.type(input, 'milk 2L, 6 eggs');
+    expect(screen.getByText('Milk')).toBeInTheDocument();
+    expect(screen.getByText('Eggs')).toBeInTheDocument();
+    await userEvent.keyboard('{Enter}');
+    expect(onAdd).toHaveBeenCalledTimes(2);
+    expect(onAdd.mock.calls[0]![0]).toMatchObject({ name: 'Milk', quantity: 2, unit: 'L' });
+    expect(onAdd.mock.calls[1]![0]).toMatchObject({ name: 'Eggs', quantity: 6 });
+    expect(input.value).toBe('');
+  });
+
+  it('skips unusable segments but adds the rest', async () => {
+    const onAdd = vi.fn();
+    render(<QuickAdd onAdd={onAdd} />);
+    await userEvent.type(screen.getByLabelText(/quick add item/i), 'milk,, 12,{Enter}');
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(onAdd.mock.calls[0]![0]).toMatchObject({ name: 'Milk' });
+  });
+
+  it('parses spelled-out units and explicit locations (FR-IQ-001/002)', async () => {
+    const onAdd = vi.fn();
+    render(<QuickAdd onAdd={onAdd} />);
+    await userEvent.type(screen.getByLabelText(/quick add item/i), '500 grams mince in the freezer{Enter}');
+    expect(onAdd.mock.calls[0]![0]).toMatchObject({
+      name: 'Mince',
+      quantity: 500,
+      unit: 'g',
+      location: 'freezer',
+    });
+  });
 });

@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { parseQuick, type ParsedQuick } from '../../lib/quick-parse';
+import { parseQuickAll, type ParsedQuick } from '../../lib/quick-parse';
 
 interface Props {
   onAdd: (parsed: ParsedQuick) => void;
@@ -17,15 +17,15 @@ function formatExpiry(iso: string): string {
   });
 }
 
-/** Natural-language smart quick-add with live parse preview + staple chips (spec 004 §3.1). */
+/** Natural-language smart quick-add with live parse preview + staple chips (spec 004 §3.1, 005 US1). */
 export function QuickAdd({ onAdd }: Props): React.JSX.Element {
   const [text, setText] = useState('');
-  const parsed = parseQuick(text);
+  const parsed = parseQuickAll(text);
 
   function submit(): void {
-    const p = parseQuick(text);
-    if (!p) return;
-    onAdd(p);
+    const items = parseQuickAll(text);
+    if (items.length === 0) return;
+    items.forEach((item) => onAdd(item));
     setText('');
   }
 
@@ -63,23 +63,27 @@ export function QuickAdd({ onAdd }: Props): React.JSX.Element {
         </button>
       </div>
 
-      {parsed && (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-muted text-xs">I&apos;ll add:</span>
-          <span className="rounded-full bg-accent-100 px-2.5 py-1 text-[11px] font-semibold text-accent-800">
-            {parsed.name}
-          </span>
-          <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] text-neutral-800">
-            {parsed.quantity} {parsed.unit}
-          </span>
-          <span className="rounded-full bg-accent2-100 px-2.5 py-1 text-[11px] text-accent2-800">
-            {parsed.category} · {parsed.location}
-          </span>
-          {parsed.expiresAt && (
-            <span className="rounded-full bg-accent-200 px-2.5 py-1 text-[11px] font-semibold text-accent-800">
-              expires {formatExpiry(parsed.expiresAt)}
-            </span>
-          )}
+      {parsed.length > 0 && (
+        <div className="mt-3 flex flex-col gap-1.5">
+          {parsed.map((item, idx) => (
+            <div key={`${item.name}-${idx}`} className="flex flex-wrap items-center gap-1.5">
+              <span className="text-muted text-xs">{idx === 0 ? "I'll add:" : 'and:'}</span>
+              <span className="rounded-full bg-accent-100 px-2.5 py-1 text-[11px] font-semibold text-accent-800">
+                {item.name}
+              </span>
+              <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] text-neutral-800">
+                {item.quantity} {item.unit}
+              </span>
+              <span className="rounded-full bg-accent2-100 px-2.5 py-1 text-[11px] text-accent2-800">
+                {item.category} · {item.location}
+              </span>
+              {item.expiresAt && (
+                <span className="rounded-full bg-accent-200 px-2.5 py-1 text-[11px] font-semibold text-accent-800">
+                  expires {formatExpiry(item.expiresAt)}
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
