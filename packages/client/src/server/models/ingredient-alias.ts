@@ -13,6 +13,8 @@ export interface IIngredientAlias {
   unit?: string;
   /** Days-until-expiry observed on explicit adds; FIFO-capped at 5 (research D4). */
   expiryObservations: number[];
+  /** Spec 006: learned pairing — the inventory item NAME this ingredient maps to (FR-MC-004). */
+  inventoryName?: string;
 }
 
 export type IngredientAliasDocument = IIngredientAlias & Document;
@@ -25,6 +27,7 @@ const ingredientAliasSchema = new Schema<IIngredientAlias>(
     location: { type: String },
     unit: { type: String },
     expiryObservations: { type: [Number], default: [] },
+    inventoryName: { type: String, maxlength: 100 },
   },
   { timestamps: true, collection: 'ingredient_aliases' },
 );

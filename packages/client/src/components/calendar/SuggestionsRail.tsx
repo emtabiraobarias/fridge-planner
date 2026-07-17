@@ -5,6 +5,7 @@ import {
 } from '../../services/inventory';
 import { useRecommendations } from '../../context/RecommendationsContext';
 import { usePlacement } from '../../context/PlacementContext';
+import { groundedAmounts, withGroundedAmount } from '../../lib/grounded-ingredients';
 
 /** Mini meal cards below the week grid; each starts tap-to-place (spec 004 §3.3). */
 export function SuggestionsRail(): React.JSX.Element {
@@ -76,7 +77,7 @@ export function SuggestionsRail(): React.JSX.Element {
                     key={ing}
                     className="rounded-full bg-accent-200 px-2 py-0.5 text-[11px] font-semibold text-accent-800"
                   >
-                    {ing}
+                    {withGroundedAmount(ing, groundedAmounts(meal))}
                   </span>
                 ))}
               </div>

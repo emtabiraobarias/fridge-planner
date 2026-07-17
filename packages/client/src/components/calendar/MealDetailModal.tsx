@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { MealPlanEntry } from '../../types/meal-plan';
+import { groundedAmounts, withGroundedAmount } from '../../lib/grounded-ingredients';
 
 interface MealDetailModalProps {
   entry: MealPlanEntry | null;
@@ -22,6 +23,7 @@ export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React
   if (!entry) return null;
 
   const { meal } = entry;
+  const amounts = groundedAmounts(meal);
 
   return (
     <div
@@ -72,7 +74,7 @@ export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React
                   key={ing}
                   className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800"
                 >
-                  {ing}
+                  {withGroundedAmount(ing, amounts)}
                 </li>
               ))}
             </ul>

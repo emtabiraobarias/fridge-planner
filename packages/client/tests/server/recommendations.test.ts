@@ -212,3 +212,77 @@ describe('POST /api/v1/recommendations/verify-links (FR-037 lazy phase)', () => 
     expect(res.status).toBe(400);
   });
 });
+
+describe('POST /api/v1/recommendations — grounding (spec 006, FR-MC-001..003)', () => {
+  const groundedAgentMeal = (id: string): typeof mockMeal => ({
+    ...mockMeal,
+    // untrusted agent payload: new object shape for usesIngredients
+    usesIngredients: [
+      { inventoryItemId: id, name: 'chicken breast', quantityToConsume: 1, unit: 'lbs' },
+    ] as unknown as string[],
+  });
+
+  it('returns validated groundedIngredients + derived legacy usesIngredients (FR-MC-001)', async () => {
+    await seedInv('chicken breast');
+    const item = await InventoryItem.findOne({ userId: USER });
+    getMealRecommendations.mockResolvedValue([groundedAgentMeal(String(item!._id))]);
+
+    const res = await POST(req());
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      recommendations: Array<{
+        usesIngredients: string[];
+        groundedIngredients?: Array<{ inventoryItemId?: string; resolution: string; quantityToConsume?: number }>;
+      }>;
+    };
+    const meal = body.recommendations[0]!;
+    expect(meal.groundedIngredients).toHaveLength(1);
+    expect(meal.groundedIngredients![0]!.inventoryItemId).toBe(String(item!._id));
+    expect(meal.groundedIngredients![0]!.resolution).toBe('direct');
+    expect(meal.usesIngredients).toEqual(['chicken breast']);
+  });
+
+  it("scrubs a foreign user's inventory id end-to-end (FR-036 / FR-MC-002)", async () => {
+    await seedInv('chicken breast');
+    const foreign = await InventoryItem.create({
+      userId: 'someone-else',
+      name: 'chicken breast',
+      quantity: 9,
+      unit: 'lbs',
+      category: 'Meat',
+      location: 'fridge',
+    });
+    getMealRecommendations.mockResolvedValue([groundedAgentMeal(String(foreign._id))]);
+
+    const res = await POST(req());
+    const body = (await res.json()) as {
+      recommendations: Array<{ groundedIngredients?: Array<{ inventoryItemId?: string }> }>;
+    };
+    const g = body.recommendations[0]!.groundedIngredients![0]!;
+    expect(g.inventoryItemId).not.toBe(String(foreign._id));
+  });
+
+  it('popular-recipes fallback passes through ungrounded (EC-01 unchanged)', async () => {
+    const res = await POST(req());
+    const body = (await res.json()) as {
+      fallback?: string;
+      recommendations: Array<{ groundedIngredients?: unknown }>;
+    };
+    expect(body.fallback).toBe('popular');
+    expect(body.recommendations[0]!.groundedIngredients).toBeUndefined();
+  });
+
+  it('caches grounded meals — the second request re-serves groundedIngredients without the agent (research D4)', async () => {
+    await seedInv('chicken breast');
+    const item = await InventoryItem.findOne({ userId: USER });
+    getMealRecommendations.mockResolvedValue([groundedAgentMeal(String(item!._id))]);
+
+    await POST(req());
+    const res2 = await POST(req());
+    expect(getMealRecommendations).toHaveBeenCalledTimes(1);
+    const body = (await res2.json()) as {
+      recommendations: Array<{ groundedIngredients?: Array<{ resolution: string }> }>;
+    };
+    expect(body.recommendations[0]!.groundedIngredients).toHaveLength(1);
+  });
+});
