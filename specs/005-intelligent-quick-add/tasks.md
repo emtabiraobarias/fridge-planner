@@ -54,16 +54,16 @@
 
 ### Tests for User Story 2 (write first, must FAIL)
 
-- [ ] T009 [P] [US2] Unit tests for the override-merge rule (keep while fresh parse still yields the replaced value; drop when it changes; overridden field renders/submits as explicit; overrides keyed by parsed item name so multi-item re-splits re-associate by name and drop with a vanished item — research D3) in `packages/client/tests/lib/quick-add-overrides.test.ts`
-- [ ] T010 [P] [US2] Component tests for `ParsePreview` in `packages/client/tests/components/parse-preview.test.tsx`: confident vs tentative styling (not color-alone — dashed border/icon), chip = keyboard-operable button, popover pickers change the field, per-item rows for multi-item, corrected value included in submit payload
+- [x] T009 [P] [US2] Unit tests for the override-merge rule (keep while fresh parse still yields the replaced value; drop when it changes; overridden field renders/submits as explicit; overrides keyed by parsed item name so multi-item re-splits re-associate by name and drop with a vanished item — research D3) in `packages/client/tests/lib/quick-add-overrides.test.ts`
+- [x] T010 [P] [US2] Component tests for `ParsePreview` in `packages/client/tests/components/parse-preview.test.tsx`: confident vs tentative styling (not color-alone — dashed border/icon), chip = keyboard-operable button, popover pickers change the field, per-item rows for multi-item, corrected value included in submit payload
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Implement the override store + merge rule as a pure helper in `packages/client/src/lib/quick-add-overrides.ts` (`applyOverrides(items, overrides)` returning items with `explicit` provenance on overridden fields; drop-rule per research D3)
-- [ ] T012 [US2] Build `packages/client/src/components/shared/ParsePreview.tsx`: chip row per parsed item (name, qty+unit, category, location, expiry — plus a suggestion slot left empty until US3/T023 populates it), provenance styling, tap-to-correct popovers (category/location/unit listboxes from existing enums, quantity input, native date input for expiry), ≥44px targets, WCAG AA
-- [ ] T013 [US2] Replace the display-only chips in `packages/client/src/components/inventory/QuickAdd.tsx` with `ParsePreview` + override state; corrected values flow into `onAdd`
-- [ ] T014 [US2] Mount `ParsePreview` on the Groceries quick-add in `packages/client/src/views/GroceryListPage.tsx` (same component, same behaviour — FR-IQ-007)
-- [ ] T015 [US2] Update existing QuickAdd/Grocery tests for the new preview; suite + lint green
+- [x] T011 [US2] Implement the override store + merge rule as a pure helper in `packages/client/src/lib/quick-add-overrides.ts` (`applyOverrides(items, overrides)` returning items with `explicit` provenance on overridden fields; drop-rule per research D3)
+- [x] T012 [US2] Build `packages/client/src/components/shared/ParsePreview.tsx`: chip row per parsed item (name, qty+unit, category, location, expiry — plus a suggestion slot left empty until US3/T023 populates it), provenance styling, tap-to-correct popovers (category/location/unit listboxes from existing enums, quantity input, native date input for expiry), ≥44px targets, WCAG AA
+- [x] T013 [US2] Replace the display-only chips in `packages/client/src/components/inventory/QuickAdd.tsx` with `ParsePreview` + override state; corrected values flow into `onAdd`
+- [x] T014 [US2] Mount `ParsePreview` on the Groceries quick-add in `packages/client/src/views/GroceryListPage.tsx` (same component, same behaviour — FR-IQ-007)
+- [x] T015 [US2] Update existing QuickAdd/Grocery tests for the new preview; suite + lint green
 
 **Checkpoint**: US1+US2 — full parse-preview-correct loop, still zero server changes.
 

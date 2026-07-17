@@ -28,6 +28,8 @@ export interface FieldProvenance {
 
 export interface ParsedQuickItem extends ParsedQuick {
   provenance: FieldProvenance;
+  /** Alias-memory shelf-life suggestion — applied only when the user taps it (FR-IQ-017). */
+  suggestedExpiresAt?: string;
 }
 
 const DOW = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];

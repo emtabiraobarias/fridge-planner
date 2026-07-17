@@ -6,7 +6,14 @@ import { useInventory } from '../context/InventoryContext';
 import { useMealPlan } from '../context/MealPlanContext';
 import { useToast } from '../context/ToastContext';
 import { GroceryListItemRow } from '../components/grocery/GroceryListItemRow';
-import { parseQuick, parseQuickAll } from '../lib/quick-parse';
+import { parseQuick, parseQuickAll, type ParsedQuickItem } from '../lib/quick-parse';
+import {
+  applyOverrides,
+  setOverride,
+  type OverrideMap,
+  type OverridableField,
+} from '../lib/quick-add-overrides';
+import { ParsePreview } from '../components/shared/ParsePreview';
 import type { GroceryListItem, CompleteItemPayload, GroceryCategory } from '../types/grocery-list';
 import { GROCERY_CATEGORIES } from '../types/grocery-list';
 
@@ -43,6 +50,9 @@ export function GroceryListPage(): React.JSX.Element {
 
   const [generating, setGenerating] = useState(false);
   const [text, setText] = useState('');
+  const [overrides, setOverrides] = useState<OverrideMap>({});
+  const parsedRaw = parseQuickAll(text);
+  const { items: parsedPreview } = applyOverrides(parsedRaw, overrides);
 
   const items = groceryList?.items ?? [];
   const purchased = items.filter((i) => i.isPurchased);
@@ -58,10 +68,19 @@ export function GroceryListPage(): React.JSX.Element {
     }
   }
 
+  function handleCorrect(
+    item: ParsedQuickItem,
+    field: OverridableField,
+    value: string | number | null,
+  ): void {
+    const raw = parsedRaw.find((r) => r.name.toLowerCase() === item.name.toLowerCase());
+    if (!raw) return;
+    setOverrides((m) => setOverride(m, raw, field, value));
+  }
+
   async function handleQuickAdd(): Promise<void> {
-    const parsed = parseQuickAll(text);
-    if (parsed.length === 0) return;
-    for (const p of parsed) {
+    if (parsedPreview.length === 0) return;
+    for (const p of parsedPreview) {
       await addItem({
         displayName: p.name,
         quantity: p.quantity,
@@ -70,6 +89,7 @@ export function GroceryListPage(): React.JSX.Element {
       });
     }
     setText('');
+    setOverrides({});
   }
 
   async function handleCheckout(): Promise<void> {
@@ -189,6 +209,9 @@ export function GroceryListPage(): React.JSX.Element {
           Add
         </button>
       </div>
+
+      {/* Tap-to-correct parse preview (spec 005 US2) — grocery items carry no location/expiry */}
+      <ParsePreview items={parsedPreview} onCorrect={handleCorrect} showLocation={false} showExpiry={false} />
 
       {/* Inline checkout */}
       {purchased.length > 0 && (

@@ -1,7 +1,14 @@
 'use client';
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { parseQuickAll, type ParsedQuick } from '../../lib/quick-parse';
+import { parseQuickAll, type ParsedQuick, type ParsedQuickItem } from '../../lib/quick-parse';
+import {
+  applyOverrides,
+  setOverride,
+  type OverrideMap,
+  type OverridableField,
+} from '../../lib/quick-add-overrides';
+import { ParsePreview } from '../shared/ParsePreview';
 
 interface Props {
   onAdd: (parsed: ParsedQuick) => void;
@@ -9,24 +16,29 @@ interface Props {
 
 const STAPLES = ['Milk', 'Eggs', 'Bread', 'Butter', 'Bananas', 'Chicken'];
 
-function formatExpiry(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-AU', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
-}
-
-/** Natural-language smart quick-add with live parse preview + staple chips (spec 004 §3.1, 005 US1). */
+/** Natural-language smart quick-add with tap-to-correct parse preview + staple chips (spec 004 §3.1, 005 US1/US2). */
 export function QuickAdd({ onAdd }: Props): React.JSX.Element {
   const [text, setText] = useState('');
-  const parsed = parseQuickAll(text);
+  const [overrides, setOverrides] = useState<OverrideMap>({});
+  const parsedRaw = parseQuickAll(text);
+  const { items: parsed } = applyOverrides(parsedRaw, overrides);
+
+  function handleCorrect(
+    item: ParsedQuickItem,
+    field: OverridableField,
+    value: string | number | null,
+  ): void {
+    // Record against the RAW parse so `replaced` compares to what the text yields (research D3).
+    const raw = parsedRaw.find((r) => r.name.toLowerCase() === item.name.toLowerCase());
+    if (!raw) return;
+    setOverrides((m) => setOverride(m, raw, field, value));
+  }
 
   function submit(): void {
-    const items = parseQuickAll(text);
-    if (items.length === 0) return;
-    items.forEach((item) => onAdd(item));
+    if (parsed.length === 0) return;
+    parsed.forEach((item) => onAdd(item));
     setText('');
+    setOverrides({});
   }
 
   return (
@@ -63,29 +75,7 @@ export function QuickAdd({ onAdd }: Props): React.JSX.Element {
         </button>
       </div>
 
-      {parsed.length > 0 && (
-        <div className="mt-3 flex flex-col gap-1.5">
-          {parsed.map((item, idx) => (
-            <div key={`${item.name}-${idx}`} className="flex flex-wrap items-center gap-1.5">
-              <span className="text-muted text-xs">{idx === 0 ? "I'll add:" : 'and:'}</span>
-              <span className="rounded-full bg-accent-100 px-2.5 py-1 text-[11px] font-semibold text-accent-800">
-                {item.name}
-              </span>
-              <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] text-neutral-800">
-                {item.quantity} {item.unit}
-              </span>
-              <span className="rounded-full bg-accent2-100 px-2.5 py-1 text-[11px] text-accent2-800">
-                {item.category} · {item.location}
-              </span>
-              {item.expiresAt && (
-                <span className="rounded-full bg-accent-200 px-2.5 py-1 text-[11px] font-semibold text-accent-800">
-                  expires {formatExpiry(item.expiresAt)}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <ParsePreview items={parsed} onCorrect={handleCorrect} />
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="text-muted text-xs">Staples:</span>
