@@ -39,6 +39,10 @@ As a home cook, I want to track what ingredients I have in my fridge and pantry 
 
 11. **Given** a recommended meal requires an ingredient I have but it is expired, **When** I view the grocery list, **Then** that ingredient appears as a new item to purchase despite being in my inventory
 
+12. **Given** I request meal recommendations, **When** the results are ready, **Then** the meals are displayed immediately and each meal's verified recipe link appears shortly after; once link verification completes, any meal without a verified link is removed so every remaining meal links to a real recipe page
+
+13. **Given** recipe-link verification is unavailable (providers unreachable or not configured), **When** I request recommendations, **Then** the system shows a clear notice and does not leave unlinked meals on display
+
 ---
 
 ### User Story 2 - Weekly Meal Planning with Drag-and-Drop Calendar (Priority: P2)
@@ -129,11 +133,12 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 **AI-Powered Meal Recommendations**:
 - **FR-012**: System MUST integrate with an LLM agent via API to generate meal recommendations based on current inventory (excluding expired items); recommendation generation is performed **asynchronously** (the request returns immediately with a pending/loading state and results are delivered when ready) — it is not a synchronous <200ms endpoint (see SC-002, CR-008)
 - ~~**FR-013**~~: *(removed — consolidated into FR-012 prior to implementation)*
-- **FR-014**: System MUST generate 3-5 meal suggestions that prioritize using existing inventory items
-- **FR-015**: Each meal recommendation MUST include recipe name, description, estimated cooking time, difficulty level, and complete ingredient list
+- **FR-014**: System MUST generate 5-10 candidate meal suggestions that prioritize using existing inventory items *(widened from 3-5 on 2026-07-15 so enough candidates survive recipe-link verification — see FR-037)*
+- **FR-015**: Each meal recommendation MUST include recipe name, description, estimated cooking time, difficulty level, complete ingredient list, and a link to a real, verified recipe page (the link is attached by the system from verified sources only — never authored by the LLM, never fabricated)
 - **FR-016**: System MUST clearly distinguish between ingredients the user has vs. ingredients they need to purchase in each recipe
 - **FR-017**: Users MUST be able to regenerate recommendations to get different meal options
 - **FR-018**: System MUST prioritize ingredients nearing expiration (yellow highlighted items) in meal recommendations to reduce food waste
+- **FR-037**: Recommendations MUST be returned and displayed immediately, without blocking on recipe-link verification; links are verified **asynchronously** (a follow-up request after the results render) and each meal's link appears once verified. When verification completes, meals without a verified link MUST be removed from display, settling the list to linked-only. If verification is unavailable (no provider configured, or all providers failing), the system MUST surface a clear notice and MUST NOT leave unlinked meals on display. Links MUST only ever come from verified sources (never LLM-authored, never fabricated). Static fallback sets (e.g. popular recipes) MUST carry pre-verified links and skip the asynchronous phase. *(Added 2026-07-15, extends FR-015. Revised later the same day: supersedes the earlier synchronous drop / top-up / fail-loudly-503 behavior in favour of immediate results + lazy links over a widened 5-10 candidate net — see FR-014.)*
 
 **Meal Planning Calendar**:
 - **FR-019**: Users MUST be able to view a weekly calendar with configurable meal slots (breakfast, lunch, dinner, snacks)

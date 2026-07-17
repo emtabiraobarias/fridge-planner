@@ -9,7 +9,14 @@ coverage/
 packages/client/node_modules/.vite/
 packages/client/.next/
 
+# Playwright transient artifacts (keep e2e/screenshots/ as committed proof)
+packages/client/test-results/
+packages/client/playwright-report/
+packages/client/.playwright/
+packages/client/e2e/.auth/
+
 # Local Claude tooling (keep tracked slash-commands only)
 .claude/*
 !.claude/commands/
 !.claude/commands/**
+packages/client/.next-e2e/

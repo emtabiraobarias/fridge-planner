@@ -98,6 +98,20 @@ Verify where observable in-app; survey/ops-only criteria are noted.
 - **AUTH-EC-1** — expired token → `401` (distinct from other failures, with clock-skew leeway); **JWKS key rotation** (unknown `kid`) triggers refetch. ☑ **Verified** — verifier edge tests.
 - **AUTH-EC-2** (FR-D-007/008) — the `dev` seam (`X-User-Id`) is **refused in production** unless explicitly acknowledged; production uses OIDC only. ☑ **Verified** — prod-guard unit test.
 - **AUTH-UX-1** (FR-D-009) — the client surfaces a `401` as a **(re-)authentication prompt**, not a generic error. ☑ **Verified** — `AuthBanner` tests (both clients).
+- **AUTH-UX-2** (FR-D-010) — an expired access token is renewed **transparently** (refresh grant, single-flight, one-shot retry — no user interaction, no state loss); the FR-D-009 prompt fires only when renewal fails; IdP sessions allow ≥12h idle. ☑ **Verified `impl/nextjs` 2026-07-16** (4-case refresh suite; shipped 4.2.1; Keycloak realm set to 12h) · ☐ **`impl/vite` DEFERRED by decision**.
 
 > **Success criteria:** SC-D-001 (100% no-token → 401, zero leak) ☑ · SC-D-002 (own-data-only, cross-user 404 all resource types) ☑ · SC-D-003 (JWKS cached, within CR-008) — design-satisfied (no perf-test) · SC-D-004 (suite green with no IdP via dev seam) ☑.
 > **Out of scope (002):** token issuance, login UI, IdP configuration.
+
+## 2026-07 increment — recipe links, calendar interactions, inventory edit (shared)
+
+> Spec deltas of 2026-07-15/16 on `main`: FR-014 (5-10 net), FR-037 (verified recipe links,
+> async-lazy + settle-to-linked), spec 004 FR-UI-019 revision (scoped inventory edit), and
+> FR-022/FR-024 enforcement. `impl/nextjs` shipped all of it to prod (app 4.2.1, 2026-07-16);
+> **`impl/vite` is DEFERRED by decision** and owes the items marked ☐ on its next pass.
+
+- **US1-S12** (FR-015 / FR-037) — recommendations display immediately; each meal's **verified** recipe link appears shortly after (async verify-links phase); once settled, every remaining meal links to a real recipe page (unlinked meals removed). ☑ **`impl/nextjs`** (controller/context/e2e suites + live gate 13/13) · ☐ **`impl/vite` DEFERRED** — needs the verify-links endpoint + client lazy phase.
+- **US1-S13** (FR-037) — verification unavailable → clear notice; no unlinked meal remains displayed. ☑ **`impl/nextjs`** · ☐ **`impl/vite` DEFERRED**.
+- **CAL-1** (FR-022) — a planned meal can be **dragged** to a different slot and persists there (FR-023). ☑ **`impl/nextjs`** (`calendar-dnd.e2e.ts`; restored after the 004 redesign dropped it) · ◐ **`impl/vite`: likely already satisfied** (pre-redesign calendar kept DnD) — re-verify on the next vite pass.
+- **CAL-2** (FR-024) — clicking a planned meal opens the details modal incl. the recipe link (new tab). ☑ **`impl/nextjs`** · ◐ **`impl/vite`: likely already satisfied** — re-verify.
+- **INV-EDIT-1** (FR-002 / 004 FR-UI-019R) — an item's **expiry** (settable + clearable → status `none`) and **location** are updatable from the list. ☑ **`impl/nextjs`** (EditItemSheet + PUT `expiresAt:null` → `$unset`, hook-derived status) · ☐ **`impl/vite` DEFERRED** — ⚠ the **clear-expiry API contract** (`expiresAt:null`) is a *backend* delta: vite's Express server owes the `$unset` + status-recompute path even before any UI work.

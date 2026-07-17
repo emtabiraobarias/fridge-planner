@@ -69,13 +69,32 @@ echo "   entries=$(field '.plan?.entries.length')"
 echo "7) POST recommendations as EMPTY user -> popular fallback (no agent) — EC-01"
 c=$(code -X POST -H "X-User-Id: smoke-empty" -H "Content-Type: application/json" -d '{}' "$BASE/recommendations")
 chk "200 OK" 200 "$c"
+chk "every fallback meal carries recipeUrl (FR-037)" true "$(field '.recommendations.every(m=>!!m.recipeUrl)')"
 echo "   fallback=$(field .fallback)"
 
 if [ "$AGENT" = "1" ]; then
-  echo "8) POST recommendations with inventory -> LIVE agent (200; real result or graceful fallback) — US2 / EC-08"
+  # FR-037 (async revision): the results endpoint returns immediately (no link
+  # blocking); links are fetched via the follow-up verify-links endpoint. With a
+  # recipe-search key configured the follow-up reports available=true; without,
+  # available=false (the CLIENT then removes unlinked meals + shows a notice).
+  echo "8) POST recommendations with inventory -> LIVE agent, immediate results (FR-037) — US2 / EC-08"
   c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' --max-time 220 "$BASE/recommendations")
   chk "200 OK" 200 "$c"
   echo "   fallback=$(field '.fallback||"(none — real agent result)"')  count=$(field .recommendations.length)"
+  names=$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);process.stdout.write(JSON.stringify((b.recommendations||[]).map(m=>m.mealName).slice(0,10)))})" < /tmp/smoke-body.json)
+  echo "8b) POST recommendations/verify-links (FR-037 lazy phase)"
+  c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d "{\"mealNames\":$names}" --max-time 120 "$BASE/recommendations/verify-links")
+  chk "200 OK" 200 "$c"
+  # The app's provider keys aren't visible from this shell, so assert internal
+  # consistency instead of guessing: available must be a boolean, and when it is
+  # false the links map must be empty.
+  avail=$(field .available)
+  case "$avail" in
+    true)  chk "verification available (app has a provider key)" true "$avail" ;;
+    false) chk "unavailable → zero links" 0 "$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);process.stdout.write(String(Object.keys(b.links||{}).length))})" < /tmp/smoke-body.json)" ;;
+    *)     chk "available flag is boolean" "true|false" "$avail" ;;
+  esac
+  echo "   links=$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);process.stdout.write(String(Object.keys(b.links||{}).length))})" < /tmp/smoke-body.json)"
 else
   echo "8) [skipped — --no-agent]"
 fi
