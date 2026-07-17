@@ -23,7 +23,7 @@ Per-user learned defaults for an item name as typed. Created/updated by chip cor
 - **Validation** (Zod at the route boundary): `nameKey` non-empty ≤100 chars; `category`/`location`/`unit` must be members of the existing enums; `observedShelfLifeDays` integer 0–365.
 - **Write paths**:
   - Chip correction (category/location/unit) → `PUT /quick-add/aliases/:nameKey` upserts that field (overwrite, not accumulate).
-  - Add with expiry set (typed or suggestion accepted-then-kept) → same PUT with `observedShelfLifeDays`; server pushes into `expiryObservations`, trimming to the newest 5.
+  - Add with an **explicitly typed or chip-corrected** expiry → same PUT with `observedShelfLifeDays`; server pushes into `expiryObservations`, trimming to the newest 5. **Suggestion-accepted expiries are NOT recorded** — feeding the median back to itself would freeze the observation window on its own echo (analyze U2).
 - **Derived value**: `suggestedShelfLifeDays` = median of `expiryObservations` when `length ≥ 2`, else absent (computed in the controller for GET responses; not stored).
 - **Lifecycle**: no expiry/TTL — an alias is tiny and remains valid until overwritten. Deletion is out of scope (a re-correction overwrites).
 - **Relationship note**: intentionally shares the collection name planned by roadmap backlog #2 (ingredient↔inventory mapping); #2 may extend this document shape later — nothing here assumes it.
@@ -62,7 +62,7 @@ interface FieldOverride<T> { value: T; replaced: T }   // replaced = parsed valu
 type Overrides = Partial<{ quantity; unit; category; location; expiresAt }>;  // FieldOverride each
 ```
 
-Merge rule (research D3): on re-parse, keep an override while the fresh parse still yields `replaced` for that field; drop it when the fresh value differs (new text wins). Overridden fields render and submit as `explicit`.
+Merge rule (research D3): on re-parse, keep an override while the fresh parse still yields `replaced` for that field; drop it when the fresh value differs (new text wins). Overrides are keyed by the item's parsed name (case-insensitive), so re-splitting multi-item text re-associates them by name and drops any override whose item disappeared. Overridden fields render and submit as `explicit`.
 
 ## State transitions
 

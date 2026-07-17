@@ -22,7 +22,9 @@ Phase 0 output. All Technical Context unknowns resolved; decisions numbered for 
 
 **Decision**: chip corrections live in component state as `overrides: Partial<fields>` per item, each recording the parsed value it replaced. On re-parse: an override is **kept** while the fresh parse still yields the same value it originally replaced for that field, and **dropped** when the fresh parse's value for that field changed (the user's new text now speaks for that field). Overridden fields render as `explicit` (user-stated).
 
-**Rationale**: satisfies "survives re-parsing while the text still produces the same value" literally, with a single comparable per field — no diffing heuristics.
+**Item identity in multi-item input**: overrides are keyed by the item's parsed `name` (case-insensitive, whitespace-collapsed), never by segment position — re-splitting the text (adding/removing commas) re-associates overrides by name, and an override whose name no longer matches any current segment is dropped with it.
+
+**Rationale**: satisfies "survives re-parsing while the text still produces the same value" literally, with a single comparable per field — no diffing heuristics. Name-keying keeps an override attached to "its" item when segments shift, and makes the drop rule deterministic.
 
 **Alternatives considered**: always keep overrides until submit — rejected: typing "…in the freezer" after correcting location to pantry would silently ignore the newer, explicit text; spec precedence says explicit text wins.
 
