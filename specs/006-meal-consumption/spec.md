@@ -7,6 +7,13 @@
 
 > **Relationship to spec 001:** this spec **amends FR-005** (ingredient consumption moves from *planning* time to an explicit *cooked* confirmation, with quantity-accurate amounts and exact reversal) and **closes the Phase-2+ deferral of FR-027 and FR-028** (net-amount grocery deduction and unit normalization — deferred by SG-03 because meals carried no ingredient quantities; this spec makes meals carry them). FR-026's servings model remains the fallback wherever quantities are unavailable. On completion, spec 006 is the canonical definition of consumption and quantity semantics; spec 001's FR-005/FR-026/FR-027/FR-028 receive pointer revisions per the spec-tweak cascade.
 
+## Clarifications
+
+### Session 2026-07-18
+
+- Q: Should the user control how much is actually consumed when marking a meal cooked? → A: Yes — the cooked confirmation presents a consumption review with the meal's resolved ingredients and assumed amounts pre-filled; the user can modify each value to the amount actually consumed before confirming.
+- Q: Can the user add inventory items not in the meal's ingredient list to the cook-time review? → A: No — the review covers the listed (resolved) ingredients only; each can be adjusted or zeroed, but extra consumption is an ordinary inventory edit outside the cook flow.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Meal suggestions grounded in what I actually have (Priority: P1)
@@ -29,7 +36,7 @@ When the system suggests meals, each suggestion states which of the user's **act
 
 ### User Story 2 - Inventory changes when I cook, not when I plan (Priority: P2)
 
-Planning a meal is intent; cooking it is fact. Adding a meal to the weekly calendar no longer touches inventory. Instead, each calendar entry has a **planned / cooked** state: when the user actually cooks the meal, they mark it cooked from the calendar, and only then are the grounded ingredient amounts deducted from inventory. The cooked entry is visually distinct on the calendar.
+Planning a meal is intent; cooking it is fact. Adding a meal to the weekly calendar no longer touches inventory. Instead, each calendar entry has a **planned / cooked** state: when the user actually cooks the meal, they mark it cooked from the calendar. The confirmation shows a **consumption review** — the meal's resolved ingredients with their assumed (grounded) amounts pre-filled — and the user can adjust any value to what was actually used (including zero for "didn't use it") before confirming. Only then are the confirmed amounts deducted from inventory. The cooked entry is visually distinct on the calendar.
 
 Today deduction fires the moment a meal is dropped on the calendar — so inventory lies all week about what is really in the fridge, and the grocery list double-counts (planning already deducted what the list then reports as needed).
 
@@ -40,12 +47,13 @@ Today deduction fires the moment a meal is dropped on the calendar — so invent
 **Acceptance Scenarios**:
 
 1. **Given** an inventory snapshot, **When** the user adds, moves, or replaces meals on the calendar, **Then** inventory is completely unchanged.
-2. **Given** a planned entry whose meal uses 500 g of the user's 1 kg chicken thighs, **When** the user marks it cooked, **Then** the chicken thighs item drops to 500 g and the entry shows as cooked with the time it was cooked.
-3. **Given** a cooked confirmation is submitted twice (double-tap, retry, or two devices), **When** both arrive, **Then** inventory is deducted exactly once.
-4. **Given** inventory changed since the meal was suggested (some chicken was used elsewhere), **When** the user marks the meal cooked, **Then** deduction is capped at what is currently owned — never producing negative quantities.
-5. **Given** a meal whose ingredient matches an owned item but carries no usable amount (e.g. a meal saved before this feature), **When** it is marked cooked, **Then** the matched item is decremented by one unit (the legacy behaviour); an ingredient matching nothing deducts nothing and is recorded as not consumed.
-6. **Given** meals are planned but not yet cooked, **When** the grocery list is generated, **Then** needed amounts are computed against the full, un-deducted inventory (no double-count).
-7. **Given** the user has just cooked a meal, **When** they request new meal suggestions, **Then** the suggestions reflect the reduced inventory.
+2. **Given** a planned entry whose meal uses 500 g of the user's 1 kg chicken thighs, **When** the user marks it cooked and confirms the review unchanged, **Then** the chicken thighs item drops to 500 g and the entry shows as cooked with the time it was cooked.
+3. **Given** the consumption review shows 500 g of chicken thighs assumed, **When** the user adjusts it to 300 g (or zeroes an ingredient they didn't use) and confirms, **Then** exactly the adjusted amounts are deducted and recorded — the review lists only the meal's resolved ingredients; items outside the list cannot be added there.
+4. **Given** a cooked confirmation is submitted twice (double-tap, retry, or two devices), **When** both arrive, **Then** inventory is deducted exactly once.
+5. **Given** inventory changed since the meal was suggested (some chicken was used elsewhere), **When** the user marks the meal cooked, **Then** the review's assumed amounts and the final deduction are capped at what is currently owned — never producing negative quantities.
+6. **Given** a meal whose ingredient matches an owned item but carries no usable amount (e.g. a meal saved before this feature), **When** it is marked cooked, **Then** the review pre-fills one unit for the matched item (the legacy assumption, still adjustable); an ingredient matching nothing deducts nothing and is recorded as not consumed.
+7. **Given** meals are planned but not yet cooked, **When** the grocery list is generated, **Then** needed amounts are computed against the full, un-deducted inventory (no double-count).
+8. **Given** the user has just cooked a meal, **When** they request new meal suggestions, **Then** the suggestions reflect the reduced inventory.
 
 ---
 
@@ -115,13 +123,13 @@ Where meals carry grounded quantities, the grocery list stops counting "meals th
 - **FR-MC-006**: Adding, moving, replacing, or removing calendar entries MUST NOT change inventory. Inventory is deducted only by an explicit cooked confirmation.
 - **FR-MC-007**: Every calendar entry MUST carry a state — **planned** or **cooked** (with the time it was cooked) — visible on the calendar and its detail view, with the cooked confirmation available from the entry.
 - **FR-MC-008**: The cooked confirmation MUST be atomic and idempotent: however many times it is submitted for one entry, inventory is deducted exactly once.
-- **FR-MC-009**: Cook-time deduction MUST use the grounded amounts (capped per FR-MC-002). An ingredient that matches an owned item but has no usable amount is decremented by one unit (legacy behaviour); an ingredient matching no item deducts nothing and is recorded as not consumed.
+- **FR-MC-009**: The cooked confirmation MUST present a **consumption review**: each resolved ingredient listed with its assumed amount pre-filled (the grounded amount; one unit for a matched-but-unquantified ingredient). The user MUST be able to adjust each amount — including to zero, meaning not consumed — before confirming; the review covers the listed ingredients only (no adding other inventory items there), and confirming with no edits is the default path. Deduction applies exactly the confirmed amounts (capped per FR-MC-002); an ingredient matching no inventory item deducts nothing and is recorded as not consumed.
 - **FR-MC-010**: Meal suggestions requested after a consumption (or its reversal) MUST reflect the updated inventory.
 - **FR-MC-011**: Calendar entries existing before this feature MUST be treated as cooked at cutover (their deduction already occurred under the planning-time rule); such entries cannot be un-cooked.
 
 **Consumption receipts & reversal (Story 3)**
 
-- **FR-MC-012**: Every cooked confirmation MUST record a consumption receipt: each inventory item affected, the amount actually deducted from it, and a full snapshot of any item that the deduction depleted and removed.
+- **FR-MC-012**: Every cooked confirmation MUST record a consumption receipt: each inventory item affected, the amount actually deducted from it (the user-confirmed value from the review, after capping), and a full snapshot of any item that the deduction depleted and removed.
 - **FR-MC-013**: Un-marking a cooked entry MUST restore inventory exactly from its receipt — including recreating depleted-and-removed items with their previous details — atomically and idempotently, and return the entry to planned.
 - **FR-MC-014**: Deleting a cooked entry MUST leave inventory unchanged (the consumption stands); deleting a planned entry likewise changes nothing. Undoing a mistaken cook is done by un-marking first.
 - **FR-MC-015**: The detail view of a cooked entry MUST show what its cooking consumed from inventory.
@@ -150,10 +158,10 @@ Where meals carry grounded quantities, the grocery list stops counting "meals th
 
 - **SC-MC-001**: 100% of from-inventory ingredients in delivered meal suggestions reference a real item owned by the requesting user, with a positive amount no greater than owned stock; zero cross-user references survive validation.
 - **SC-MC-002**: Planning activity (add / move / replace / remove) produces zero inventory changes, measured over any sequence of calendar operations.
-- **SC-MC-003**: Marking a meal cooked updates inventory by the grounded amounts exactly once — repeated or concurrent confirmations of the same entry never deduct twice.
+- **SC-MC-003**: Marking a meal cooked updates inventory by the user-confirmed amounts exactly once — repeated or concurrent confirmations of the same entry never deduct twice.
 - **SC-MC-004**: Cook followed by un-cook returns inventory to its exact prior state in 100% of cases, including items that consumption had depleted and removed.
 - **SC-MC-005**: For a week with planned-but-uncooked meals, the generated grocery list computes needs against full owned stock (no double-count), and where quantities are grounded the netting is arithmetically exact (e.g. 500 g needed, 400 g owned, not expired → 100 g listed).
-- **SC-MC-006**: A user can go from a planned calendar entry to confirmed-cooked, with inventory updated, in at most 2 interactions from the calendar.
+- **SC-MC-006**: A user can go from a planned calendar entry to confirmed-cooked with inventory updated in at most 3 interactions from the calendar when accepting the assumed amounts unchanged; adjusting amounts costs only the edits themselves (no additional navigation).
 
 ## Assumptions
 
@@ -161,13 +169,14 @@ Where meals carry grounded quantities, the grocery list stops counting "meals th
 - **Cap-at-owned is the shortfall rule**: when a meal needs more than is owned, the owned amount is consumed and the shortfall is a grocery concern, not a negative inventory.
 - **The pairing memory builds on spec 005's learned-alias foundation** (same per-user scoping, FR-IQ-018 semantics) rather than introducing a parallel learning concept.
 - **No semantic-search infrastructure**: ingredient resolution uses tiered deterministic matching plus bounded, cached assisted lookups — consistent with the standing architectural constraint against embedding/vector layers.
-- **Suggestion quantity quality is best-effort**: grounded amounts come from the suggestion source and are validated/capped, not verified against real recipes; users see and implicitly correct them by cooking. Refinement loops are out of scope.
+- **Suggestion quantity quality is best-effort**: grounded amounts come from the suggestion source and are validated/capped, not verified against real recipes; they are only the pre-filled starting point — the cook-time consumption review (FR-MC-009) is where the user states what was actually used. Automatic refinement loops are out of scope.
 - **Cutover is one-way**: pre-existing entries become cooked; no attempt is made to reconstruct receipts for deductions that happened under the old rule.
 - **Topology-agnostic contract**: this spec constrains behaviour, not architecture; it is authored on `main`, implemented first on `impl/nextjs`, and inherited by `impl/vite` on sync (implementation there deferred by standing decision).
 
 ## Out of Scope
 
-- Serving-size scaling or partial-cook amounts (a cook consumes the meal's stated amounts, capped at owned stock).
+- Automatic serving-size scaling of suggestions (per-cook amount adjustment is manual, via the consumption review; the app never rescales a recipe's amounts itself).
+- Adding inventory items outside the meal's resolved ingredient list to a cook's consumption (extra usage is an ordinary inventory edit).
 - Nutrition tracking, cost tracking, or cooking-history analytics beyond the cooked state and receipts.
 - Automatic cook detection (time-based or otherwise) — cooked is always an explicit user action.
 - Editing a receipt after the fact (reversal is all-or-nothing via un-cook).
