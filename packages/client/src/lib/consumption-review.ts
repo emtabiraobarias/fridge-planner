@@ -26,7 +26,7 @@ function clamp(quantity: number, owned: number): number {
   return Math.max(0, Math.min(quantity, owned));
 }
 
-export function buildReviewLines(meal: MealRecommendation, inventory: InventoryItem[]): ConsumptionReview {
+function groundedReview(meal: MealRecommendation, inventory: InventoryItem[]): ConsumptionReview {
   const lines: ConsumptionReviewLine[] = [];
   const unresolved: string[] = [];
   const seen = new Set<string>();
@@ -50,9 +50,13 @@ export function buildReviewLines(meal: MealRecommendation, inventory: InventoryI
     });
   }
 
-  if (meal.groundedIngredients) {
-    return { lines, unresolved };
-  }
+  return { lines, unresolved };
+}
+
+function legacyReview(meal: MealRecommendation, inventory: InventoryItem[]): ConsumptionReview {
+  const lines: ConsumptionReviewLine[] = [];
+  const unresolved: string[] = [];
+  const seen = new Set<string>();
 
   for (const name of meal.usesIngredients) {
     const item = byName(inventory, name);
@@ -66,4 +70,8 @@ export function buildReviewLines(meal: MealRecommendation, inventory: InventoryI
   }
 
   return { lines, unresolved };
+}
+
+export function buildReviewLines(meal: MealRecommendation, inventory: InventoryItem[]): ConsumptionReview {
+  return meal.groundedIngredients ? groundedReview(meal, inventory) : legacyReview(meal, inventory);
 }

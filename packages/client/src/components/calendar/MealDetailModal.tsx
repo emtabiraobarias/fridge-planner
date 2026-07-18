@@ -33,6 +33,54 @@ function RecipeLink({ url }: { url: string | undefined }): React.JSX.Element | n
   );
 }
 
+interface CookedReceiptProps {
+  consumedItems: NonNullable<MealPlanEntry['consumedItems']>;
+  cookedAt: string | undefined;
+  canUncook: boolean;
+  submitting: boolean;
+  onUncook: () => void;
+}
+
+/** FR-MC-015: what this cook took from inventory, with the un-cook escape hatch. */
+function CookedReceipt({
+  consumedItems,
+  cookedAt,
+  canUncook,
+  submitting,
+  onUncook,
+}: CookedReceiptProps): React.JSX.Element {
+  return (
+    <section className="mt-4">
+      <h3 className="text-sm font-semibold text-gray-700 mb-1">
+        Consumed when cooked
+        {cookedAt && (
+          <span className="ml-2 font-normal text-gray-500">
+            ({new Date(cookedAt).toLocaleString()})
+          </span>
+        )}
+      </h3>
+      <ul className="text-xs text-gray-600">
+        {consumedItems.map((line) => (
+          <li key={`${line.name}-${line.inventoryItemId ?? 'x'}`}>
+            {line.name} —{' '}
+            {line.quantityConsumed > 0 ? `${line.quantityConsumed} ${line.unit}` : 'not consumed'}
+          </li>
+        ))}
+      </ul>
+      {canUncook && (
+        <button
+          type="button"
+          onClick={onUncook}
+          disabled={submitting}
+          className="mt-3 min-h-11 rounded-md border border-divider px-4 text-sm font-medium text-ink"
+        >
+          Un-cook (restore inventory)
+        </button>
+      )}
+    </section>
+  );
+}
+
 function CookControls({
   mealName,
   lines,
@@ -216,36 +264,15 @@ export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React
         <RecipeLink url={meal.recipeUrl} />
 
         {cooked && entry.consumedItems && (
-          <section className="mt-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">
-              Consumed when cooked
-              {entry.cookedAt && (
-                <span className="ml-2 font-normal text-gray-500">
-                  ({new Date(entry.cookedAt).toLocaleString()})
-                </span>
-              )}
-            </h3>
-            <ul className="text-xs text-gray-600">
-              {entry.consumedItems.map((line) => (
-                <li key={`${line.name}-${line.inventoryItemId ?? 'x'}`}>
-                  {line.name} —{' '}
-                  {line.quantityConsumed > 0 ? `${line.quantityConsumed} ${line.unit}` : 'not consumed'}
-                </li>
-              ))}
-            </ul>
-            {mealPlan && (
-              <button
-                type="button"
-                onClick={() => {
-                  void confirmUncook();
-                }}
-                disabled={submitting}
-                className="mt-3 min-h-11 rounded-md border border-divider px-4 text-sm font-medium text-ink"
-              >
-                Un-cook (restore inventory)
-              </button>
-            )}
-          </section>
+          <CookedReceipt
+            consumedItems={entry.consumedItems}
+            cookedAt={entry.cookedAt}
+            canUncook={Boolean(mealPlan)}
+            submitting={submitting}
+            onUncook={() => {
+              void confirmUncook();
+            }}
+          />
         )}
 
         {!cooked && mealPlan && (
