@@ -1,6 +1,8 @@
 import type { MealRecommendation } from '../types/meal-recommendation';
 
 export interface IngredientInput {
+  /** Inventory item id — echoed back by the agent as a grounded reference (spec 006). */
+  id?: string;
   name: string;
   quantity: number;
   unit: string;
@@ -39,11 +41,13 @@ export async function getMealRecommendations(
         ]
       : []),
     '',
-    ...ingredients.map((i) =>
-      i.expiresAt
-        ? `- ${i.quantity} ${i.unit} ${i.name} (expires: ${i.expiresAt})`
-        : `- ${i.quantity} ${i.unit} ${i.name}`,
-    ),
+    ...ingredients.map((i) => {
+      // Spec 006: expose the item id so the agent can return grounded references.
+      const idTag = i.id ? `[id:${i.id}] ` : '';
+      return i.expiresAt
+        ? `- ${idTag}${i.quantity} ${i.unit} ${i.name} (expires: ${i.expiresAt})`
+        : `- ${idTag}${i.quantity} ${i.unit} ${i.name}`;
+    }),
   ].join('\n');
 
   const res = await fetch(`${holodeckUrl}/agent/meal-recommender/chat`, {

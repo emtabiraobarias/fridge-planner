@@ -1,7 +1,7 @@
 'use client';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import type { MealPlanEntry } from '../../types/meal-plan';
+import { entryStatus, type MealPlanEntry } from '../../types/meal-plan';
 
 interface PlannedMealTileProps {
   entry: MealPlanEntry;
@@ -21,6 +21,7 @@ export function PlannedMealTile({ entry, onOpen, onClear }: PlannedMealTileProps
     data: { entry },
   });
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
+  const cooked = entryStatus(entry) === 'cooked';
 
   return (
     <div
@@ -37,6 +38,11 @@ export function PlannedMealTile({ entry, onOpen, onClear }: PlannedMealTileProps
         {entry.meal.mealName}
       </div>
       <div className="text-[11px] text-accent2-700">{entry.meal.prepTimeMinutes} min</div>
+      {cooked && (
+        <div className="mt-1 text-[10px] font-semibold uppercase text-accent2-800" aria-label="Cooked meal">
+          Cooked
+        </div>
+      )}
       <button
         type="button"
         aria-label={`Clear ${entry.mealType} ${entry.meal.mealName}`}

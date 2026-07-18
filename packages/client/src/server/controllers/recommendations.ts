@@ -4,6 +4,7 @@ import { getMealRecommendations } from '../services/meal-recommender';
 import { verifyRecipeCached, isRecipeVerificationConfigured } from '../services/recipe-verifier';
 import { buildCacheKey, getCached, getStale, setCached } from '../services/recommendations-cache';
 import { notExpiredQuery } from '../lib/expiration';
+import { groundMeals } from '../lib/ingredient-grounding';
 import { POPULAR_RECIPES } from '../lib/popular-recipes';
 import type { MealRecommendation } from '../types/meal-recommendation';
 import type { VerifiedRecipe } from '../services/recipe-verifier';
@@ -28,6 +29,8 @@ export async function getRecommendations(userId: string): Promise<ControllerResu
   }
 
   const ingredients = activeItems.map((item) => ({
+    // Spec 006 FR-MC-001: the agent echoes these ids back as grounded references.
+    id: String(item._id),
     name: item.name,
     quantity: item.quantity,
     unit: item.unit,
@@ -54,6 +57,11 @@ export async function getRecommendations(userId: string): Promise<ControllerResu
       body: { recommendations: stale ?? POPULAR_RECIPES, fallback: stale ? 'cache' : 'popular' },
     };
   }
+
+  // Spec 006 US1: validate the untrusted agent payload against live inventory and
+  // ground it (tiered resolution + clamping) BEFORE caching, so cached meals are
+  // grounded too (research D4). Fallback paths above pass through ungrounded.
+  recommendations = await groundMeals(userId, recommendations, activeItems);
 
   setCached(cacheKey, recommendations);
   return { status: 200, body: { recommendations } };

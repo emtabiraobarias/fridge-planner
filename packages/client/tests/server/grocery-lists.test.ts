@@ -11,6 +11,7 @@ const validMealEntry = {
   slotId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   date: '2026-04-06T00:00:00.000Z',
   mealType: 'dinner',
+  status: 'planned', // spec 006: only planned entries generate grocery needs (FR-MC-016)
   meal: {
     mealName: 'Chicken Fried Rice',
     suggestedMealType: 'dinner',
@@ -27,6 +28,7 @@ const secondMealEntry = {
   slotId: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
   date: '2026-04-07T00:00:00.000Z',
   mealType: 'lunch',
+  status: 'planned', // spec 006 (FR-MC-016)
   meal: {
     mealName: 'Caesar Salad',
     suggestedMealType: 'lunch',

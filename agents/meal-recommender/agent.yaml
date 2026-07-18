@@ -152,15 +152,19 @@ test_cases:
       Suggest 5-10 meals I can make with these ingredients.
       Prioritise ingredients expiring soonest to minimise food waste.
 
-      - 2 lbs chicken breast (expires: 1 day from now)
-      - 1 cup rice (expires: 2 days from now)
-      - 500g broccoli (expires: 1 day from now)
-      - 2 cloves garlic (expires: 4 days from now)
+      - [id:665f1c2ab8d9e4f001a23b45] 2 lbs chicken breast (expires: 1 day from now)
+      - [id:665f1c2ab8d9e4f001a23b46] 1 cup rice (expires: 2 days from now)
+      - [id:665f1c2ab8d9e4f001a23b47] 500g broccoli (expires: 1 day from now)
+      - [id:665f1c2ab8d9e4f001a23b48] 2 cloves garlic (expires: 4 days from now)
     ground_truth: |
       Should return a JSON array of 5-10 meal objects. At least one meal must include
       "chicken breast" and "broccoli" in usesIngredients and expiringIngredients, since they expire
       soonest. All objects must have mealName, suggestedMealType, prepTimeMinutes,
       cuisine, description, usesIngredients, expiringIngredients, and missingIngredients.
+      Each usesIngredients entry must be an object {inventoryItemId, name, quantityToConsume, unit}
+      whose inventoryItemId is copied verbatim from the input's [id:...] tags and whose
+      quantityToConsume does not exceed the quantity shown for that item; ingredients not
+      in the input appear only in missingIngredients as plain names (spec 006 grounding).
 
   # - name: Mixed pantry and perishables
   #   input: |

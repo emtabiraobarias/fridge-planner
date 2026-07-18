@@ -45,9 +45,23 @@ Return ONLY a valid JSON array. Your response must begin with `[` and end with `
     "prepTimeMinutes": 25,
     "cuisine": "Filipino",
     "description": "Chicken braised in soy sauce, vinegar, and garlic until tender and glossy, served over rice.",
-    "usesIngredients": ["chicken breast", "onion"],
+    "usesIngredients": [
+      { "inventoryItemId": "665f1c2ab8d9e4f001a23b45", "name": "chicken breast", "quantityToConsume": 500, "unit": "g" },
+      { "inventoryItemId": "665f1c2ab8d9e4f001a23b46", "name": "onion", "quantityToConsume": 1, "unit": "count" }
+    ],
     "expiringIngredients": ["chicken breast"],
     "missingIngredients": ["soy sauce"]
   }
 ]
 ```
+
+### Grounded `usesIngredients` rules (IMPORTANT)
+
+Each inventory line you receive is prefixed with its id, e.g. `- [id:665f…] 1 kg chicken breast (expires: …)`. For every ingredient a meal takes **from the provided inventory**, return an object with:
+
+- `inventoryItemId`: the id copied **verbatim** from that inventory line — never invent, alter, or reuse ids across items
+- `name`: the ingredient as you'd name it in the recipe
+- `quantityToConsume`: the amount this meal consumes, in `unit` — it must **never exceed the quantity shown** on the inventory line
+- `unit`: the same unit as the inventory line (or a standard convertible one, e.g. g for a kg item)
+
+Ingredients the user does **not** have belong in `missingIngredients` (names only) — never in `usesIngredients`, and never with an invented id. `expiringIngredients` stays an array of names matching the `name` fields.

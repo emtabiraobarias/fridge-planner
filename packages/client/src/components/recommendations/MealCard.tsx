@@ -1,4 +1,5 @@
 import type { MealRecommendation } from '../../types/meal-recommendation';
+import { groundedAmounts, withGroundedAmount } from '../../lib/grounded-ingredients';
 
 export function MealCardSkeleton(): React.JSX.Element {
   return (
@@ -32,6 +33,7 @@ interface Props {
 export function MealCard({ meal, onPlan, linkPending }: Props): React.JSX.Element {
   const expiringSet = new Set(meal.expiringIngredients.map((s) => s.toLowerCase()));
   const nonExpiringUsed = meal.usesIngredients.filter((i) => !expiringSet.has(i.toLowerCase()));
+  const amounts = groundedAmounts(meal);
 
   return (
     <li className="rounded-lg bg-bg p-4">
@@ -75,7 +77,7 @@ export function MealCard({ meal, onPlan, linkPending }: Props): React.JSX.Elemen
             key={ing}
             className="rounded-full bg-accent-200 px-2.5 py-0.5 text-[11px] font-semibold text-accent-800"
           >
-            {ing} — use soon
+            {withGroundedAmount(ing, amounts)} — use soon
           </span>
         ))}
         {nonExpiringUsed.map((ing) => (
@@ -83,7 +85,7 @@ export function MealCard({ meal, onPlan, linkPending }: Props): React.JSX.Elemen
             key={ing}
             className="rounded-full bg-accent2-100 px-2.5 py-0.5 text-[11px] text-accent2-800"
           >
-            {ing}
+            {withGroundedAmount(ing, amounts)}
           </span>
         ))}
         {meal.missingIngredients.map((ing) => (

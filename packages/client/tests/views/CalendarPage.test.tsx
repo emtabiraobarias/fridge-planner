@@ -13,11 +13,13 @@ import * as weekUtils from '../../src/lib/date-utils';
 const addEntry = vi.fn().mockResolvedValue({});
 const removeEntry = vi.fn().mockResolvedValue({});
 const fetchMealPlan = vi.fn().mockResolvedValue(null);
+const cookEntry = vi.fn().mockResolvedValue({ plan: null, receipt: [] });
 
 vi.mock('../../src/services/meal-plans', () => ({
   fetchMealPlan: (...a: unknown[]) => fetchMealPlan(...a),
   addEntry: (...a: unknown[]) => addEntry(...a),
   removeEntry: (...a: unknown[]) => removeEntry(...a),
+  cookEntry: (...a: unknown[]) => cookEntry(...a),
   replaceEntries: vi.fn().mockResolvedValue({}),
 }));
 

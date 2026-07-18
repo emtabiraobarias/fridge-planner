@@ -149,7 +149,10 @@ Rate limit: **10 req/min** for `/recommendations` (30/min for `verify-links`; 20
 | GET | `/meal-plans?weekStart=<ISO>` | Fetch weekly plan |
 | POST | `/meal-plans/:weekStart/entries` | Add meal entry to slot |
 | PUT | `/meal-plans/:weekStart` | Replace full entries array |
-| DELETE | `/meal-plans/:weekStart/entries/:slotId` | Remove meal entry |
+| DELETE | `/meal-plans/:weekStart/entries/:slotId` | Remove meal entry (no inventory effect — spec 006 FR-MC-006/014) |
+| PATCH | `/meal-plans/:weekStart/entries/:slotId` | Spec 006 lifecycle: `{action:'cook', consumption:[…]}` (atomic idempotent deduct + receipt) or `{action:'uncook'}` (exact restore; 409 for legacy receipt-less entries) |
+
+> **Spec 006 (2026-07-18):** planning is inventory-neutral — POST/PUT/DELETE never touch inventory; deduction happens only at the cooked confirmation (user-adjustable consumption review). PUT preserves server-held `status`/`cookedAt`/`consumedItems` per surviving `slotId` and ignores client-sent lifecycle fields.
 
 ### Grocery Lists
 | Method | Path | Description |
@@ -198,6 +201,7 @@ All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
 ```
 - Compound unique index on `(userId, weekStart)`
 - `entries` subdocs have `_id: false`; `meal` stores a full `MealRecommendation` snapshot
+- **Spec 006 lifecycle fields on entries:** `status: 'planned' | 'cooked'` (**no schema default — an absent `status` means a legacy pre-006 entry and reads as `cooked`**, FR-MC-011), `cookedAt?: Date`, `consumedItems?: ConsumptionReceiptLine[]` (the consumption receipt: per-item actual deductions + `depletedSnapshot` for items removed at zero — snapshots never carry `expirationStatus`; the pre-save hook recomputes it on restore). Meals may carry `groundedIngredients` (`{inventoryItemId, name, quantityToConsume, unit, resolution}`) — validated server-side by `lib/ingredient-grounding.ts`, never trusted from the agent or client
 
 ### GroceryList (MongoDB)
 ```typescript
@@ -355,6 +359,8 @@ The agent receives inventory data (sorted by expiry date) and returns a JSON arr
 One active test case ("Prioritise expiring chicken") is defined in `agent.yaml` under `test_cases`.
 
 **Caching:** `services/recommendations-cache.ts` caches results by `(userId, ingredients)` key with a **15-minute TTL**. Cache is invalidated per-user (`invalidateUser(userId)`) on any inventory mutation.
+
+**Ingredient grounding (spec 006, 2026-07-18):** inventory lines in the agent message carry `[id:<_id>]` tags, and `usesIngredients` in the response is now an **object array** `{inventoryItemId, name, quantityToConsume, unit}` (ids copied verbatim, amounts ≤ owned). The server treats it all as untrusted: `lib/ingredient-grounding.ts` re-validates against live inventory (tiers: user-scoped id → deterministic name match → learned `ingredient_aliases.inventoryName` pairing via a cached `gpt-4o-mini` lookup in `services/alias-pairing.ts`, fail-open) and clamps amounts before caching. Legacy string-array `usesIngredients` still parses (derived for back-compat). Prompt/schema changes require an `agent-v*` image release; the app tolerates both shapes during rollout.
 
 **Recipe-URL grounding (Option A):** the OpenAI backend has **no web-search tool** (Holodeck exposes none for non-Claude providers), so the agent is instructed to **never author `recipeUrl`/`imageUrl`** (no fabricated links). Instead, `src/server/services/recipe-verifier.ts` attaches a URL server-side, only when a real page is found: Brave `site:`-restricted search of the 4 approved domains (panlasangpinoy.com, recipetineats.com, kawalingpinoy.com, taste.com.au), then a Spoonacular fallback, gated by title-similarity — else the field is omitted. **FR-037 async revision (2026-07-15): immediate results + lazy links.** The results endpoint returns the agent's meals (a **5-10 candidate net**, FR-014) without awaiting verification; the client then POSTs `/recommendations/verify-links` (name→link map, per-name 1h server cache via `verifyRecipeCached`), attaches links as they arrive, and **removes any meal left unlinked** (settling to linked-only; `available:false` → notice + all removed). At least one of `BRAVE_SEARCH_API_KEY` / `SPOONACULAR_API_KEY` must be set for usable recommendations; `POPULAR_RECIPES` fallbacks carry hand-verified links and skip the lazy phase.
 

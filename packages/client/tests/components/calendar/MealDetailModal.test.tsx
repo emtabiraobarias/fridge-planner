@@ -83,3 +83,32 @@ describe('MealDetailModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('MealDetailModal — cooked view (spec 006 FR-MC-015)', () => {
+  const cookedEntry: MealPlanEntry = {
+    ...mockEntry,
+    status: 'cooked',
+    cookedAt: '2026-04-06T18:30:00.000Z',
+    consumedItems: [
+      { inventoryItemId: 'i1', name: 'Chicken Breast', quantityConsumed: 500, unit: 'g' },
+      { inventoryItemId: 'i2', name: 'Rice', quantityConsumed: 0, unit: 'units' },
+    ],
+  };
+
+  it('shows what was consumed when cooked, including not-consumed lines', () => {
+    render(<MealDetailModal entry={cookedEntry} onClose={vi.fn()} />);
+    expect(screen.getByText('Consumed when cooked', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(/Chicken Breast — 500 g/)).toBeInTheDocument();
+    expect(screen.getByText(/Rice — not consumed/)).toBeInTheDocument();
+    // no MealPlanProvider in this render → the un-cook action is unavailable
+    expect(screen.queryByRole('button', { name: /un-cook/i })).not.toBeInTheDocument();
+  });
+
+  it('hides the receipt section and Mark cooked for a legacy cooked entry (no receipt)', () => {
+    const legacy: MealPlanEntry = { ...mockEntry }; // no status → legacy → cooked
+    render(<MealDetailModal entry={legacy} onClose={vi.fn()} />);
+    expect(screen.queryByText('Consumed when cooked', { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /mark cooked/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Cooked')).toBeInTheDocument(); // badge still shown
+  });
+});

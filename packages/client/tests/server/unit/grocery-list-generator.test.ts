@@ -11,6 +11,7 @@ function makePlan(missingIngredients: string[][], mealNames?: string[]): IMealPl
       slotId: `slot-${i}`,
       date: new Date('2026-04-06'),
       mealType: 'dinner',
+      status: 'planned', // spec 006: only planned entries generate needs (FR-MC-016)
       meal: {
         mealName: mealNames?.[i] ?? `Meal ${i + 1}`,
         suggestedMealType: 'dinner',
@@ -131,5 +132,137 @@ describe('generateGroceryList', () => {
     };
     const result = generateGroceryList(plan, []);
     expect(result.items).toHaveLength(0);
+  });
+});
+
+// ——— Spec 006 US4: quantity-aware generation (FR-MC-016..019) ———
+
+import type { IMealPlanEntry } from '@server/types/meal-plan';
+import type { GroundedIngredient } from '@server/types/meal-recommendation';
+
+interface GroundedMealSpec {
+  grounded: GroundedIngredient[];
+  missing?: string[];
+  status?: 'planned' | 'cooked' | undefined;
+  legacy?: boolean; // no status field at all
+  mealName?: string;
+}
+
+function makeGroundedPlan(meals: GroundedMealSpec[]): IMealPlan {
+  return {
+    userId: 'user-1',
+    weekStart: new Date('2026-04-06'),
+    entries: meals.map((m, i): IMealPlanEntry => {
+      const entry: IMealPlanEntry = {
+        slotId: `slot-${i}`,
+        date: new Date('2026-04-06'),
+        mealType: 'dinner',
+        meal: {
+          mealName: m.mealName ?? `Meal ${i + 1}`,
+          suggestedMealType: 'dinner',
+          prepTimeMinutes: 20,
+          cuisine: 'Test',
+          description: '',
+          usesIngredients: m.grounded.map((g) => g.name),
+          expiringIngredients: [],
+          missingIngredients: m.missing ?? [],
+          groundedIngredients: m.grounded,
+        },
+      };
+      if (!m.legacy) entry.status = m.status ?? 'planned';
+      return entry;
+    }),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+function g(name: string, quantityToConsume: number, unit: string): GroundedIngredient {
+  return { inventoryItemId: `id-${name}`, name, quantityToConsume, unit, resolution: 'direct' };
+}
+
+describe('generateGroceryList — grounded quantities (spec 006 US4)', () => {
+  it('nets summed grounded need against owned stock and lists the shortfall (FR-MC-016)', () => {
+    const plan = makeGroundedPlan([
+      { grounded: [g('mince', 200, 'g')], mealName: 'Tacos' },
+      { grounded: [g('mince', 300, 'g')], mealName: 'Bolognese' },
+    ]);
+    const result = generateGroceryList(plan, [makeInventoryItem('mince', 400, 'g')]);
+    const line = result.items.find((i) => i.ingredientName === 'mince')!;
+    expect(line.quantity).toBe(100);
+    expect(line.unit).toBe('g');
+    expect(line.sourceMealNames.sort()).toEqual(['Bolognese', 'Tacos']);
+  });
+
+  it('omits an ingredient whose need is fully covered (FR-MC-016)', () => {
+    const plan = makeGroundedPlan([{ grounded: [g('mince', 200, 'g')] }]);
+    const result = generateGroceryList(plan, [makeInventoryItem('mince', 400, 'g')]);
+    expect(result.items.find((i) => i.ingredientName === 'mince')).toBeUndefined();
+  });
+
+  it('sums compatible units in one canonical unit (1 kg + 500 g → 1.5 kg worth) (FR-MC-017)', () => {
+    const plan = makeGroundedPlan([
+      { grounded: [g('flour', 1, 'kg')] },
+      { grounded: [g('flour', 500, 'g')] },
+    ]);
+    const result = generateGroceryList(plan, [makeInventoryItem('flour', 200, 'g')]);
+    const line = result.items.find((i) => i.ingredientName === 'flour')!;
+    expect(line.quantity).toBe(1300);
+    expect(line.unit).toBe('g');
+  });
+
+  it('falls back to the servings count when one name mixes incompatible unit families (FR-MC-017)', () => {
+    const plan = makeGroundedPlan([
+      { grounded: [g('stock', 500, 'ml')], mealName: 'Soup' },
+      { grounded: [g('stock', 2, 'count')], mealName: 'Risotto' },
+    ]);
+    const result = generateGroceryList(plan, []);
+    const line = result.items.find((i) => i.ingredientName === 'stock')!;
+    expect(line.unit).toBe('servings');
+    expect(line.quantity).toBe(2); // number of meals needing it
+  });
+
+  it('mixes grounded real-amount lines with servings lines from missing ingredients (FR-MC-017)', () => {
+    const plan = makeGroundedPlan([
+      { grounded: [g('mince', 500, 'g')], missing: ['soy sauce'] },
+    ]);
+    const result = generateGroceryList(plan, [makeInventoryItem('mince', 100, 'g')]);
+    const mince = result.items.find((i) => i.ingredientName === 'mince')!;
+    const soy = result.items.find((i) => i.ingredientName === 'soy sauce')!;
+    expect(mince.unit).toBe('g');
+    expect(mince.quantity).toBe(400);
+    expect(soy.unit).toBe('servings');
+    expect(soy.quantity).toBe(1);
+  });
+
+  it('excludes cooked and legacy (no-status) entries from need computation (FR-MC-016, research D9)', () => {
+    const plan = makeGroundedPlan([
+      { grounded: [g('mince', 200, 'g')], missing: ['soy sauce'], status: 'cooked' },
+      { grounded: [g('mince', 300, 'g')], missing: ['vinegar'], legacy: true },
+      { grounded: [g('mince', 100, 'g')], missing: ['garlic'] }, // planned
+    ]);
+    const result = generateGroceryList(plan, []);
+    const mince = result.items.find((i) => i.ingredientName === 'mince')!;
+    expect(mince.quantity).toBe(100); // only the planned meal counts
+    expect(result.items.find((i) => i.ingredientName === 'soy sauce')).toBeUndefined();
+    expect(result.items.find((i) => i.ingredientName === 'vinegar')).toBeUndefined();
+    expect(result.items.find((i) => i.ingredientName === 'garlic')).toBeDefined();
+  });
+
+  it('ignores unresolved/unquantified grounded entries in the amount pass (they ride the servings path)', () => {
+    const plan = makeGroundedPlan([
+      {
+        grounded: [
+          { name: 'galangal', resolution: 'unresolved' },
+          { inventoryItemId: 'id-onion', name: 'onion', resolution: 'fuzzy' }, // no amount
+        ],
+        missing: ['galangal'],
+      },
+    ]);
+    const result = generateGroceryList(plan, []);
+    const galangal = result.items.find((i) => i.ingredientName === 'galangal')!;
+    expect(galangal.unit).toBe('servings');
+    // onion has no usable amount and isn't missing → not a purchase line
+    expect(result.items.find((i) => i.ingredientName === 'onion')).toBeUndefined();
   });
 });
