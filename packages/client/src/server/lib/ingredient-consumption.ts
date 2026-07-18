@@ -133,7 +133,12 @@ export async function restoreFromReceipt(
 
 async function restoreLine(userId: string, line: ConsumptionReceiptLine): Promise<void> {
   if (line.depletedSnapshot) {
-    await new InventoryItem({ userId, ...line.depletedSnapshot }).save();
+    // Receipts read back from Mongo are hydrated subdocuments — spread their DATA,
+    // not the document internals.
+    const snapshot =
+      (line.depletedSnapshot as { toObject?: () => DepletedItemSnapshot }).toObject?.() ??
+      line.depletedSnapshot;
+    await new InventoryItem({ userId, ...snapshot }).save();
     return;
   }
   if (!line.inventoryItemId || line.quantityConsumed <= 0) return;

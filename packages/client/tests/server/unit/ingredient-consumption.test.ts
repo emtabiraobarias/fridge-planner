@@ -144,3 +144,43 @@ describe('consumeConfirmed (spec 006 FR-MC-009/012)', () => {
     expect(receipt[0]!.quantityConsumed).toBe(0);
   });
 });
+
+describe('restoreFromReceipt (spec 006 FR-MC-013)', () => {
+  it('adds back exactly what a partial consumption deducted', async () => {
+    const id = await seed('Chicken Thighs', 1000, 'g');
+    const { restoreFromReceipt } = await import('@server/lib/ingredient-consumption');
+    const receipt = await consumeConfirmed(USER, [
+      { inventoryItemId: id, name: 'Chicken Thighs', quantity: 250, unit: 'g' },
+    ]);
+    await restoreFromReceipt(USER, receipt);
+    expect(await qty('Chicken Thighs')).toBe(1000);
+  });
+
+  it('re-creates a depleted item from its snapshot with the expiration hook recomputing status', async () => {
+    const id = await seed('Eggs', 6, 'count');
+    const { restoreFromReceipt } = await import('@server/lib/ingredient-consumption');
+    const receipt = await consumeConfirmed(USER, [
+      { inventoryItemId: id, name: 'Eggs', quantity: 6, unit: 'count' },
+    ]);
+    expect(await qty('Eggs')).toBeNull();
+
+    await restoreFromReceipt(USER, receipt);
+    const restored = await InventoryItem.findOne({ userId: USER, name: 'Eggs' });
+    expect(restored!.quantity).toBe(6);
+    expect(restored!.unit).toBe('count');
+    expect(restored!.expiresAt).toBeInstanceOf(Date);
+    // never copied — recomputed by the pre-save hook (expires ~7 days out → 'normal')
+    expect(restored!.expirationStatus).toBe('normal');
+  });
+
+  it('skips zero lines and unmatched lines without touching inventory', async () => {
+    await seed('Chicken Thighs', 500, 'g');
+    const { restoreFromReceipt } = await import('@server/lib/ingredient-consumption');
+    await restoreFromReceipt(USER, [
+      { name: 'dragon fruit', quantityConsumed: 0, unit: 'count' },
+      { inventoryItemId: '000000000000000000000000', name: 'Ghost', quantityConsumed: 5, unit: 'g' },
+    ]);
+    expect(await qty('Chicken Thighs')).toBe(500);
+    expect(await InventoryItem.countDocuments({ userId: USER })).toBe(1);
+  });
+});

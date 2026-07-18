@@ -107,6 +107,19 @@ export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React
     }
   }
 
+  async function confirmUncook(): Promise<void> {
+    if (!mealPlan || !entry) return;
+    const slotId = entry.slotId;
+    setSubmitting(true);
+    try {
+      await mealPlan.uncookMeal(slotId);
+      await inventory?.refresh();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -201,6 +214,39 @@ export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React
         )}
 
         <RecipeLink url={meal.recipeUrl} />
+
+        {cooked && entry.consumedItems && (
+          <section className="mt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-1">
+              Consumed when cooked
+              {entry.cookedAt && (
+                <span className="ml-2 font-normal text-gray-500">
+                  ({new Date(entry.cookedAt).toLocaleString()})
+                </span>
+              )}
+            </h3>
+            <ul className="text-xs text-gray-600">
+              {entry.consumedItems.map((line) => (
+                <li key={`${line.name}-${line.inventoryItemId ?? 'x'}`}>
+                  {line.name} —{' '}
+                  {line.quantityConsumed > 0 ? `${line.quantityConsumed} ${line.unit}` : 'not consumed'}
+                </li>
+              ))}
+            </ul>
+            {mealPlan && (
+              <button
+                type="button"
+                onClick={() => {
+                  void confirmUncook();
+                }}
+                disabled={submitting}
+                className="mt-3 min-h-11 rounded-md border border-divider px-4 text-sm font-medium text-ink"
+              >
+                Un-cook (restore inventory)
+              </button>
+            )}
+          </section>
+        )}
 
         {!cooked && mealPlan && (
           <div className="mt-5">

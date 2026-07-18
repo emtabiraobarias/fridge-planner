@@ -70,3 +70,14 @@ export async function cookEntry(
   ensureOk(res, 'cook meal');
   return (await res.json()) as CookMealResult;
 }
+
+export async function uncookEntry(weekStart: string, slotId: string): Promise<MealPlan> {
+  const res = await apiFetch(`${BASE}/${weekStart}/entries/${slotId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'uncook' }),
+  });
+  ensureOk(res, 'un-cook meal');
+  const data = (await res.json()) as { plan: MealPlan };
+  return data.plan;
+}

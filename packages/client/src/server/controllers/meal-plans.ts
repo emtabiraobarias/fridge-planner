@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { MealPlan } from '../models/meal-plan';
-import { consumeConfirmed } from '../lib/ingredient-consumption';
+import { consumeConfirmed, restoreFromReceipt } from '../lib/ingredient-consumption';
 import { invalidateUser } from '../services/recommendations-cache';
 import { MEAL_TYPES } from '../types/meal-plan';
 import { problem, type ControllerResult } from '../http';
@@ -173,7 +173,7 @@ export async function patchMealEntry(
 
   return parsed.data.action === 'cook'
     ? cookEntry(userId, weekStart, slotId, parsed.data.consumption)
-    : problem(409, 'Conflict', 'Un-cook is not supported until spec 006 US3');
+    : uncookEntry(userId, weekStart, slotId);
 }
 
 async function cookEntry(
@@ -204,4 +204,39 @@ async function cookEntry(
 
   invalidateUser(userId); // consumption changed inventory → suggestions must reflect it (FR-MC-010)
   return { status: 200, body: { plan, receipt } };
+}
+
+async function uncookEntry(userId: string, weekStart: Date, slotId: string): Promise<ControllerResult> {
+  // Guard mirrors cook: only a cooked entry WITH a receipt reverses — legacy cooked
+  // entries (no receipt) cannot be un-cooked (FR-MC-011/013). {new:false} returns the
+  // pre-image so the receipt is read exactly as it was when this call won the transition.
+  const preImage = await MealPlan.findOneAndUpdate(
+    {
+      userId,
+      weekStart,
+      entries: { $elemMatch: { slotId, status: 'cooked', consumedItems: { $exists: true } } },
+    },
+    {
+      $set: { 'entries.$[e].status': 'planned' },
+      $unset: { 'entries.$[e].cookedAt': '', 'entries.$[e].consumedItems': '' },
+    },
+    {
+      arrayFilters: [{ 'e.slotId': slotId, 'e.status': 'cooked', 'e.consumedItems': { $exists: true } }],
+      new: false,
+    },
+  );
+  if (!preImage) {
+    return problem(
+      409,
+      'Conflict',
+      'Entry is not cooked, or is a pre-existing entry that cannot be un-cooked',
+    );
+  }
+
+  const receipt = preImage.entries.find((e) => e.slotId === slotId)?.consumedItems ?? [];
+  await restoreFromReceipt(userId, receipt);
+
+  const plan = await MealPlan.findOne({ userId, weekStart });
+  invalidateUser(userId);
+  return { status: 200, body: { plan } };
 }

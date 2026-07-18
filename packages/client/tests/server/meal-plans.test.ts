@@ -338,3 +338,94 @@ describe('PATCH entries — cook (FR-MC-007..010, SC-MC-003)', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('PATCH entries — un-cook (FR-MC-012..014, SC-MC-004)', () => {
+  const uncookBody = { action: 'uncook' };
+
+  it('restores inventory exactly from the receipt and returns the entry to planned', async () => {
+    const chickenId = await seedInv('Chicken Breast', 3);
+    const eggsId = await seedInv('Eggs', 6);
+    await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast', 'Eggs'])), wk());
+    await PATCH_ENTRY(
+      bodyReq(
+        'PATCH',
+        cookBody([
+          { inventoryItemId: chickenId, name: 'Chicken Breast', quantity: 1, unit: 'units' },
+          { inventoryItemId: eggsId, name: 'Eggs', quantity: 6, unit: 'units' }, // depletes → removed
+        ]),
+      ),
+      wkSlot(SLOT_A),
+    );
+    expect(await invQty('Chicken Breast')).toBe(2);
+    expect(await invQty('Eggs')).toBeNull();
+
+    const res = await PATCH_ENTRY(bodyReq('PATCH', uncookBody), wkSlot(SLOT_A));
+    expect(res.status).toBe(200);
+
+    // Inventory exactly as before the cook — including the resurrected item (SC-MC-004).
+    expect(await invQty('Chicken Breast')).toBe(3);
+    expect(await invQty('Eggs')).toBe(6);
+    const eggs = await InventoryItem.findOne({ userId: USER, name: 'Eggs' });
+    expect(eggs!.unit).toBe('units');
+    expect(eggs!.category).toBe('Meat');
+    expect(eggs!.location).toBe('fridge');
+
+    const [stored] = await storedEntries();
+    expect(stored!.status).toBe('planned');
+    expect(stored!.cookedAt).toBeUndefined();
+    expect(stored!.consumedItems).toBeUndefined();
+  });
+
+  it('is idempotent — a second un-cook 409s and never double-restores', async () => {
+    const id = await seedInv('Chicken Breast', 3);
+    await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast'])), wk());
+    await PATCH_ENTRY(
+      bodyReq('PATCH', cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }])),
+      wkSlot(SLOT_A),
+    );
+
+    const first = await PATCH_ENTRY(bodyReq('PATCH', uncookBody), wkSlot(SLOT_A));
+    expect(first.status).toBe(200);
+    const second = await PATCH_ENTRY(bodyReq('PATCH', uncookBody), wkSlot(SLOT_A));
+    expect(second.status).toBe(409);
+    expect(await invQty('Chicken Breast')).toBe(3); // restored once, not twice
+  });
+
+  it('a cooked entry can be re-cooked after un-cook (full lifecycle round-trip)', async () => {
+    const id = await seedInv('Chicken Breast', 3);
+    await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast'])), wk());
+    const line = [{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }];
+
+    await PATCH_ENTRY(bodyReq('PATCH', cookBody(line)), wkSlot(SLOT_A));
+    await PATCH_ENTRY(bodyReq('PATCH', uncookBody), wkSlot(SLOT_A));
+    const recook = await PATCH_ENTRY(bodyReq('PATCH', cookBody(line)), wkSlot(SLOT_A));
+    expect(recook.status).toBe(200);
+    expect(await invQty('Chicken Breast')).toBe(2);
+  });
+
+  it('a legacy cooked entry (no receipt) cannot be un-cooked (FR-MC-011)', async () => {
+    await seedInv('Chicken Breast', 3);
+    await MealPlan.create({
+      userId: USER,
+      weekStart: new Date(WEEK_START),
+      entries: [{ slotId: SLOT_A, date: new Date(WEEK_START), mealType: 'dinner', meal: entry(SLOT_A, ['Chicken Breast'])['meal'] }],
+    });
+
+    const res = await PATCH_ENTRY(bodyReq('PATCH', uncookBody), wkSlot(SLOT_A));
+    expect(res.status).toBe(409);
+    expect(await invQty('Chicken Breast')).toBe(3);
+  });
+
+  it('invalidates the recommendations cache on un-cook (FR-MC-010)', async () => {
+    const id = await seedInv('Chicken Breast', 3);
+    await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast'])), wk());
+    await PATCH_ENTRY(
+      bodyReq('PATCH', cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }])),
+      wkSlot(SLOT_A),
+    );
+    invalidateUserSpy.mockClear();
+
+    await PATCH_ENTRY(bodyReq('PATCH', uncookBody), wkSlot(SLOT_A));
+    expect(invalidateUserSpy).toHaveBeenCalledWith(USER);
+  });
+});

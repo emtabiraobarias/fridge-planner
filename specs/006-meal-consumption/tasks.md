@@ -84,13 +84,13 @@
 
 ### Tests for User Story 3 (write first, must FAIL)
 
-- [ ] T020 [US3] Failing tests: in `packages/client/tests/server/unit/ingredient-consumption.test.ts` — `restoreFromReceipt` increments existing items, re-creates depleted items from snapshots via `.save()` (assert `expirationStatus` recomputed by the hook, never copied); in `packages/client/tests/server/meal-plans.test.ts` — PATCH un-cook returns entry to `planned` + clears receipt/cookedAt; cook→un-cook leaves inventory byte-equal incl. a depletion case (SC-MC-004); double un-cook → one restore + 409 `not cooked`; legacy cooked (no receipt) un-cook → 409 `cannot un-cook a pre-existing entry` (FR-MC-011); DELETE of a cooked entry leaves inventory unchanged (FR-MC-014); recs cache invalidated on un-cook (FR-MC-010)
+- [x] T020 [US3] Failing tests: in `packages/client/tests/server/unit/ingredient-consumption.test.ts` — `restoreFromReceipt` increments existing items, re-creates depleted items from snapshots via `.save()` (assert `expirationStatus` recomputed by the hook, never copied); in `packages/client/tests/server/meal-plans.test.ts` — PATCH un-cook returns entry to `planned` + clears receipt/cookedAt; cook→un-cook leaves inventory byte-equal incl. a depletion case (SC-MC-004); double un-cook → one restore + 409 `not cooked`; legacy cooked (no receipt) un-cook → 409 `cannot un-cook a pre-existing entry` (FR-MC-011); DELETE of a cooked entry leaves inventory unchanged (FR-MC-014); recs cache invalidated on un-cook (FR-MC-010)
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] Add `restoreFromReceipt(userId, lines)` to `packages/client/src/server/lib/ingredient-consumption.ts` (research D7 — increment or re-create from `depletedSnapshot` via `new InventoryItem(...).save()`)
-- [ ] T022 [US3] Add `uncookMealEntry` to `packages/client/src/server/controllers/meal-plans.ts` (guard `status:'cooked'` ∧ `consumedItems` exists via `arrayFilters`; restore; clear `cookedAt`/`consumedItems`; `invalidateUser`); complete the `uncook` dispatch in `packages/client/app/api/v1/meal-plans/[weekStart]/entries/[slotId]/route.ts`
-- [ ] T023 [US3] UI + client: `uncookEntry` in `packages/client/src/services/meal-plans.ts` + context action; cooked-entry view in `packages/client/src/components/calendar/MealDetailModal.tsx` shows `cookedAt` + consumed list (FR-MC-015) + "Un-cook" (hidden for legacy receipt-less entries); component/context tests updated
+- [x] T021 [US3] Add `restoreFromReceipt(userId, lines)` to `packages/client/src/server/lib/ingredient-consumption.ts` (research D7 — increment or re-create from `depletedSnapshot` via `new InventoryItem(...).save()`)
+- [x] T022 [US3] Add `uncookMealEntry` to `packages/client/src/server/controllers/meal-plans.ts` (guard `status:'cooked'` ∧ `consumedItems` exists via `arrayFilters`; restore; clear `cookedAt`/`consumedItems`; `invalidateUser`); complete the `uncook` dispatch in `packages/client/app/api/v1/meal-plans/[weekStart]/entries/[slotId]/route.ts`
+- [x] T023 [US3] UI + client: `uncookEntry` in `packages/client/src/services/meal-plans.ts` + context action; cooked-entry view in `packages/client/src/components/calendar/MealDetailModal.tsx` shows `cookedAt` + consumed list (FR-MC-015) + "Un-cook" (hidden for legacy receipt-less entries); component/context tests updated
 
 **Checkpoint**: mis-taps are a two-tap recovery; receipts round-trip exactly.
 

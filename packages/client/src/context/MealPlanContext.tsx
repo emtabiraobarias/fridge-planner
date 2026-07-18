@@ -7,6 +7,7 @@ import {
   removeEntry,
   replaceEntries,
   cookEntry,
+  uncookEntry,
   type CookMealLine,
 } from '../services/meal-plans';
 import { getWeekStart } from '../lib/date-utils';
@@ -21,6 +22,7 @@ interface MealPlanContextValue {
   unassignMeal: (slotId: string) => Promise<void>;
   moveMeal: (slotId: string, newDate: string, newMealType: MealType) => Promise<void>;
   cookMeal: (slotId: string, consumption: CookMealLine[]) => Promise<void>;
+  uncookMeal: (slotId: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -89,6 +91,14 @@ export function MealPlanProvider({ children }: { children: ReactNode }): React.J
     [currentWeekStart],
   );
 
+  const uncookMeal = useCallback(
+    async (slotId: string): Promise<void> => {
+      const updated = await uncookEntry(currentWeekStart, slotId);
+      setPlan(updated);
+    },
+    [currentWeekStart],
+  );
+
   return (
     <MealPlanContext.Provider
       value={{
@@ -101,6 +111,7 @@ export function MealPlanProvider({ children }: { children: ReactNode }): React.J
         unassignMeal,
         moveMeal,
         cookMeal,
+        uncookMeal,
         refresh,
       }}
     >
