@@ -104,12 +104,12 @@
 
 ### Tests for User Story 4 (write first, must FAIL)
 
-- [ ] T024 [US4] Failing tests in `packages/client/tests/server/unit/grocery-list-generator.test.ts` mapping the spec US4 scenarios: 200 g + 300 g vs 400 g owned → 100 g line (FR-MC-016); fully covered → omitted; expired owned stock not netted (FR-MC-018, feed already `notExpiredQuery`-filtered — assert an expired item doesn't reduce need); mixed grounded/ungrounded week → real amounts + servings coexist (FR-MC-017); same canonical name in incompatible families collapses that line to servings; cooked and legacy no-`status` entries excluded from need computation (research D9); compatible-unit summation (1 kg + 500 g → 1.5 kg); existing servings-model tests stay green (FR-MC-019 regression net)
+- [x] T024 [US4] Failing tests in `packages/client/tests/server/unit/grocery-list-generator.test.ts` mapping the spec US4 scenarios: 200 g + 300 g vs 400 g owned → 100 g line (FR-MC-016); fully covered → omitted; expired owned stock not netted (FR-MC-018, feed already `notExpiredQuery`-filtered — assert an expired item doesn't reduce need); mixed grounded/ungrounded week → real amounts + servings coexist (FR-MC-017); same canonical name in incompatible families collapses that line to servings; cooked and legacy no-`status` entries excluded from need computation (research D9); compatible-unit summation (1 kg + 500 g → 1.5 kg); existing servings-model tests stay green (FR-MC-019 regression net)
 
 ### Implementation for User Story 4
 
-- [ ] T025 [US4] Extend `packages/client/src/server/lib/grocery-list-generator.ts`: planned-only entry filter via `entryStatus`; grounded-needs pass (sum per canonical name per unit family, `netNeeded` against matching inventory, shortfall lines with real quantity/unit); ungrounded/missing pass unchanged (servings); per-line fallback on any reconciliation failure (FR-MC-017)
-- [ ] T026 [US4] Verify `packages/client/src/server/controllers/grocery-lists.ts` feeds full entries (incl. `status`) to the generator; confirm `packages/client/src/views/GroceryListPage.tsx` renders quantity+unit lines correctly (it already displays `quantity`/`unit`) and update `packages/client/tests/views/` fixtures with grounded examples
+- [x] T025 [US4] Extend `packages/client/src/server/lib/grocery-list-generator.ts`: planned-only entry filter via `entryStatus`; grounded-needs pass (sum per canonical name per unit family, `netNeeded` against matching inventory, shortfall lines with real quantity/unit); ungrounded/missing pass unchanged (servings); per-line fallback on any reconciliation failure (FR-MC-017)
+- [x] T026 [US4] Verify `packages/client/src/server/controllers/grocery-lists.ts` feeds full entries (incl. `status`) to the generator; confirm `packages/client/src/views/GroceryListPage.tsx` renders quantity+unit lines correctly (it already displays `quantity`/`unit`) and update `packages/client/tests/views/` fixtures with grounded examples
 
 **Checkpoint**: FR-027/FR-028 delivered where quantities exist; list never fails over units.
 

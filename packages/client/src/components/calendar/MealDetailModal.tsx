@@ -33,6 +33,30 @@ function RecipeLink({ url }: { url: string | undefined }): React.JSX.Element | n
   );
 }
 
+function ChipSection({
+  title,
+  names,
+  chipClass,
+}: {
+  title: string;
+  names: string[];
+  chipClass: string;
+}): React.JSX.Element | null {
+  if (names.length === 0) return null;
+  return (
+    <section className="mt-3">
+      <h3 className="text-sm font-semibold text-gray-700 mb-1">{title}</h3>
+      <ul className="flex flex-wrap gap-1">
+        {names.map((ing) => (
+          <li key={ing} className={`rounded-full px-2 py-0.5 text-xs ${chipClass}`}>
+            {ing}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 interface CookedReceiptProps {
   consumedItems: NonNullable<MealPlanEntry['consumedItems']>;
   cookedAt: string | undefined;
@@ -229,37 +253,17 @@ export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React
           </section>
         )}
 
-        {meal.expiringIngredients.length > 0 && (
-          <section className="mt-3">
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">Expiring soon</h3>
-            <ul className="flex flex-wrap gap-1">
-              {meal.expiringIngredients.map((ing) => (
-                <li
-                  key={ing}
-                  className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-800"
-                >
-                  {ing}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <ChipSection
+          title="Expiring soon"
+          names={meal.expiringIngredients}
+          chipClass="bg-yellow-100 text-yellow-800"
+        />
 
-        {meal.missingIngredients.length > 0 && (
-          <section className="mt-3">
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">Need to buy</h3>
-            <ul className="flex flex-wrap gap-1">
-              {meal.missingIngredients.map((ing) => (
-                <li
-                  key={ing}
-                  className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800"
-                >
-                  {ing}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <ChipSection
+          title="Need to buy"
+          names={meal.missingIngredients}
+          chipClass="bg-red-100 text-red-800"
+        />
 
         <RecipeLink url={meal.recipeUrl} />
 
