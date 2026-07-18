@@ -47,16 +47,23 @@ echo "2) GET inventory"
 c=$(code -H "X-User-Id: $U" "$BASE/inventory"); chk "200 OK" 200 "$c"
 echo "   total=$(field .summary.total)"
 
-echo "3) POST meal-plan entry (uses Chicken Breast -> consumes) — US4 / FR-005"
+echo "3) POST meal-plan entry (planning is inventory-neutral) — US4 / FR-005 rev. spec 006 FR-MC-006"
 c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" \
   -d "{\"slotId\":\"$SLOT\",\"date\":\"$WEEK\",\"mealType\":\"dinner\",\"meal\":{\"mealName\":\"Chicken Dinner\",\"suggestedMealType\":\"dinner\",\"prepTimeMinutes\":20,\"cuisine\":\"American\",\"description\":\"x\",\"usesIngredients\":[\"Chicken Breast\"],\"expiringIngredients\":[],\"missingIngredients\":[\"rice\"]}}" \
   "$BASE/meal-plans/$WEEK_ENC/entries")
 chk "201 Created" 201 "$c"
-
-echo "4) GET inventory -> Chicken Breast consumed to qty 2"
 code -H "X-User-Id: $U" "$BASE/inventory" >/dev/null
 QTY=$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);const i=b.items.find(x=>x.name==='Chicken Breast');process.stdout.write(String(i?i.quantity:'none'))})" < /tmp/smoke-body.json)
-chk "consumed to qty 2" 2 "$QTY"
+chk "planning left qty 3 (FR-MC-006)" 3 "$QTY"
+
+echo "4) PATCH cook (confirmed 1 lbs) -> Chicken Breast deducted to qty 2 — spec 006 FR-MC-008/009"
+c=$(code -X PATCH -H "X-User-Id: $U" -H "Content-Type: application/json" \
+  -d "{\"action\":\"cook\",\"consumption\":[{\"inventoryItemId\":\"$ID\",\"name\":\"Chicken Breast\",\"quantity\":1,\"unit\":\"lbs\"}]}" \
+  "$BASE/meal-plans/$WEEK_ENC/entries/$SLOT")
+chk "200 OK" 200 "$c"
+code -H "X-User-Id: $U" "$BASE/inventory" >/dev/null
+QTY=$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);const i=b.items.find(x=>x.name==='Chicken Breast');process.stdout.write(String(i?i.quantity:'none'))})" < /tmp/smoke-body.json)
+chk "cooked to qty 2" 2 "$QTY"
 
 echo "5) GET grocery-list (lazy-generate from meal plan) — US3"
 c=$(code -H "X-User-Id: $U" "$BASE/grocery-lists/$WEEK_ENC"); chk "200 OK" 200 "$c"

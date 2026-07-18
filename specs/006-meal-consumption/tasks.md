@@ -117,10 +117,10 @@
 
 ## Phase 7: Polish & release (MC5)
 
-- [ ] T027 Full verification: `npm run lint`, `npm test`, `npm -w packages/client run build`, `bash scripts/validate-e2e.sh --no-agent` — all green at repo root
-- [ ] T028 Playwright e2e in `packages/client/e2e/`: plan → inventory unchanged → cook with one adjusted amount → Kitchen reflects → un-cook restores → grocery netting visible; capture screenshots (cooked tile + review sheet) into `packages/client/e2e/screenshots/`
+- [x] T027 Full verification: `npm run lint`, `npm test`, `npm -w packages/client run build`, `bash scripts/validate-e2e.sh --no-agent` — all green at repo root
+- [x] T028 Playwright e2e in `packages/client/e2e/`: plan → inventory unchanged → cook with one adjusted amount → Kitchen reflects → un-cook restores → grocery netting visible; capture screenshots (cooked tile + review sheet) into `packages/client/e2e/screenshots/`
 - [ ] T029 [P] Live agent smoke (optional, needs `OPENAI_API_KEY`): `docker compose up -d --build holodeck`, request recommendations, verify grounded output shape end-to-end; run the `agent.yaml` eval case if credentials allow
-- [ ] T030 [P] Per-branch doc cascade: `CLAUDE.md` §4 (PATCH endpoint row + revised behaviour notes), §5 (MealPlan entry fields incl. receipt), §9 (agent grounded-output schema note); `specs/006-meal-consumption/plan.md` tick-through
+- [x] T030 [P] Per-branch doc cascade: `CLAUDE.md` §4 (PATCH endpoint row + revised behaviour notes), §5 (MealPlan entry fields incl. receipt), §9 (agent grounded-output schema note); `specs/006-meal-consumption/plan.md` tick-through
 - [ ] T031 Release prep (with the user): version bump, tag `nextjs-v4.4.0` + `agent-v*` (prompt change requires the sidecar image), CI build-push, manual Portainer Pull-and-redeploy, roadmap update on `main`
 
 ---
