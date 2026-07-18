@@ -12,8 +12,8 @@ npm run dev        # whole stack on :3000
 2. **Plan ≠ consume (MC2)**: drag a meal onto the calendar → Kitchen quantities unchanged (previously they dropped immediately).
 3. **Cook (MC2)**: tap the planned tile → detail modal → **Mark cooked** → review sheet pre-fills 500 g chicken → adjust to 300 g (or zero a line) → Confirm. Kitchen now shows 700 g. Tile shows the cooked badge.
 4. **Idempotent**: replay the PATCH (double-tap / `curl` twice) → second call 409s, no double-deduct.
-5. **Un-cook (MC3)**: modal on the cooked entry shows what was consumed → **Un-cook** → quantities restored exactly; if an item was depleted to deletion it reappears with its old details.
-6. **Groceries (MC4)**: plan two meals needing 200 g + 300 g mince with 400 g owned → Groceries shows "Mince — 100 g". Ungrounded lines still show "×N" servings.
+5. **Un-cook (MC3 — not implemented yet)**: this is the next story. For now, `PATCH ... { "action": "uncook" }` returns 409 by design until T020-T023 are complete.
+6. **Groceries (MC4 — not implemented yet)**: this follows US3. The current grocery generator has not yet been updated for planned-only grounded quantity netting.
 
 ## Test it
 
@@ -26,7 +26,7 @@ npm test                                   # everything
 bash scripts/validate-e2e.sh --no-agent    # release gate
 ```
 
-Key suites: grounding corpus (tiers + hostile inputs: foreign IDs, absurd amounts), cook/un-cook lifecycle (idempotency race, depletion snapshot resurrection, legacy no-status entries), PUT drag-move preserving cooked state, generator netting scenarios (spec US4 1–6).
+Key suites by phase: grounding corpus (tiers + hostile inputs: foreign IDs, absurd amounts); cook lifecycle (idempotency race, depletion receipt, legacy no-status entries); then future US3 un-cook/depletion restoration and US4 generator netting scenarios.
 
 ## Agent change
 

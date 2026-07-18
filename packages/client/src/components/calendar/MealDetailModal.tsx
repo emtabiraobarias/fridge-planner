@@ -1,14 +1,82 @@
-import { useEffect, useRef } from 'react';
-import type { MealPlanEntry } from '../../types/meal-plan';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { entryStatus, type MealPlanEntry } from '../../types/meal-plan';
 import { groundedAmounts, withGroundedAmount } from '../../lib/grounded-ingredients';
+import { buildReviewLines, type ConsumptionReviewLine } from '../../lib/consumption-review';
+import { useInventoryOptional } from '../../context/InventoryContext';
+import { MealPlanContext } from '../../context/MealPlanContext';
+import { ConsumptionReviewSheet } from './ConsumptionReviewSheet';
 
 interface MealDetailModalProps {
   entry: MealPlanEntry | null;
   onClose: () => void;
 }
 
+interface CookControlsProps {
+  mealName: string;
+  lines: ConsumptionReviewLine[];
+  unresolvedNames: string[];
+  submitting: boolean;
+  onConfirm: (lines: ConsumptionReviewLine[]) => void;
+}
+
+function RecipeLink({ url }: { url: string | undefined }): React.JSX.Element | null {
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-4 inline-block text-sm font-medium text-indigo-600 hover:underline"
+    >
+      View Recipe →
+    </a>
+  );
+}
+
+function CookControls({
+  mealName,
+  lines,
+  unresolvedNames,
+  submitting,
+  onConfirm,
+}: CookControlsProps): React.JSX.Element {
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  if (!reviewOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setReviewOpen(true)}
+        className="min-h-11 rounded-md bg-accent px-4 text-sm font-semibold text-white"
+      >
+        Mark cooked
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <ConsumptionReviewSheet
+        mealName={mealName}
+        lines={lines}
+        unresolvedNames={unresolvedNames}
+        onConfirm={onConfirm}
+        onCancel={() => setReviewOpen(false)}
+      />
+      {submitting && <p className="mt-2 text-xs text-muted">Updating kitchen inventory…</p>}
+    </>
+  );
+}
+
 export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React.JSX.Element | null {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const inventory = useInventoryOptional();
+  const mealPlan = useContext(MealPlanContext);
+  const [submitting, setSubmitting] = useState(false);
+  const review = useMemo(
+    () => (entry ? buildReviewLines(entry.meal, inventory?.items ?? []) : { lines: [], unresolved: [] }),
+    [entry, inventory?.items],
+  );
 
   useEffect(() => {
     if (!entry) return;
@@ -24,6 +92,20 @@ export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React
 
   const { meal } = entry;
   const amounts = groundedAmounts(meal);
+  const cooked = entryStatus(entry) === 'cooked';
+
+  async function confirmCook(lines: ConsumptionReviewLine[]): Promise<void> {
+    if (!mealPlan || !entry) return;
+    const slotId = entry.slotId;
+    setSubmitting(true);
+    try {
+      await mealPlan.cookMeal(slotId, lines);
+      await inventory?.refresh();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div
@@ -61,6 +143,11 @@ export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React
           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-700">
             {meal.prepTimeMinutes} min
           </span>
+          {cooked && (
+            <span className="rounded-full bg-green-100 px-2 py-0.5 text-green-800">
+              Cooked
+            </span>
+          )}
         </div>
 
         <p className="mt-3 text-sm text-gray-600">{meal.description}</p>
@@ -113,15 +200,20 @@ export function MealDetailModal({ entry, onClose }: MealDetailModalProps): React
           </section>
         )}
 
-        {meal.recipeUrl && (
-          <a
-            href={meal.recipeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-block text-sm font-medium text-indigo-600 hover:underline"
-          >
-            View Recipe →
-          </a>
+        <RecipeLink url={meal.recipeUrl} />
+
+        {!cooked && mealPlan && (
+          <div className="mt-5">
+            <CookControls
+              mealName={meal.mealName}
+              lines={review.lines}
+              unresolvedNames={review.unresolved}
+              submitting={submitting}
+              onConfirm={(lines) => {
+                void confirmCook(lines);
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

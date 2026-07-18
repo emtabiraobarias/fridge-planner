@@ -1,4 +1,4 @@
-import type { MealPlan, MealPlanEntry } from '../types/meal-plan';
+import type { ConsumptionReceiptLine, MealPlan, MealPlanEntry } from '../types/meal-plan';
 import { ensureOk, apiFetch } from './http';
 
 const BASE = '/api/v1/meal-plans';
@@ -43,4 +43,30 @@ export async function replaceEntries(
   ensureOk(res, "replace entries");
   const data = (await res.json()) as { plan: MealPlan };
   return data.plan;
+}
+
+export interface CookMealLine {
+  inventoryItemId?: string;
+  name: string;
+  quantity: number;
+  unit?: string;
+}
+
+export interface CookMealResult {
+  plan: MealPlan;
+  receipt: ConsumptionReceiptLine[];
+}
+
+export async function cookEntry(
+  weekStart: string,
+  slotId: string,
+  consumption: CookMealLine[],
+): Promise<CookMealResult> {
+  const res = await apiFetch(`${BASE}/${weekStart}/entries/${slotId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'cook', consumption }),
+  });
+  ensureOk(res, 'cook meal');
+  return (await res.json()) as CookMealResult;
 }

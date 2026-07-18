@@ -36,6 +36,7 @@ vi.mock('../../src/services/meal-plans', () => ({
   addEntry: vi.fn(),
   removeEntry: vi.fn(),
   replaceEntries: vi.fn(),
+  cookEntry: vi.fn(),
 }));
 
 import {
@@ -43,12 +44,14 @@ import {
   addEntry,
   removeEntry,
   replaceEntries,
+  cookEntry,
 } from '../../src/services/meal-plans';
 
 const mockFetchMealPlan = vi.mocked(fetchMealPlan);
 const mockAddEntry = vi.mocked(addEntry);
 const mockRemoveEntry = vi.mocked(removeEntry);
 const mockReplaceEntries = vi.mocked(replaceEntries);
+const mockCookEntry = vi.mocked(cookEntry);
 
 // Test consumer component
 function TestConsumer(): React.JSX.Element {
@@ -60,6 +63,7 @@ function TestConsumer(): React.JSX.Element {
     assignMeal,
     unassignMeal,
     moveMeal,
+    cookMeal,
     setWeekOffset,
   } = useMealPlan();
 
@@ -95,6 +99,15 @@ function TestConsumer(): React.JSX.Element {
         Move
       </button>
       <button onClick={() => setWeekOffset(1)}>Next week</button>
+      <button
+        onClick={() => {
+          void cookMeal(mockEntry.slotId, [
+            { inventoryItemId: 'inv-1', name: 'chicken breast', quantity: 1, unit: 'units' },
+          ]);
+        }}
+      >
+        Cook
+      </button>
     </div>
   );
 }
@@ -114,6 +127,10 @@ describe('MealPlanContext', () => {
     mockAddEntry.mockResolvedValue({ ...mockPlan, entries: [...mockPlan.entries] });
     mockRemoveEntry.mockResolvedValue({ ...mockPlan, entries: [] });
     mockReplaceEntries.mockResolvedValue(mockPlan);
+    mockCookEntry.mockResolvedValue({
+      plan: { ...mockPlan, entries: [{ ...mockEntry, status: 'cooked' }] },
+      receipt: [{ inventoryItemId: 'inv-1', name: 'chicken breast', quantityConsumed: 1, unit: 'units' }],
+    });
   });
 
   it('starts in loading state and then loads plan', async () => {
@@ -194,6 +211,19 @@ describe('MealPlanContext', () => {
       // fetchMealPlan called twice: initial + after offset change
       expect(mockFetchMealPlan).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('cookMeal calls the PATCH service and applies the returned plan', async () => {
+    renderWithProvider();
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Cook' }).click();
+    });
+
+    expect(mockCookEntry).toHaveBeenCalledWith(expect.any(String), mockEntry.slotId, [
+      { inventoryItemId: 'inv-1', name: 'chicken breast', quantity: 1, unit: 'units' },
+    ]);
   });
 
   it('exposes currentWeekStart as a Monday ISO string', async () => {

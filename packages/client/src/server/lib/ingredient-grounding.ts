@@ -31,10 +31,10 @@ const rawEntrySchema = z.object({
 });
 
 interface RawEntry {
-  inventoryItemId?: string;
+  inventoryItemId?: string | undefined;
   name: string;
-  quantityToConsume?: number;
-  unit?: string;
+  quantityToConsume?: number | undefined;
+  unit?: string | undefined;
 }
 
 /** Accept strings (legacy agents) and objects; salvage the name field-wise; else drop. */
