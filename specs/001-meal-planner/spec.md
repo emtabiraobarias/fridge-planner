@@ -87,7 +87,7 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 
 4. **Given** I view my grocery list, **When** I look at the categorized sections, **Then** ingredients are grouped by category (Produce, Dairy, Meat, Pantry, etc.) for easier shopping
 
-5. **Given** I am at the store with my grocery list, **When** I tap/check off an item, **Then** it is marked as purchased and visually crossed out or moved to a "completed" section
+5. **Given** I am at the store with my grocery list, **When** I tap/check off an item, **Then** it is marked as purchased, visually crossed out or moved to a "completed" section, **and its goods are added to my kitchen inventory immediately** (exact-reversal on un-check — spec `007` FR-GC-001..008)
 
 6. **Given** I have completed my grocery shopping, **When** I confirm purchased items, **Then** the system adds those items to my inventory with the purchased quantities
 
@@ -155,8 +155,8 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 - **FR-028**: *(Un-deferred 2026-07-18 — superseded by spec `006` FR-MC-017.)* Amounts in compatible units are aggregated in a single canonical unit per line; unreconcilable lines fall back to the FR-026 servings count. SI-unit display and the user-configurable metric/imperial toggle remain Phase 2+ — see Assumption 11.
 - **FR-029**: System MUST categorize grocery list items by department/category for efficient shopping
 - **FR-030**: Users MUST be able to manually add, edit, or remove items from the grocery list
-- **FR-031**: Users MUST be able to check off items as purchased during shopping
-- **FR-032**: System MUST offer to add purchased items to inventory when user completes grocery shopping
+- **FR-031**: Users MUST be able to check off items as purchased during shopping. *(Revised 2026-07-18 — checking off is no longer display-only: it adds the goods to inventory immediately, with an exact-reversal purchase receipt; canonical in spec `007` FR-GC-001..010.)*
+- **FR-032**: *(Revised 2026-07-18 — canonical in spec `007` FR-GC-011.)* Completing grocery shopping MUST add only the lines not already added at check-off (mark remaining + finalize) — never double-adding a line a mid-shop check-off already handled.
 
 **Data Persistence and Sync**:
 - **FR-033**: System MUST persist all user data (inventory, preferences, meal plans, grocery lists) with automatic saving
