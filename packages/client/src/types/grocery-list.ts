@@ -32,6 +32,7 @@ export interface GroceryListItem {
   isManuallyAdded: boolean;
   sourceMealNames: string[];
   notes: string;
+  purchaseReceipt?: PurchaseReceipt;
 }
 
 export interface GroceryList {
@@ -59,6 +60,7 @@ export interface PatchGroceryItemPayload {
   category?: GroceryCategory;
   isPurchased?: boolean;
   notes?: string;
+  resolvedPurchase?: ResolvedPurchaseInput;
 }
 
 export interface CompleteItemPayload {
@@ -73,5 +75,21 @@ export interface CompleteItemPayload {
 
 export interface CompleteResult {
   created: Array<{ _id: string; name: string }>;
+  updated: Array<{ _id: string; name: string }>;
+  skipped: number;
   errors: string[];
+}
+
+export interface PurchaseReceipt {
+  inventoryItemId: string;
+  quantityAdded: number;
+  unit: string;
+  merged: boolean;
+}
+
+export interface ResolvedPurchaseInput {
+  quantity: number;
+  unit: string;
+  location: 'fridge' | 'freezer' | 'pantry';
+  expiresAt?: string;
 }

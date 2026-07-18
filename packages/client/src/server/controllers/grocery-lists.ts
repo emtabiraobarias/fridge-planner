@@ -6,7 +6,9 @@ import { MealPlan } from '../models/meal-plan';
 import { InventoryItem, CATEGORIES, LOCATIONS } from '../models/inventory-item';
 import { generateGroceryList } from '../lib/grocery-list-generator';
 import { notExpiredQuery } from '../lib/expiration';
-import { GROCERY_CATEGORIES } from '../types/grocery-list';
+import { applyPurchase, reversePurchase } from '../lib/purchase-inventory';
+import { invalidateUser } from '../services/recommendations-cache';
+import { GROCERY_CATEGORIES, type IGroceryListItem, type ResolvedPurchaseInput } from '../types/grocery-list';
 import { problem, type ControllerResult } from '../http';
 
 const categoryEnum = z.enum(GROCERY_CATEGORIES as unknown as [string, ...string[]]);
@@ -26,6 +28,14 @@ const patchItemSchema = z.object({
   category: categoryEnum.optional(),
   isPurchased: z.boolean().optional(),
   notes: z.string().max(500).optional(),
+  resolvedPurchase: z
+    .object({
+      quantity: z.number().positive(),
+      unit: z.string().min(1).max(50),
+      location: z.enum(LOCATIONS as unknown as [string, ...string[]]),
+      expiresAt: z.string().datetime({ offset: true }).optional(),
+    })
+    .optional(),
 });
 
 const completeItemSchema = z.object({
@@ -39,6 +49,13 @@ const completeItemSchema = z.object({
 });
 
 type PatchItemData = z.infer<typeof patchItemSchema>;
+type CheckoutInventorySummary = Array<{ _id: string; name: string }>;
+interface CheckoutAccumulator {
+  created: CheckoutInventorySummary;
+  updated: CheckoutInventorySummary;
+  skipped: number;
+  errors: string[];
+}
 
 function buildItemSetFields(data: PatchItemData): Record<string, unknown> {
   const setFields: Record<string, unknown> = {};
@@ -49,6 +66,179 @@ function buildItemSetFields(data: PatchItemData): Record<string, unknown> {
   if (data.isPurchased !== undefined) setFields['items.$.isPurchased'] = data.isPurchased;
   if (data.notes !== undefined) setFields['items.$.notes'] = data.notes;
   return setFields;
+}
+
+function buildArrayItemSetFields(data: PatchItemData): Record<string, unknown> {
+  const setFields: Record<string, unknown> = {};
+  if (data.displayName !== undefined) setFields['items.$[item].displayName'] = data.displayName;
+  if (data.quantity !== undefined) setFields['items.$[item].quantity'] = data.quantity;
+  if (data.unit !== undefined) setFields['items.$[item].unit'] = data.unit;
+  if (data.category !== undefined) setFields['items.$[item].category'] = data.category;
+  if (data.notes !== undefined) setFields['items.$[item].notes'] = data.notes;
+  return setFields;
+}
+
+function patchedLine<
+  T extends {
+    displayName: string;
+    quantity: number;
+    unit: string;
+    category: PatchItemData['category'];
+  },
+>(item: T, data: PatchItemData): T {
+  return {
+    ...item,
+    ...(data.displayName !== undefined ? { displayName: data.displayName } : {}),
+    ...(data.quantity !== undefined ? { quantity: data.quantity } : {}),
+    ...(data.unit !== undefined ? { unit: data.unit } : {}),
+    ...(data.category !== undefined ? { category: data.category } : {}),
+  };
+}
+
+function resolvedPurchaseInput(data: PatchItemData): ResolvedPurchaseInput | undefined {
+  const input = data.resolvedPurchase;
+  if (!input) return undefined;
+  return {
+    quantity: input.quantity,
+    unit: input.unit,
+    location: input.location as ResolvedPurchaseInput['location'],
+    ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+  };
+}
+
+function purchaseLineFromItem(item: IGroceryListItem): {
+  ingredientName: string;
+  displayName: string;
+  quantity: number;
+  unit: string;
+  category: IGroceryListItem['category'];
+} {
+  return {
+    ingredientName: item.ingredientName,
+    displayName: item.displayName,
+    quantity: item.quantity,
+    unit: item.unit,
+    category: item.category,
+  };
+}
+
+async function purchaseGroceryItem(
+  userId: string,
+  weekStart: Date,
+  objectId: mongoose.Types.ObjectId,
+  current: IGroceryListItem,
+  data: PatchItemData,
+): Promise<ControllerResult> {
+  const line = patchedLine(
+    {
+      ingredientName: current.ingredientName,
+      displayName: current.displayName,
+      quantity: current.quantity,
+      unit: current.unit,
+      category: current.category,
+    },
+    data,
+  );
+  const guarded = await GroceryList.findOneAndUpdate(
+    {
+      userId,
+      weekStart,
+      items: {
+        $elemMatch: { _id: objectId, isPurchased: false, purchaseReceipt: { $exists: false } },
+      },
+    },
+    {
+      $set: {
+        ...buildArrayItemSetFields(data),
+        'items.$[item].isPurchased': true,
+      },
+    },
+    { new: true, arrayFilters: [{ 'item._id': objectId, 'item.isPurchased': false }] },
+  );
+  if (!guarded) return problem(409, 'Already purchased', 'Grocery item is already purchased');
+
+  const receipt = await applyPurchase(userId, line, resolvedPurchaseInput(data));
+  const list = await GroceryList.findOneAndUpdate(
+    { userId, weekStart, 'items._id': objectId },
+    { $set: { 'items.$.purchaseReceipt': receipt } },
+    { new: true },
+  );
+  invalidateUser(userId);
+  return { status: 200, body: { groceryList: list, receipt } };
+}
+
+async function unpurchaseGroceryItem(
+  userId: string,
+  weekStart: Date,
+  objectId: mongoose.Types.ObjectId,
+  current: IGroceryListItem,
+  data: PatchItemData,
+): Promise<ControllerResult> {
+  if (!current.isPurchased) return problem(409, 'Not purchased', 'Grocery item is not purchased');
+  if (!current.purchaseReceipt) {
+    return problem(409, 'Cannot reverse without purchase receipt', 'Grocery item has no purchase receipt');
+  }
+
+  // {new:false}: reverse from the guard's PRE-IMAGE receipt, not a pre-fetched copy —
+  // a losing racer can't reverse a stale receipt (mirrors spec 006's uncookEntry).
+  const preImage = await GroceryList.findOneAndUpdate(
+    {
+      userId,
+      weekStart,
+      items: { $elemMatch: { _id: objectId, isPurchased: true, purchaseReceipt: { $exists: true } } },
+    },
+    {
+      $set: {
+        ...buildArrayItemSetFields(data),
+        'items.$[item].isPurchased': false,
+      },
+      $unset: { 'items.$[item].purchaseReceipt': '' },
+    },
+    { new: false, arrayFilters: [{ 'item._id': objectId, 'item.isPurchased': true }] },
+  );
+  if (!preImage) return problem(409, 'Not purchased', 'Grocery item is not purchased');
+
+  const preItem = preImage.items.find((i) => String(i._id) === String(objectId));
+  if (preItem?.purchaseReceipt) await reversePurchase(userId, preItem.purchaseReceipt);
+
+  const list = await GroceryList.findOne({ userId, weekStart });
+  invalidateUser(userId);
+  return { status: 200, body: { groceryList: list } };
+}
+
+async function processCheckoutItem(
+  userId: string,
+  weekStart: Date,
+  item: IGroceryListItem,
+  acc: CheckoutAccumulator,
+): Promise<boolean> {
+  const objectId = item._id;
+  if (item.purchaseReceipt) {
+    acc.skipped += 1;
+    if (!item.isPurchased) {
+      await GroceryList.updateOne(
+        { userId, weekStart, 'items._id': objectId },
+        { $set: { 'items.$.isPurchased': true } },
+      );
+    }
+    return false;
+  }
+
+  try {
+    const receipt = await applyPurchase(userId, purchaseLineFromItem(item));
+    await GroceryList.findOneAndUpdate(
+      { userId, weekStart, 'items._id': objectId },
+      { $set: { 'items.$.isPurchased': true, 'items.$.purchaseReceipt': receipt } },
+    );
+    const inventoryItem = await InventoryItem.findOne({ _id: receipt.inventoryItemId, userId });
+    const summary = { _id: receipt.inventoryItemId, name: inventoryItem?.name ?? item.displayName };
+    if (receipt.merged) acc.updated.push(summary);
+    else acc.created.push(summary);
+    return true;
+  } catch (err) {
+    acc.errors.push(`Failed to add "${item.displayName}": ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
 }
 
 /** Parse the :weekStart path param, or return a 400 ControllerResult. */
@@ -165,6 +355,17 @@ export async function patchGroceryItem(
   const existing = await GroceryList.findOne({ userId, weekStart, 'items._id': objectId });
   if (!existing) return problem(404, 'Not Found', `No item with id "${itemId}" found`);
 
+  const current = existing.items.find((item) => String(item._id) === itemId);
+  if (!current) return problem(404, 'Not Found', `No item with id "${itemId}" found`);
+
+  if (parsed.data.isPurchased === true) {
+    return purchaseGroceryItem(userId, weekStart, objectId, current, parsed.data);
+  }
+
+  if (parsed.data.isPurchased === false) {
+    return unpurchaseGroceryItem(userId, weekStart, objectId, current, parsed.data);
+  }
+
   const list = await GroceryList.findOneAndUpdate(
     { userId, weekStart, 'items._id': objectId },
     { $set: buildItemSetFields(parsed.data) },
@@ -199,7 +400,7 @@ export async function deleteGroceryItem(
   return { status: 200, body: { groceryList: list } };
 }
 
-// POST /:weekStart/complete — add purchased items to inventory (FR-032)
+// POST /:weekStart/complete — purchase remaining receipt-less list items (FR-GC-011)
 export async function completeGroceryList(
   userId: string,
   weekStartParam: string,
@@ -209,34 +410,19 @@ export async function completeGroceryList(
   if ('error' in parsedWeek) return parsedWeek.error;
   const { weekStart } = parsedWeek;
 
-  const parsed = z.object({ items: z.array(completeItemSchema) }).safeParse(body);
+  const parsed = z.object({ items: z.array(completeItemSchema).optional().default([]) }).safeParse(body);
   if (!parsed.success) return invalidInput(parsed.error);
 
-  const created = [];
-  const errors: string[] = [];
+  const list = await GroceryList.findOne({ userId, weekStart });
+  if (!list) return problem(404, 'Not Found', 'No grocery list found for this week');
 
-  for (const item of parsed.data.items) {
-    try {
-      const invItem = new InventoryItem({
-        userId,
-        name: item.name,
-        quantity: item.quantity,
-        unit: item.unit,
-        category: item.category,
-        location: item.location,
-        expiresAt: item.expiresAt ? new Date(item.expiresAt) : undefined,
-      });
-      await invItem.save();
-      created.push(invItem);
+  const acc: CheckoutAccumulator = { created: [], updated: [], skipped: 0, errors: [] };
+  let changed = false;
 
-      await GroceryList.findOneAndUpdate(
-        { userId, weekStart, 'items._id': new mongoose.Types.ObjectId(item.itemId) },
-        { $set: { 'items.$.isPurchased': true } },
-      );
-    } catch (err) {
-      errors.push(`Failed to add "${item.name}": ${err instanceof Error ? err.message : String(err)}`);
-    }
+  for (const item of list.items) {
+    changed = (await processCheckoutItem(userId, weekStart, item, acc)) || changed;
   }
 
-  return { status: 200, body: { created, errors } };
+  if (changed) invalidateUser(userId);
+  return { status: 200, body: acc };
 }

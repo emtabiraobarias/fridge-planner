@@ -43,6 +43,7 @@ export function GroceryListItemRow({
         {item.sourceMealNames.length > 0 && (
           <div className="text-muted text-[11.5px]">for {item.sourceMealNames.join(', ')}</div>
         )}
+        {item.purchaseReceipt && <div className="text-muted text-[11.5px]">in Kitchen</div>}
       </div>
 
       <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] text-neutral-800">

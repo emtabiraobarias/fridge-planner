@@ -1,4 +1,5 @@
 import type { Category, Location } from '../services/inventory';
+import { defaultLocationForCategory } from './category-location';
 
 /**
  * Natural-language quick-add parser + expiry/stepper helpers (spec 004 / Phase G).
@@ -105,17 +106,17 @@ function canonicalUnit(word: string): string | null {
 const LOCATION_WORDS = ['fridge', 'freezer', 'pantry'] as const;
 
 const CAT_GUESS: readonly (readonly [RegExp, Category, Location])[] = [
-  [/milk|yogurt|yoghurt|cheese|butter|cream|feta|egg/i, 'Dairy', 'fridge'],
-  [/chicken|beef|pork|mince|lamb|bacon|sausage/i, 'Meat', 'fridge'],
-  [/salmon|fish|prawn|shrimp|tuna/i, 'Seafood', 'fridge'],
+  [/milk|yogurt|yoghurt|cheese|butter|cream|feta|egg/i, 'Dairy', defaultLocationForCategory('Dairy')],
+  [/chicken|beef|pork|mince|lamb|bacon|sausage/i, 'Meat', defaultLocationForCategory('Meat')],
+  [/salmon|fish|prawn|shrimp|tuna/i, 'Seafood', defaultLocationForCategory('Seafood')],
   [
     /spinach|tomato|lettuce|apple|banana|carrot|cucumber|lemon|onion|garlic|capsicum|broccoli|potato|avocado|berr/i,
     'Produce',
-    'fridge',
+    defaultLocationForCategory('Produce'),
   ],
-  [/rice|pasta|bread|oat|flour|noodle|quinoa/i, 'Grains', 'pantry'],
-  [/frozen|ice cream|peas/i, 'Frozen', 'freezer'],
-  [/oil|sauce|ketchup|mayo|mustard|vinegar|honey|jam/i, 'Condiments', 'pantry'],
+  [/rice|pasta|bread|oat|flour|noodle|quinoa/i, 'Grains', defaultLocationForCategory('Grains')],
+  [/frozen|ice cream|peas/i, 'Frozen', defaultLocationForCategory('Frozen')],
+  [/oil|sauce|ketchup|mayo|mustard|vinegar|honey|jam/i, 'Condiments', defaultLocationForCategory('Condiments')],
 ];
 
 function midnight(d: Date): Date {
@@ -305,7 +306,7 @@ function guessCategoryLocation(name: string): [Category, Location] {
   for (const [re, cat, loc] of CAT_GUESS) {
     if (re.test(name)) return [cat, loc];
   }
-  return ['Other', 'fridge'];
+  return ['Other', defaultLocationForCategory('Other')];
 }
 
 /** Leading quantity wins over trailing (FR-IQ-005); default is an implicit 1 count. */

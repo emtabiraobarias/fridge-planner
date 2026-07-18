@@ -4,6 +4,16 @@ import { GROCERY_CATEGORIES } from '../types/grocery-list';
 
 export type GroceryListDocument = IGroceryList & Document;
 
+const purchaseReceiptSchema = new Schema(
+  {
+    inventoryItemId: { type: String, required: true },
+    quantityAdded: { type: Number, required: true, min: 0 },
+    unit: { type: String, required: true },
+    merged: { type: Boolean, required: true },
+  },
+  { _id: false },
+);
+
 const groceryListItemSchema = new Schema<IGroceryListItem>(
   {
     ingredientName: { type: String, required: true },
@@ -15,6 +25,7 @@ const groceryListItemSchema = new Schema<IGroceryListItem>(
     isManuallyAdded: { type: Boolean, required: true, default: false },
     sourceMealNames: { type: [String], default: [] },
     notes: { type: String, default: '' },
+    purchaseReceipt: { type: purchaseReceiptSchema, required: false },
   },
   { _id: true },
 );

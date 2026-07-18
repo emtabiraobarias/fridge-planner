@@ -69,6 +69,20 @@ echo "5) GET grocery-list (lazy-generate from meal plan) — US3"
 c=$(code -H "X-User-Id: $U" "$BASE/grocery-lists/$WEEK_ENC"); chk "200 OK" 200 "$c"
 echo "   items=$(field '.groceryList?.items.length')"
 
+echo "5b) POST grocery-list complete -> remaining receipt-less lines enter inventory — spec 007 FR-GC-011"
+# The cooked entry (step 4) is excluded from generation (spec 006 planned-only), so the lazy
+# list is empty — seed a manual, receipt-less line for checkout to add.
+c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" \
+  -d '{"displayName":"Rice","quantity":1,"unit":"servings","category":"Pantry"}' \
+  "$BASE/grocery-lists/$WEEK_ENC/items")
+chk "manual Rice line added (201)" 201 "$c"
+c=$(code -X POST -H "X-User-Id: $U" -H "Content-Type: application/json" -d '{}' "$BASE/grocery-lists/$WEEK_ENC/complete")
+chk "200 OK" 200 "$c"
+chk "checkout has no errors" 0 "$(field .errors.length)"
+code -H "X-User-Id: $U" "$BASE/inventory" >/dev/null
+HAS_RICE=$(node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s);process.stdout.write(String((b.items||[]).some(x=>x.name==='Rice')));})" < /tmp/smoke-body.json)
+chk "checkout added Rice once" true "$HAS_RICE"
+
 echo "6) GET meal-plans?weekStart"
 c=$(code -H "X-User-Id: $U" "$BASE/meal-plans?weekStart=$WEEK_ENC"); chk "200 OK" 200 "$c"
 echo "   entries=$(field '.plan?.entries.length')"

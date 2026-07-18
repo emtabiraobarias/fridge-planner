@@ -83,8 +83,8 @@ BASE=http://localhost:3000/api/v1 bash scripts/smoke-test.sh            # full
 BASE=http://localhost:3000/api/v1 bash scripts/smoke-test.sh --no-agent # core only
 ```
 
-Expected (10 checks, `pass=10 fail=0`; 9 with `--no-agent`): inventory POST `201` → GET `200` → meal-plan entry
-`201` → inventory consumed (Chicken **3→2**) → grocery list lazily generated → meal-plan `200`
+Expected (13 checks, `pass=13 fail=0`; 12 with `--no-agent`): inventory POST `201` → GET `200` → meal-plan entry
+`201` → inventory consumed (Chicken **3→2**) → grocery list lazily generated → checkout finalizes remaining receipt-less grocery lines into inventory → meal-plan `200`
 → empty-user recommendations `fallback=popular` → **live-agent recommendations `200`** →
 DELETE `204` → bad-ObjectId PUT `400`.
 
@@ -102,7 +102,7 @@ DELETE `204` → bad-ObjectId PUT `400`.
 | 2 | **Get Recommendations** (with Holodeck up) | "Thinking…" → real AI meal cards with photos (e.g. *Chicken Fried Rice*) |
 | 3 | **Meal Plan** | Weekly grid (Breakfast/Lunch/Dinner/Snack × 7); drag a recommendation card onto a slot |
 | 4 | Back to **Inventory** | The planned meal's ingredients are **decremented** (reversible consumption, BUG #7) |
-| 5 | **Grocery List** | Auto-generated from the plan — *missing* ingredients, categorised (Dairy/Pantry), "From: <meal>" |
+| 5 | **Grocery List** | Auto-generated from the plan; ticking a line immediately adds it to Kitchen, and Done shopping finalizes only receipt-less remaining lines |
 
 ---
 
