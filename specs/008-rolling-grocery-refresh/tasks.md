@@ -13,8 +13,8 @@
 
 **Purpose**: Establish the implementation baseline before touching model/lib/controller code.
 
-- [ ] T001 Run `npm run lint && npm test` at repo root and record baseline notes in `specs/008-rolling-grocery-refresh/quickstart.md` verification log
-- [ ] T002 Review existing `packages/client/tests/server/grocery-lists.test.ts` GET/generate coverage and note which assertions assume "generate once, then return verbatim" (007 behavior) that US1/US3 must consciously change to recompute-on-view
+- [x] T001 Run `npm run lint && npm test` at repo root and record baseline notes in `specs/008-rolling-grocery-refresh/quickstart.md` verification log
+- [x] T002 Review existing `packages/client/tests/server/grocery-lists.test.ts` GET/generate coverage and note which assertions assume "generate once, then return verbatim" (007 behavior) that US1/US3 must consciously change to recompute-on-view
 
 ---
 
@@ -22,11 +22,11 @@
 
 **Purpose**: Day-anchor fields and the shared date-cutoff/reconcile lib that every story builds on.
 
-- [ ] T003 [P] Add `addedOn?: Date` and `purchasedOn?: Date` to `IGroceryListItem` in `packages/client/src/server/types/grocery-list.ts`
-- [ ] T004 [P] Mirror `addedOn?: string` and `purchasedOn?: string` (ISO) on the client `GroceryListItem` type in `packages/client/src/types/grocery-list.ts`
-- [ ] T005 Add `addedOn`/`purchasedOn` (`type: Date, required: false`, no default) to `groceryListItemSchema` in `packages/client/src/server/models/grocery-list.ts`
-- [ ] T006 [P] Add failing unit tests for `startOfTodayCutoff()` in `packages/client/tests/server/unit/rolling-grocery.test.ts` — local calendar day projected onto UTC-midnight axis, entry-in-scope boundary at exactly `cutoff` (FR-RG-010), and the 23:59/00:01 local-vs-UTC tension case using `vi.useFakeTimers()`/`vi.setSystemTime()` (research D3)
-- [ ] T007 Create `packages/client/src/server/lib/rolling-grocery.ts` skeleton exporting `startOfTodayCutoff(): Date` (server-clock local-day → UTC-midnight instant, per research D3) so T006 passes; leave `reconcileRollingList` as a stub signature for Phase 3
+- [x] T003 [P] Add `addedOn?: Date` and `purchasedOn?: Date` to `IGroceryListItem` in `packages/client/src/server/types/grocery-list.ts`
+- [x] T004 [P] Mirror `addedOn?: string` and `purchasedOn?: string` (ISO) on the client `GroceryListItem` type in `packages/client/src/types/grocery-list.ts`
+- [x] T005 Add `addedOn`/`purchasedOn` (`type: Date, required: false`, no default) to `groceryListItemSchema` in `packages/client/src/server/models/grocery-list.ts`
+- [x] T006 [P] Add failing unit tests for `startOfTodayCutoff()` in `packages/client/tests/server/unit/rolling-grocery.test.ts` — local calendar day projected onto UTC-midnight axis, entry-in-scope boundary at exactly `cutoff` (FR-RG-010), and the 23:59/00:01 local-vs-UTC tension case using `vi.useFakeTimers()`/`vi.setSystemTime()` (research D3)
+- [x] T007 Create `packages/client/src/server/lib/rolling-grocery.ts` skeleton exporting `startOfTodayCutoff(): Date` (server-clock local-day → UTC-midnight instant, per research D3) so T006 passes; leave `reconcileRollingList` as a stub signature for Phase 3
 
 **Foundational verification**: `npx vitest run --coverage=false tests/server/unit/rolling-grocery.test.ts` passes; `npm run lint` passes; no other test file's behavior changes yet (new optional fields only).
 
@@ -40,15 +40,15 @@
 
 ### Tests for User Story 1 (write first, must FAIL)
 
-- [ ] T008 [P] [US1] Add failing unit tests in `packages/client/tests/server/unit/rolling-grocery.test.ts` for `reconcileRollingList()`: surviving generated row keeps `_id` and is requantified (FR-RG-007), zeroed/fully-past generated row is dropped (FR-RG-006), a mixed-source line (one meal yesterday, one tomorrow) shrinks to only the tomorrow shortfall and source list (FR-RG-003, scenario 2), new in-scope need is inserted
-- [ ] T009 [P] [US1] Add failing unit tests in `packages/client/tests/server/unit/grocery-list-generator.test.ts` (or extend existing coverage) for `generateGroceryList(mealPlan, inventory, asOf)`: a planned entry dated before `asOf` contributes zero items/quantity regardless of cooked state, a cooked entry dated yesterday contributes nothing, servings-fallback count sums only in-scope meals (FR-RG-001/003); stock added by a prior-day (since-shed) purchase nets off the recomputed need so nothing is re-listed (FR-RG-011) [analyze C3]
-- [ ] T010 [US1] Add failing handler tests in `packages/client/tests/server/grocery-lists.test.ts` for `POST /:weekStart/generate`: a yesterday-dated planned dinner and a tomorrow-dated one produce a list containing only tomorrow's ingredients; a generated-only line with all-past sources disappears on regenerate (FR-RG-001/006/007)
+- [x] T008 [P] [US1] Add failing unit tests in `packages/client/tests/server/unit/rolling-grocery.test.ts` for `reconcileRollingList()`: surviving generated row keeps `_id` and is requantified (FR-RG-007), zeroed/fully-past generated row is dropped (FR-RG-006), a mixed-source line (one meal yesterday, one tomorrow) shrinks to only the tomorrow shortfall and source list (FR-RG-003, scenario 2), new in-scope need is inserted
+- [x] T009 [P] [US1] Add failing unit tests in `packages/client/tests/server/unit/grocery-list-generator.test.ts` (or extend existing coverage) for `generateGroceryList(mealPlan, inventory, asOf)`: a planned entry dated before `asOf` contributes zero items/quantity regardless of cooked state, a cooked entry dated yesterday contributes nothing, servings-fallback count sums only in-scope meals (FR-RG-001/003); stock added by a prior-day (since-shed) purchase nets off the recomputed need so nothing is re-listed (FR-RG-011) [analyze C3]
+- [x] T010 [US1] Add failing handler tests in `packages/client/tests/server/grocery-lists.test.ts` for `POST /:weekStart/generate`: a yesterday-dated planned dinner and a tomorrow-dated one produce a list containing only tomorrow's ingredients; a generated-only line with all-past sources disappears on regenerate (FR-RG-001/006/007)
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Update `generateGroceryList` in `packages/client/src/server/lib/grocery-list-generator.ts` to accept an `asOf: Date` parameter and filter `planned` entries to `entry.date.getTime() >= asOf.getTime()` before the existing netting/servings-fallback logic runs (FR-RG-001/003)
-- [ ] T012 [US1] Implement `reconcileRollingList(existing, freshGenerated, asOf)` in `packages/client/src/server/lib/rolling-grocery.ts`: partition stored items into replaceable-generated vs sticky (research D4), diff replaceable rows against `freshGenerated` by `ingredientName` — keep `_id` + overwrite `quantity`/`unit`/`sourceMealNames` on match (FR-RG-007), drop on zero/absent (FR-RG-006), insert new needs; sticky rows pass through unchanged for now (shed logic lands in Phase 4)
-- [ ] T013 [US1] Update `regenerateGroceryList` in `packages/client/src/server/controllers/grocery-lists.ts` to compute `asOf = startOfTodayCutoff()`, call `generateGroceryList(mealPlan, inventory, asOf)`, and merge via `reconcileRollingList` instead of the current "generated + manual passthrough" concat
+- [x] T011 [US1] Update `generateGroceryList` in `packages/client/src/server/lib/grocery-list-generator.ts` to accept an `asOf: Date` parameter and filter `planned` entries to `entry.date.getTime() >= asOf.getTime()` before the existing netting/servings-fallback logic runs (FR-RG-001/003)
+- [x] T012 [US1] Implement `reconcileRollingList(existing, freshGenerated, asOf)` in `packages/client/src/server/lib/rolling-grocery.ts`: partition stored items into replaceable-generated vs sticky (research D4), diff replaceable rows against `freshGenerated` by `ingredientName` — keep `_id` + overwrite `quantity`/`unit`/`sourceMealNames` on match (FR-RG-007), drop on zero/absent (FR-RG-006), insert new needs; sticky rows pass through unchanged for now (shed logic lands in Phase 4)
+- [x] T013 [US1] Update `regenerateGroceryList` in `packages/client/src/server/controllers/grocery-lists.ts` to compute `asOf = startOfTodayCutoff()`, call `generateGroceryList(mealPlan, inventory, asOf)`, and merge via `reconcileRollingList` instead of the current "generated + manual passthrough" concat
 
 **Checkpoint**: force-regenerate is date-scoped and id-stable; `getGroceryList` (GET) still uses the old 007 path until Phase 5.
 

@@ -5,6 +5,7 @@ import { GroceryList } from '../models/grocery-list';
 import { MealPlan } from '../models/meal-plan';
 import { InventoryItem, CATEGORIES, LOCATIONS } from '../models/inventory-item';
 import { generateGroceryList } from '../lib/grocery-list-generator';
+import { reconcileRollingList, startOfTodayCutoff } from '../lib/rolling-grocery';
 import { notExpiredQuery } from '../lib/expiration';
 import { applyPurchase, reversePurchase } from '../lib/purchase-inventory';
 import { invalidateUser } from '../services/recommendations-cache';
@@ -286,12 +287,16 @@ export async function regenerateGroceryList(userId: string, weekStartParam: stri
   const mealPlan = await MealPlan.findOne({ userId, weekStart });
   if (!mealPlan) return problem(404, 'Not Found', 'No meal plan found for this week');
 
+  // Spec 008 US1: scope generation to today-onwards and reconcile in place so
+  // surviving generated rows keep their _id (FR-RG-001/006/007).
+  const asOf = startOfTodayCutoff();
   const inventory = await InventoryItem.find({ userId, ...notExpiredQuery() });
-  const { items: generatedItems, generatedAt } = generateGroceryList(mealPlan, inventory);
+  const { items: generatedItems, generatedAt } = generateGroceryList(mealPlan, inventory, asOf);
 
   const existing = await GroceryList.findOne({ userId, weekStart });
-  const manualItems = existing?.items.filter((i) => i.isManuallyAdded) ?? [];
-  const merged = [...generatedItems, ...manualItems];
+  // .toObject() → plain items (never spread hydrated subdocs, per the 006 bug).
+  const existingItems: IGroceryListItem[] = existing ? existing.toObject().items : [];
+  const merged = reconcileRollingList(existingItems, generatedItems, asOf);
 
   const list = await GroceryList.findOneAndUpdate(
     { userId, weekStart },

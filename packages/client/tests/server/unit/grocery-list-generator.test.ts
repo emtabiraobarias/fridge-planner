@@ -266,3 +266,89 @@ describe('generateGroceryList — grounded quantities (spec 006 US4)', () => {
     expect(result.items.find((i) => i.ingredientName === 'onion')).toBeUndefined();
   });
 });
+
+// ——— Spec 008 US1: date-scoped generation (FR-RG-001/003, T009) ———
+
+const AS_OF = new Date('2026-07-15T00:00:00.000Z');
+const YESTERDAY = new Date('2026-07-14T00:00:00.000Z');
+const TOMORROW = new Date('2026-07-16T00:00:00.000Z');
+
+interface DatedMealSpec {
+  date: Date;
+  missing?: string[];
+  grounded?: GroundedIngredient[];
+  status?: 'planned' | 'cooked';
+  mealName?: string;
+}
+
+function makeDatedPlan(meals: DatedMealSpec[]): IMealPlan {
+  return {
+    userId: 'user-1',
+    weekStart: new Date('2026-07-13'),
+    entries: meals.map((m, i): IMealPlanEntry => ({
+      slotId: `slot-${i}`,
+      date: m.date,
+      mealType: 'dinner',
+      status: m.status ?? 'planned',
+      meal: {
+        mealName: m.mealName ?? `Meal ${i + 1}`,
+        suggestedMealType: 'dinner',
+        prepTimeMinutes: 20,
+        cuisine: 'Test',
+        description: '',
+        usesIngredients: (m.grounded ?? []).map((x) => x.name),
+        expiringIngredients: [],
+        missingIngredients: m.missing ?? [],
+        ...(m.grounded ? { groundedIngredients: m.grounded } : {}),
+      },
+    })),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+describe('generateGroceryList — date scope (spec 008 US1)', () => {
+  it('excludes a planned entry dated before asOf (FR-RG-001)', () => {
+    const plan = makeDatedPlan([
+      { date: YESTERDAY, missing: ['soy sauce'], mealName: 'Past Dinner' },
+      { date: TOMORROW, missing: ['soy sauce'], mealName: 'Future Dinner' },
+    ]);
+    const result = generateGroceryList(plan, [], AS_OF);
+    const soy = result.items.find((i) => i.ingredientName === 'soy sauce')!;
+    expect(soy.quantity).toBe(1); // only the tomorrow meal counts
+    expect(soy.sourceMealNames).toEqual(['Future Dinner']);
+  });
+
+  it('contributes nothing from a cooked entry dated yesterday (FR-RG-001)', () => {
+    const plan = makeDatedPlan([
+      { date: YESTERDAY, status: 'cooked', grounded: [g('mince', 200, 'g')] },
+    ]);
+    const result = generateGroceryList(plan, [], AS_OF);
+    expect(result.items.find((i) => i.ingredientName === 'mince')).toBeUndefined();
+  });
+
+  it('sums the servings-fallback count over only in-scope meals (FR-RG-003)', () => {
+    const plan = makeDatedPlan([
+      { date: YESTERDAY, missing: ['onion'], mealName: 'A' },
+      { date: TOMORROW, missing: ['onion'], mealName: 'B' },
+      { date: TOMORROW, missing: ['onion'], mealName: 'C' },
+    ]);
+    const result = generateGroceryList(plan, [], AS_OF);
+    const onion = result.items.find((i) => i.ingredientName === 'onion')!;
+    expect(onion.quantity).toBe(2); // B + C only, not the past A
+    expect(onion.sourceMealNames.sort()).toEqual(['B', 'C']);
+  });
+
+  it('nets a since-shed prior-day purchase off the recomputed need so nothing is re-listed (FR-RG-011)', () => {
+    const plan = makeDatedPlan([{ date: TOMORROW, grounded: [g('mince', 200, 'g')] }]);
+    // Stock a prior-day (now-shed) purchase left in the kitchen fully covers tomorrow's need.
+    const result = generateGroceryList(plan, [makeInventoryItem('mince', 300, 'g')], AS_OF);
+    expect(result.items.find((i) => i.ingredientName === 'mince')).toBeUndefined();
+  });
+
+  it('leaves behaviour unchanged when asOf is omitted (007 lazy path)', () => {
+    const plan = makeDatedPlan([{ date: YESTERDAY, missing: ['soy sauce'] }]);
+    const result = generateGroceryList(plan, []); // no asOf → no date filter
+    expect(result.items.find((i) => i.ingredientName === 'soy sauce')).toBeDefined();
+  });
+});

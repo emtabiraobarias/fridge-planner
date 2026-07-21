@@ -22,12 +22,21 @@ export interface GenerateResult {
  *      ingredients are omitted, and a name mixing incompatible unit families falls
  *      back to the servings count for that line (FR-MC-017);
  *  (b) missingIngredients — the original servings model (FR-026 fallback).
+ *
+ * Spec 008 US1 (FR-RG-001/003): when `asOf` is supplied, only `planned` entries
+ * dated today-or-later (`entry.date >= asOf`) contribute needs — past meals stop
+ * generating shopping needs. Omitting `asOf` preserves the pre-008 (007 lazy) path.
  */
 export function generateGroceryList(
   mealPlan: IMealPlan,
   inventoryItems: IInventoryItem[],
+  asOf?: Date,
 ): GenerateResult {
-  const planned = mealPlan.entries.filter((e) => entryStatus(e) === 'planned');
+  const planned = mealPlan.entries.filter(
+    (e) =>
+      entryStatus(e) === 'planned' &&
+      (asOf === undefined || e.date.getTime() >= asOf.getTime()),
+  );
 
   const items = [
     ...groundedShortfallLines(planned, inventoryItems),

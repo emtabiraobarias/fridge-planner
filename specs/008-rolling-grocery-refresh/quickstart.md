@@ -33,7 +33,31 @@ bash scripts/validate-e2e.sh --no-agent
 
 ## Verification log
 
-- *(to be filled during implementation — baseline before RG1, then per-phase lint/test/build/e2e results)*
+### T001 — Baseline (before RG1), 2026-07-22
+- `npm run lint` → clean (0 warnings/errors).
+- `npm test` → **55 test files passed, 546 tests passed**, 0 failures (~duration 12s wall). Coverage gate met. (Some passing tests print expected error stack traces — no failures.)
+
+### T002 — Existing grocery-list assertions that assume 007 "generate once, then verbatim"
+Reviewed `packages/client/tests/server/grocery-lists.test.ts`. The following assume 007 semantics and are consciously reshaped by US1/US3 **later** (NOT modified in Phases 1–3):
+- `GET › 'lazily generates a list from the meal plan on first GET'` (L146–153): asserts `items.length > 0` from a **past-dated** seed (`validMealEntry.date = 2026-04-06`). This relies on GET's lazy-create NOT being date-scoped. Preserved in Phases 1–3 because getGroceryList keeps the 007 path (generator called without `asOf`). US3 (T022/T025, not mine) recomputes GET on-view and will re-anchor this to explicit dates.
+- `GET › 'aggregates the same ingredient across multiple meals'` (L155–161): same past-dated seed; relies on GET returning generated content without date scope. US3 will re-scope.
+- `GET › 'isolates lists by user'` / `'returns { groceryList: null }'`: null/isolation paths — unaffected by rolling (US3 keeps the null short-circuit, T023/T026).
+- `POST generate › 'regenerates and preserves manually-added items'` (L181–189): seeds past-dated `validMealEntry` + a manual "Bread". Under US1 (T013) the past meal contributes nothing, but the manual row is sticky pass-through, so the sole assertion (`bread.isManuallyAdded === true`) still holds. Not modified.
+
+Reconfirmed there is **no** existing assertion that GET returns a stored document byte-verbatim on a second read, so US3's recompute-on-view has no direct 007 test to overturn — only the past-dated lazy-generate expectations above.
+
+### RG-phase per-task log (Phases 1–3, T001–T013)
+
+- **T003/T004/T005** — Added `addedOn?`/`purchasedOn?` to server `IGroceryListItem`, client `GroceryListItem` (ISO string), and the Mongoose `groceryListItemSchema` (`type: Date, required: false`, no default). Optional-only, no migration.
+- **T006 (TDD)** — Wrote `startOfTodayCutoff` unit tests first; observed failure: `Failed to load url @server/lib/rolling-grocery … Does the file exist?` (module absent). After T007 the 3 tests pass, including the 23:59-vs-00:01 boundary under `TZ=Australia/Sydney` (research D3). **Runner note:** vitest must be run with cwd `packages/client` (`vitest run --coverage` is configured there); running from repo root leaves the `@server` alias unresolved.
+- **T007** — Created `src/server/lib/rolling-grocery.ts` with real `startOfTodayCutoff()` + a throwing `reconcileRollingList` stub. T006 → green.
+- **T008 (TDD)** — Reconcile unit tests written against the stub; observed failure: 5 tests throw `reconcileRollingList not implemented (Phase 3 / US1)` (3 startOfTodayCutoff still green).
+- **T009 (TDD)** — Extended `grocery-list-generator.test.ts` with date-scope cases; observed failure: `expected 2 to be 1` (soy sauce counted both meals) and `expected 3 to be 2` (servings fallback counted the past meal). The cooked-yesterday, since-shed-netting, and asOf-omitted cases passed pre-impl (already covered by status/netting).
+- **T010 (TDD)** — Added `POST /generate` rolling-scope handler tests; observed failure: `expected 2 to be 1` (all-week count) and `_id` mismatch (old regenerate wiped+recreated generated rows). The FR-RG-006 drop case passed pre-impl (non-manual rows were already dropped by 007 concat).
+- **T011** — `generateGroceryList` gained optional `asOf?: Date`; filters `planned` entries to `entry.date >= asOf` when supplied. **Deviation (intentional):** `asOf` is optional, not required — this keeps `getGroceryList`'s lazy-create path on the exact 007 semantics (called without `asOf`) as the US1 checkpoint requires ("GET still uses the old 007 path until Phase 5"), and preserves the existing past-dated GET tests. `regenerateGroceryList` always passes the cutoff.
+- **T012** — Implemented `reconcileRollingList(existing, freshGenerated, _asOf)`: partitions by `isReplaceableGenerated` (`!manual && !purchased && !receipt`), diffs replaceable rows by `ingredientName` (keep `_id`, overwrite `quantity`/`unit`/`sourceMealNames`; drop on zero/absent; insert new), sticky rows pass through verbatim. `_asOf` reserved for the US2 shed (lint-clean via `_` prefix).
+- **T013** — `regenerateGroceryList` now computes `asOf = startOfTodayCutoff()`, generates date-scoped, and merges via `reconcileRollingList(existing.toObject().items, generatedItems, asOf)` (`.toObject()` avoids the 006 hydrated-subdoc spread bug). `getGroceryList` untouched.
+- **Phase 1–3 result** — Focused `rolling-grocery.test.ts` + `grocery-list-generator.test.ts` + `grocery-lists.test.ts` = **57 passed**. `npm run lint` clean. Full `npm test` (with coverage) = **56 files / 562 tests passed** (baseline 546 → +16). `npm -w packages/client run build` clean.
 
 ## Release handoff
 

@@ -189,6 +189,154 @@ describe('POST grocery-lists/[weekStart]/generate', () => {
   });
 });
 
+// ——— Spec 008 US1: rolling date scope on force-regenerate (FR-RG-001/006/007, T010) ———
+
+/** A UTC-midnight instant offset by `days` from the server's local calendar day —
+ *  mirrors startOfTodayCutoff() so entries land deterministically in/out of scope. */
+function utcMidnightOffset(days: number): Date {
+  const now = new Date();
+  const base = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  base.setUTCDate(base.getUTCDate() + days);
+  return base;
+}
+
+function datedEntry(opts: {
+  date: Date;
+  missing: string[];
+  mealName: string;
+  slotId: string;
+}): Record<string, unknown> {
+  return {
+    slotId: opts.slotId,
+    date: opts.date.toISOString(),
+    mealType: 'dinner',
+    status: 'planned',
+    meal: {
+      mealName: opts.mealName,
+      suggestedMealType: 'dinner',
+      prepTimeMinutes: 20,
+      cuisine: 'Test',
+      description: '',
+      usesIngredients: [],
+      expiringIngredients: [],
+      missingIngredients: opts.missing,
+    },
+  };
+}
+
+describe('POST grocery-lists/[weekStart]/generate — rolling date scope (spec 008 US1)', () => {
+  it('lists only today-onwards needs and re-sources them (FR-RG-001/007)', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(-1),
+          missing: ['soy sauce', 'sriracha'],
+          mealName: 'Past Dinner',
+          slotId: '11111111-1111-4111-8111-111111111111',
+        }),
+        datedEntry({
+          date: utcMidnightOffset(1),
+          missing: ['soy sauce'],
+          mealName: 'Future Dinner',
+          slotId: '22222222-2222-4222-8222-222222222222',
+        }),
+      ],
+    });
+
+    const res = await GENERATE(req({ method: 'POST' }), wk());
+    expect(res.status).toBe(200);
+    const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[] } };
+
+    const soy = groceryList.items.find((i) => i.ingredientName === 'soy sauce');
+    expect(soy?.quantity).toBe(1); // only the tomorrow meal counts
+    expect(soy?.sourceMealNames).toEqual(['Future Dinner']);
+    // 'sriracha' sourced only by the past meal → never listed.
+    expect(groceryList.items.find((i) => i.ingredientName === 'sriracha')).toBeUndefined();
+  });
+
+  it('drops a stored generated-only line whose fresh need is gone, and inserts new needs (FR-RG-006)', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(1),
+          missing: ['kombu'],
+          mealName: 'Future Dinner',
+          slotId: '33333333-3333-4333-8333-333333333333',
+        }),
+      ],
+    });
+    // A stale generated row for an ingredient no in-scope meal needs anymore.
+    await GroceryList.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      items: [
+        {
+          ingredientName: 'nori',
+          displayName: 'Nori',
+          quantity: 3,
+          unit: 'servings',
+          category: 'Other',
+          isPurchased: false,
+          isManuallyAdded: false,
+          sourceMealNames: ['Gone Meal'],
+          notes: '',
+        },
+      ],
+      generatedAt: new Date(),
+    });
+
+    const res = await GENERATE(req({ method: 'POST' }), wk());
+    expect(res.status).toBe(200);
+    const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[] } };
+    expect(groceryList.items.find((i) => i.ingredientName === 'nori')).toBeUndefined();
+    expect(groceryList.items.find((i) => i.ingredientName === 'kombu')).toBeDefined();
+  });
+
+  it('keeps a surviving generated row _id stable across regenerate (FR-RG-007)', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(1),
+          missing: ['kombu'],
+          mealName: 'Future Dinner',
+          slotId: '44444444-4444-4444-8444-444444444444',
+        }),
+      ],
+    });
+    const seeded = await GroceryList.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      items: [
+        {
+          ingredientName: 'kombu',
+          displayName: 'Kombu',
+          quantity: 9,
+          unit: 'servings',
+          category: 'Other',
+          isPurchased: false,
+          isManuallyAdded: false,
+          sourceMealNames: ['Stale'],
+          notes: '',
+        },
+      ],
+      generatedAt: new Date(),
+    });
+    const originalId = String(seeded.items[0]!._id);
+
+    const res = await GENERATE(req({ method: 'POST' }), wk());
+    const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[] } };
+    const kombu = groceryList.items.find((i) => i.ingredientName === 'kombu');
+    expect(kombu?._id).toBe(originalId); // id preserved → in-flight ticks stay valid
+    expect(kombu?.quantity).toBe(1); // requantified to the single in-scope meal
+  });
+});
+
 describe('POST grocery-lists/[weekStart]/items', () => {
   it('adds a manual item and returns 201', async () => {
     const res = await ADD_ITEM(
