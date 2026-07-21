@@ -1,10 +1,11 @@
 import 'server-only';
 import mongoose from 'mongoose';
 import { z } from 'zod';
-import { GroceryList } from '../models/grocery-list';
-import { MealPlan } from '../models/meal-plan';
+import { GroceryList, type GroceryListDocument } from '../models/grocery-list';
+import { MealPlan, type MealPlanDocument } from '../models/meal-plan';
 import { InventoryItem, CATEGORIES, LOCATIONS } from '../models/inventory-item';
 import { generateGroceryList } from '../lib/grocery-list-generator';
+import { reconcileRollingList, startOfTodayCutoff } from '../lib/rolling-grocery';
 import { notExpiredQuery } from '../lib/expiration';
 import { applyPurchase, reversePurchase } from '../lib/purchase-inventory';
 import { invalidateUser } from '../services/recommendations-cache';
@@ -151,6 +152,10 @@ async function purchaseGroceryItem(
       $set: {
         ...buildArrayItemSetFields(data),
         'items.$[item].isPurchased': true,
+        // Spec 008 US2: day-anchor the row to today in the same write as the tick
+        // (FR-RG-005), on the same projected axis as `startOfTodayCutoff()` — see
+        // the `addedOn` comment in `addGroceryItem` for why a raw timestamp is wrong.
+        'items.$[item].purchasedOn': startOfTodayCutoff(),
       },
     },
     { new: true, arrayFilters: [{ 'item._id': objectId, 'item.isPurchased': false }] },
@@ -192,7 +197,8 @@ async function unpurchaseGroceryItem(
         ...buildArrayItemSetFields(data),
         'items.$[item].isPurchased': false,
       },
-      $unset: { 'items.$[item].purchaseReceipt': '' },
+      // Spec 008 US2: un-tick clears the day-anchor alongside the receipt.
+      $unset: { 'items.$[item].purchaseReceipt': '', 'items.$[item].purchasedOn': '' },
     },
     { new: false, arrayFilters: [{ 'item._id': objectId, 'item.isPurchased': true }] },
   );
@@ -228,7 +234,15 @@ async function processCheckoutItem(
     const receipt = await applyPurchase(userId, purchaseLineFromItem(item));
     await GroceryList.findOneAndUpdate(
       { userId, weekStart, 'items._id': objectId },
-      { $set: { 'items.$.isPurchased': true, 'items.$.purchaseReceipt': receipt } },
+      {
+        $set: {
+          'items.$.isPurchased': true,
+          'items.$.purchaseReceipt': receipt,
+          // Spec 008 US2: rows purchased at checkout follow the same daily shed as
+          // any tick, stamped on the same projected axis (see `addGroceryItem`).
+          'items.$.purchasedOn': startOfTodayCutoff(),
+        },
+      },
     );
     const inventoryItem = await InventoryItem.findOne({ _id: receipt.inventoryItemId, userId });
     const summary = { _id: receipt.inventoryItemId, name: inventoryItem?.name ?? item.displayName };
@@ -254,30 +268,61 @@ function invalidInput(error: z.ZodError): ControllerResult {
   return problem(400, 'Invalid input', error.issues.map((i) => i.message).join('; '));
 }
 
-// GET /api/v1/grocery-lists/:weekStart — fetch; lazily generate from meal plan if absent
+/**
+ * Spec 008 D2/US1/US3: the one date-scoped recompute path shared by GET
+ * (recompute-on-view) and force-generate. Scopes fresh needs to today-onwards
+ * (`asOf`, FR-RG-001), reconciles them in place against `existing` so surviving
+ * generated rows keep their `_id` (FR-RG-006/007), day-anchor-sheds/preserves
+ * sticky rows (FR-RG-004/005), and persists the result (extends the 007 lazy
+ * upsert) so manual and automatic refresh converge (FR-RG-002/008).
+ *
+ * `mealPlan` is `null` when the week has no plan at all — treated as zero
+ * in-scope entries (fresh generated needs = []) rather than an error, so a
+ * still-sticky document (e.g. manual items added after a plan was cleared)
+ * keeps reconciling correctly. Callers that require a plan (force-generate)
+ * check for one before calling this.
+ */
+async function recomputeRollingList(
+  userId: string,
+  weekStart: Date,
+  mealPlan: MealPlanDocument | null,
+  existing: GroceryListDocument | null,
+): Promise<GroceryListDocument | null> {
+  const asOf = startOfTodayCutoff();
+  const inventory = await InventoryItem.find({ userId, ...notExpiredQuery() });
+  const { items: generatedItems, generatedAt } = mealPlan
+    ? generateGroceryList(mealPlan, inventory, asOf)
+    : { items: [] as IGroceryListItem[], generatedAt: new Date() };
+
+  // .toObject() → plain items (never spread hydrated subdocs, per the 006 bug).
+  const existingItems: IGroceryListItem[] = existing ? existing.toObject().items : [];
+  const merged = reconcileRollingList(existingItems, generatedItems, asOf);
+
+  return GroceryList.findOneAndUpdate(
+    { userId, weekStart },
+    { $set: { items: merged, generatedAt } },
+    { upsert: true, new: true },
+  );
+}
+
+// GET /api/v1/grocery-lists/:weekStart — recomputes on every view (spec 008 US3)
 export async function getGroceryList(userId: string, weekStartParam: string): Promise<ControllerResult> {
   const parsed = parseWeekStart(weekStartParam);
   if ('error' in parsed) return parsed.error;
   const { weekStart } = parsed;
 
-  const existing = await GroceryList.findOne({ userId, weekStart });
-  if (existing) return { status: 200, body: { groceryList: existing } };
+  const [existing, mealPlan] = await Promise.all([
+    GroceryList.findOne({ userId, weekStart }),
+    MealPlan.findOne({ userId, weekStart }),
+  ]);
+  // FR-RG contract: no plan and no stored document yet → still null, no recompute.
+  if (!existing && !mealPlan) return { status: 200, body: { groceryList: null } };
 
-  const mealPlan = await MealPlan.findOne({ userId, weekStart });
-  if (!mealPlan) return { status: 200, body: { groceryList: null } };
-
-  const inventory = await InventoryItem.find({ userId, ...notExpiredQuery() });
-  const { items, generatedAt } = generateGroceryList(mealPlan, inventory);
-
-  const list = await GroceryList.findOneAndUpdate(
-    { userId, weekStart },
-    { $set: { items, generatedAt } },
-    { upsert: true, new: true },
-  );
+  const list = await recomputeRollingList(userId, weekStart, mealPlan, existing);
   return { status: 200, body: { groceryList: list } };
 }
 
-// POST /:weekStart/generate — force-regenerate; preserves manually-added items
+// POST /:weekStart/generate — force-regenerate; shares the rolling recompute path with GET
 export async function regenerateGroceryList(userId: string, weekStartParam: string): Promise<ControllerResult> {
   const parsed = parseWeekStart(weekStartParam);
   if ('error' in parsed) return parsed.error;
@@ -286,18 +331,8 @@ export async function regenerateGroceryList(userId: string, weekStartParam: stri
   const mealPlan = await MealPlan.findOne({ userId, weekStart });
   if (!mealPlan) return problem(404, 'Not Found', 'No meal plan found for this week');
 
-  const inventory = await InventoryItem.find({ userId, ...notExpiredQuery() });
-  const { items: generatedItems, generatedAt } = generateGroceryList(mealPlan, inventory);
-
   const existing = await GroceryList.findOne({ userId, weekStart });
-  const manualItems = existing?.items.filter((i) => i.isManuallyAdded) ?? [];
-  const merged = [...generatedItems, ...manualItems];
-
-  const list = await GroceryList.findOneAndUpdate(
-    { userId, weekStart },
-    { $set: { items: merged, generatedAt } },
-    { upsert: true, new: true },
-  );
+  const list = await recomputeRollingList(userId, weekStart, mealPlan, existing);
   return { status: 200, body: { groceryList: list } };
 }
 
@@ -323,6 +358,12 @@ export async function addGroceryItem(
     isManuallyAdded: true,
     sourceMealNames: [],
     notes: parsed.data.notes,
+    // Spec 008 US2: day-anchor the manual row to today (FR-RG-004). Stamped on the
+    // same projected UTC-midnight-of-local-day axis as `startOfTodayCutoff()` (not a
+    // raw wall-clock timestamp) — comparing a real instant against the projected
+    // axis used in reconcileSticky would shed rows within hours of creation in any
+    // positive-UTC-offset timezone (contract's example payload confirms midnight).
+    addedOn: startOfTodayCutoff(),
   };
 
   const list = await GroceryList.findOneAndUpdate(

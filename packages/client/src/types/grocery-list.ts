@@ -33,6 +33,10 @@ export interface GroceryListItem {
   sourceMealNames: string[];
   notes: string;
   purchaseReceipt?: PurchaseReceipt;
+  /** Spec 008 day-anchor (ISO) — set when a manual item is created. */
+  addedOn?: string;
+  /** Spec 008 day-anchor (ISO) — set when a line is ticked purchased. */
+  purchasedOn?: string;
 }
 
 export interface GroceryList {

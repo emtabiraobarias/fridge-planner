@@ -26,6 +26,9 @@ const groceryListItemSchema = new Schema<IGroceryListItem>(
     sourceMealNames: { type: [String], default: [] },
     notes: { type: String, default: '' },
     purchaseReceipt: { type: purchaseReceiptSchema, required: false },
+    // Spec 008 day-anchors — no default; absence marks a legacy pre-008 row.
+    addedOn: { type: Date, required: false },
+    purchasedOn: { type: Date, required: false },
   },
   { _id: true },
 );

@@ -63,13 +63,15 @@ const mockList: GroceryList = {
 };
 
 function TestConsumer(): React.JSX.Element {
-  const { groceryList, loading, error, generate, togglePurchased, purchaseItem, removeItem } = useGroceryList();
+  const { groceryList, loading, error, refresh, generate, togglePurchased, purchaseItem, removeItem } =
+    useGroceryList();
 
   return (
     <div>
       <span data-testid="loading">{loading ? 'loading' : 'idle'}</span>
       <span data-testid="error">{error}</span>
       <span data-testid="count">{groceryList?.items.length ?? 0}</span>
+      <button onClick={() => { void refresh(); }}>Refresh</button>
       <button onClick={() => { void generate(); }}>Generate</button>
       <button onClick={() => { void togglePurchased('item-1', false); }}>Toggle</button>
       <button onClick={() => { void togglePurchased('item-1', true); }}>Uncheck</button>
@@ -156,6 +158,38 @@ describe('GroceryListContext', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  // ——— Spec 008 Phase 6 (T030): 404-after-shed and 409 same-day wrong-state un-tick
+  // responses must be handled identically — refetch, no crash, no distinct UI branch
+  // (research D7, FR-RG-005). The 404 case is the rolling-specific one: un-ticking a
+  // row whose anchor day has already shed returns 404 (row gone) rather than 007's 409.
+  it('un-tick: re-fetches (no crash, no error state) on a 409 same-day wrong-state response (research D7)', async () => {
+    mockPatch.mockRejectedValueOnce(new Error('Failed to update grocery item: 409'));
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Uncheck' }).click();
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('error').textContent).toBe('');
+  });
+
+  it('un-tick: re-fetches identically (no crash, no distinct branch) on a 404 shed-row response (research D7, FR-RG-005)', async () => {
+    mockPatch.mockRejectedValueOnce(new Error('Failed to update grocery item: 404'));
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Uncheck' }).click();
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('error').textContent).toBe('');
+  });
+
   it('togglePurchased calls patchGroceryItem to uncheck purchased rows (FR-GC-007)', async () => {
     render(<Wrapper />);
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
@@ -192,6 +226,29 @@ describe('GroceryListContext', () => {
 
     expect(mockDelete).toHaveBeenCalledWith(expect.any(String), 'item-1');
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('0'));
+  });
+
+  // ——— Spec 008 US3 (T024): GET now recomputes server-side on every view; the
+  // context must stay a thin server-trusting pass-through — no client-side date
+  // scoping/filtering of items, on either the initial fetch or an explicit refresh.
+  it('surfaces exactly the server-recomputed list on initial fetch and on refresh, with no client-side date logic (FR-RG-002)', async () => {
+    const staleSnapshot: GroceryList = { ...mockList, items: [] };
+    const recomputed: GroceryList = mockList;
+    mockFetch.mockResolvedValueOnce(staleSnapshot).mockResolvedValueOnce(recomputed);
+
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+    // Initial fetch surfaces whatever the server returned, verbatim.
+    expect(screen.getByTestId('count').textContent).toBe('0');
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Refresh' }).click();
+    });
+
+    // A later refresh (e.g. the server recomputed today's scope) is surfaced
+    // verbatim too — the context applies no date/scope logic of its own.
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it('re-fetches when currentWeekStart changes', async () => {

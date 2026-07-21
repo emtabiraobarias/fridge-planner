@@ -157,12 +157,12 @@ Rate limit: **10 req/min** for `/recommendations` (30/min for `verify-links`; 20
 ### Grocery Lists
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/grocery-lists/:weekStart` | Fetch list; lazily generates from meal plan if none exists |
-| POST | `/grocery-lists/:weekStart/generate` | Force-regenerate list (preserves manually-added items) |
-| POST | `/grocery-lists/:weekStart/items` | Add a manual item |
-| PATCH | `/grocery-lists/:weekStart/items/:itemId` | Update item fields, or spec 007 purchase lifecycle: `{isPurchased:true, resolvedPurchase?}` immediately adds/merges Kitchen inventory with a `purchaseReceipt`; `{isPurchased:false}` reverses from the stored receipt and returns 409 for receipt-less legacy rows |
+| GET | `/grocery-lists/:weekStart` | Spec 008: **recomputes on every view**, not just lazily on first GET — generated needs are date-scoped to today-or-later `planned` entries and persisted (rolling rest-of-week; FR-RG-001/002/008) |
+| POST | `/grocery-lists/:weekStart/generate` | Force-regenerate; same date-scoped rolling recompute path as GET (spec 008 FR-RG-002 — the two are byte-identical for the same instant), so it is a resync, not a distinct generation |
+| POST | `/grocery-lists/:weekStart/items` | Add a manual item (day-anchored — spec 008 stamps `addedOn`, see §5) |
+| PATCH | `/grocery-lists/:weekStart/items/:itemId` | Update item fields, or spec 007 purchase lifecycle: `{isPurchased:true, resolvedPurchase?}` immediately adds/merges Kitchen inventory with a `purchaseReceipt` (spec 008 also stamps `purchasedOn`); `{isPurchased:false}` reverses from the stored receipt and returns 409 for a same-day receipt-less/wrong-state row — but **404** if the row already shed off the rolling list at a rollover (spec 008 FR-RG-005; the reversal window is same-day only, contract note D7) |
 | DELETE | `/grocery-lists/:weekStart/items/:itemId` | Remove item |
-| POST | `/grocery-lists/:weekStart/complete` | Checkout finalizer: server loads the list, skips receipted rows, applies purchase rules to receipt-less rows, stores receipts, and marks rows purchased |
+| POST | `/grocery-lists/:weekStart/complete` | Checkout finalizer: server loads the list, skips receipted rows, applies purchase rules to receipt-less rows, stores receipts (stamping `purchasedOn`, spec 008), and marks rows purchased |
 
 All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
 
@@ -225,12 +225,15 @@ All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
       unit: string;
       merged: boolean;
     };
+    addedOn?: Date;       // spec 008: stamped when a manual item is created
+    purchasedOn?: Date;   // spec 008: stamped when a row is ticked purchased/at checkout
   }[];
 }
 ```
 - Compound unique index on `(userId, weekStart)`
 - Lazily created on first GET; `POST /:weekStart/generate` force-regenerates while preserving `isManuallyAdded` items
 - Spec 007 grocery check-off is inventory-positive: ticking a row immediately adds/merges inventory and stores `purchaseReceipt`; un-ticking reverses from that receipt; checkout only adds receipt-less remaining rows and skips rows already added to Kitchen
+- **Spec 008 (2026-07-22):** the document's content is a rolling, date-scoped view recomputed on every GET and force-generate (FR-RG-001/002/008) — generated rows are reconciled in place by `ingredientName` (stable `_id` across recomputes) rather than wiped-and-recreated. Manual/purchased rows are day-anchored via `addedOn`/`purchasedOn`: they survive same-day refreshes verbatim (receipt intact) and are pruned — row **and** receipt dropped, inventory untouched — at the next rollover once their anchor day is in the past (FR-RG-004/005/011); legacy anchor-less rows are lazily backfilled to the current day on first recompute rather than shedding immediately
 
 ---
 

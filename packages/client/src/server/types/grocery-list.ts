@@ -33,6 +33,10 @@ export interface IGroceryListItem {
   sourceMealNames: string[];
   notes: string;
   purchaseReceipt?: PurchaseReceipt;
+  /** Spec 008 day-anchor — set when a manual item is created (FR-RG-004). */
+  addedOn?: Date;
+  /** Spec 008 day-anchor — set when a line is ticked purchased (FR-RG-005). */
+  purchasedOn?: Date;
 }
 
 export interface IGroceryList {
