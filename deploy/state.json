@@ -13,7 +13,9 @@
   "decisions": {
     "secrets_path": "A",
     "portainer_edition": "CE",
-    "self_hosted_runner_available": null,
+    "self_hosted_runner_available": false,
+    "cd_automation": "gitops-poll",
+    "gitops_poll_interval_minutes": null,
     "internal_host": "fridgeplanner.lan",
     "node_lan_ip": "192.168.1.215",
     "caddy_host_ports": "8080:80, 8443:443",
@@ -34,5 +36,5 @@
     "stage1_complete": true,
     "stage2_decision": "deferred — internal-only for now"
   },
-  "current": "DONE (Stage 1 internal). Stage 2 not started — resume with /deploy-runbook when a domain is ready."
+  "current": "DONE (Stage 1 internal). CD automation DECIDED 2026-07-21 (gitops-poll) but s7b-gitops-poll (Portainer UI one-time setup) is not yet marked complete — awaiting the human to enable it and report the poll interval. Stage 2 not started — resume with /deploy-runbook when a domain is ready."
 }

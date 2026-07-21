@@ -148,22 +148,22 @@ AI recommendations within the timeout, data persists across app restart, no leak
 - **⏳ Remaining (manual, repo settings):** enable branch protection on `impl/nextjs` requiring the
   `verify` check green before merge. (Can't be done from code — GitHub repo admin step.)
 
-### E2 — CD workflow (gated) — `.github/workflows/deploy-nextjs.yml` 📝 **DRAFT committed** (not yet active)
-A reference template is committed; it **fails at the deploy job until E3 infra + E4 secrets exist** (by
-design — the banner in the file says so). What it does:
+### E2 — CD workflow (gated) — `.github/workflows/deploy-nextjs.yml` ✅ **ACTIVE** (shipped 4.0.0 → 4.4.0)
 - Trigger: `on: push: tags: ['nextjs-v*']`.
 - **build-push** job: build `packages/client/Dockerfile` → push `ghcr.io/.../fridge-planner-client`
   tagged `:<version>` + `:sha-<sha>` (digest-pinned) + `:latest`. *(Note the app image is **separate**
   from the Holodeck image `ghcr.io/.../fridge-planner`.)*
-- **Rollout is MANUAL (decided 2026-07-15):** the prod stack is a **git-backed Portainer CE stack**, so
-  the workflow stops at build-push and prints the rollout steps in the run summary. In Portainer:
-  (recommended) pin `APP_IMAGE` to the new `:<version>` in the stack env → **Pull and redeploy**. The
-  former `deploy` job (self-hosted runner labelled `production` + host `docker compose`) was removed —
-  a git-backed stack has no host compose dir for a runner; recover it from git history (pre
-  `nextjs-v4.1.1`) if the topology ever changes.
-- **Post-deploy smoke (run by hand):** `GET /api/health` → 200; `GET /api/v1/inventory` (no
-  token) → **401** (confirms oidc enforced); a token-bearing request → 2xx. Rollback = repoint
-  `APP_IMAGE` at the previous version tag and redeploy.
+- **Rollout is AUTOMATIC (decided 2026-07-21, supersedes the 2026-07-15 manual-only decision):** the
+  prod stack is a **git-backed Portainer CE stack**, and CI still only builds/pushes — but rather than
+  a human clicking Pull-and-redeploy every release, Portainer's built-in **GitOps polling** (CE-native;
+  the *webhook* variant is Business-only) re-pulls `:latest` and redeploys the whole stack on its own
+  interval (see "Updating a running deployment" below, and `deploy/checklist.yaml` → `s7b-gitops-poll`
+  for the one-time Portainer setup). The former `deploy` job (self-hosted runner + host `docker
+  compose`) stays removed — a git-backed stack has no host compose dir for a runner; recover it from
+  git history (pre `nextjs-v4.1.1`) if the topology ever changes to a host compose dir or Portainer BE.
+- **Post-deploy smoke (run by hand, after the poll interval elapses):** `GET /api/health` → 200; `GET
+  /api/v1/inventory` (no token) → **401** (confirms oidc enforced); a token-bearing request → 2xx.
+  GitHub Actions can't reach the internal-LAN Portainer instance to do this itself.
 
 ### E3 — Infra prerequisites
 Stand up everything in the checklist above (domain/TLS, registry, host, Atlas, Holodeck, IdP). Capture
@@ -237,7 +237,14 @@ Only re-tag/rebuild the image(s) that actually changed. A code change under `pac
 → `nextjs-v*`; a change under `agents/meal-recommender/` → `agent-v*`; under
 `agents/feedback-collector/` → `agent-feedback-v*`.
 
-### Standard update procedure
+### Standard update procedure (automatic — decided 2026-07-21)
+
+**One-time setup (already done if `s7b-gitops-poll` is checked off in `deploy/state.json`):**
+Portainer → Stacks → fridge-planner → GitOps/Automatic updates → enable **polling** (not webhook —
+Business-only), a poll interval (5 min default), and **"Force update"/"Re-pull image"** (required —
+a floating `:latest` tag means the compose *text* never changes between releases, so Portainer must
+re-pull rather than diff the git content). With this on, every release below needs **zero Portainer
+interaction**.
 
 1. **Back up first (belt-and-suspenders — the update itself won't touch data, but do this anyway).**
    On the host, dump Mongo to a file *inside the named volume's reach* or copy it out:
@@ -258,41 +265,45 @@ Only re-tag/rebuild the image(s) that actually changed. A code change under `pac
    git tag agent-v1.1.0         && git push origin agent-v1.1.0           # meal-rec agent changed
    git tag agent-feedback-v1.0.0 && git push origin agent-feedback-v1.0.0 # feedback agent changed
    ```
-   Wait for the workflow(s) to go green (Actions tab). **Pin to the version tag**, not `:latest`, so
-   a redeploy is reproducible.
-
-3. **Update the env** on the host `.env` (Path B) or the Portainer stack env (Path A) to the new
-   pinned tags, and add any new keys the release introduced:
+   Wait for the workflow(s) to go green (Actions tab) — each one publishes `:latest` alongside the
+   version tag. **New secret/env keys still need a one-time manual add** to the Portainer stack env
+   (Path A) or host `.env` (Path B); auto-update only re-pulls images, it doesn't invent new config:
    ```
-   APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:4.1.0
-   AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner:1.1.0
-   FEEDBACK_AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-feedback:1.0.0
    OPENAI_API_KEY=…            # BOTH agents (meal-recommender + feedback collector)
    BRAVE_SEARCH_API_KEY=…      # recipe-URL verification — at least one of these two is
    SPOONACULAR_API_KEY=…       # REQUIRED for recommendations (FR-037: 503 without)
    ```
 
-4. **Redeploy — a rolling, volume-preserving recreate:**
-   - **Portainer (CE, this deployment):** open the stack → **Update the stack** (or **Pull and
-     redeploy**) with **"Re-pull image"** enabled and **"Remove volumes" OFF**. Portainer recreates
-     only the containers whose image/config changed; named volumes are reused.
-   - **Or from a host shell** (SSH, if the host ever exposes one for this stack):
-     ```sh
-     cd /opt/fridge-planner
-     docker compose -f docker-compose.prod.yml pull            # fetch new image tags
-     docker compose -f docker-compose.prod.yml up -d            # recreate changed services only
-     ```
-     `up -d` **preserves volumes** and leaves unchanged services running. You can scope it to one
-     service, e.g. `… up -d app` or `… up -d holodeck`.
+3. **Wait for the poll interval, then verify** (subset of `s8int-smoke`): `https://fridgeplanner.lan:8443`
+   loads; OIDC login still works (Keycloak data intact); a **pre-existing** inventory item / feedback
+   record is still present (proves `mongodb_data` survived); recommendations return; `/feedback` gets
+   a reply. If you don't want to wait, "Force an off-cycle rollout" below skips straight to redeploy.
 
-5. **Verify** (subset of `s8int-smoke`): `https://fridgeplanner.lan:8443` loads; OIDC login still
-   works (Keycloak data intact); a **pre-existing** inventory item / feedback record is still
-   present (proves `mongodb_data` survived); recommendations return; `/feedback` gets a reply.
+### Force an off-cycle rollout, or pin a specific version
+Sometimes you don't want to wait for the poll interval, or you want a *specific* version live rather
+than whatever is currently `:latest` (e.g. testing a release candidate, or **rollback** — see below).
+
+1. Portainer → Stacks → fridge-planner → set the stack env to the exact tag(s) you want:
+   ```
+   APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:4.1.0
+   AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner:1.1.0
+   FEEDBACK_AGENT_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-feedback:1.0.0
+   ```
+2. **Update the stack** (or **Pull and redeploy**) with **"Re-pull image"** enabled and **"Remove
+   volumes" OFF**. Portainer recreates only the containers whose image/config changed; named
+   volumes are reused. (Or from a host shell, if one is ever exposed for this stack:
+   `docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d`
+   — `up -d` preserves volumes; scope it to one service with `… up -d app`.)
+3. **This pin is temporary by design.** Auto-update polling is still running — on its next cycle it
+   will re-pull `:latest` for any env var you *didn't* pin and reassert it. If you want the pinned
+   version to actually stick (e.g. mid-rollback investigation), either unpin deliberately once
+   resolved, or briefly disable "Automatic updates" in the Portainer UI while investigating.
 
 ### Rollback
-Re-point the tag(s) in the env to the previous version and redeploy (step 4). Because images are
-version-pinned and data is in volumes, rollback is just "deploy the old image again" — no data
-migration. Keep the last-known-good tags noted in `deploy/state.json`.
+Same procedure as above, pointed at the last-known-good version tag(s) instead of a new release.
+Because images are version-pinned during rollback and data is in volumes, rollback is just "deploy
+the old image again" — no data migration. Keep the last-known-good tags noted in `deploy/state.json`.
+Remember to unpin (or leave pinned deliberately) once the incident is resolved — see the note above.
 
 ### ⛔ What NOT to do (these destroy data)
 - **`docker compose -f docker-compose.prod.yml down -v`** — the `-v` deletes the named volumes

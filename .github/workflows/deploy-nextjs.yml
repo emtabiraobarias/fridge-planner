@@ -3,17 +3,26 @@ name: Deploy (impl/nextjs)
 # Phase E — E2: CD for the Next.js implementation, Portainer-CE edition.
 #
 # DECISION (2026-07-15): the production stack is a **git-backed Portainer stack** on
-# Portainer **CE**, so CI stops at build-push and the rollout is a manual Portainer
-# "Pull and redeploy" (the CE-sanctioned option — see CLAUDE.md §15 and
-# docs/deployment.md → "Updating a running deployment"). The former `deploy` job
-# (self-hosted runner + docker compose on the host) was removed: the host has no
-# compose directory for a runner to cd into (Portainer manages the checkout), and
-# CE has no stack webhooks to call instead. If the stack ever moves to Portainer BE
-# (webhooks) or a host compose dir (Path B), resurrect the deploy job from git
-# history (removed at tag nextjs-v4.1.1).
+# Portainer **CE**. The former `deploy` job (self-hosted runner + docker compose on
+# the host) was removed: the host has no compose directory for a runner to cd into
+# (Portainer manages the checkout), and CE has no stack *webhooks* (Business-only).
+#
+# DECISION (2026-07-21, supersedes the rollout half of the above): rather than a
+# self-hosted runner or a BE webhook, the stack uses Portainer CE's built-in GitOps
+# **polling** (see CLAUDE.md §15 / docs/deployment.md → "Updating a running
+# deployment" / deploy/checklist.yaml → s7b-gitops-poll). CI's job is still just
+# build-push — nothing here calls Portainer — but rollout is no longer a manual
+# click: every image defaults to `:latest` in docker-compose.prod.yml, this job
+# publishes `:latest` on every tag, and Portainer re-pulls + redeploys the whole
+# stack on its own poll interval. If Portainer ever moves to Business Edition
+# (webhooks) or the host gains a compose dir (Path B) for a runner, resurrect the
+# old deploy job from git history (removed at tag nextjs-v4.1.1).
 #
 # Flow:  push tag `nextjs-v*`  →  build & push image (:<version>, :sha-<sha>, :latest)
-#                              →  run-summary prints the manual rollout steps
+#                              →  Portainer's own poll cycle picks up :latest and redeploys
+#                              →  run-summary prints a smoke-check reminder + the manual
+#                                 override procedure (pin a version) for an off-cycle
+#                                 rollout or a rollback
 #
 # Per-branch file (impl/nextjs only) — must never be merged to `main`.
 # The app image is SEPARATE from the Holodeck images; we publish the Next app as
@@ -84,7 +93,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Rollout instructions (manual — Portainer CE, git-backed stack)
+      - name: Rollout status (automatic — Portainer GitOps polling)
         run: |
           {
             echo "## Image published"
@@ -92,9 +101,16 @@ jobs:
             echo "${{ env.IMAGE }}:${{ steps.meta.outputs.version }}"
             echo "${{ env.IMAGE }}@${{ steps.build.outputs.digest }}"
             echo '```'
-            echo "## Manual rollout (Portainer)"
-            echo "1. Portainer → Stacks → fridge-planner → (recommended) set stack env \`APP_IMAGE=${{ env.IMAGE }}:${{ steps.meta.outputs.version }}\`"
-            echo "2. **Pull and redeploy** (re-pulls the git compose + images)."
-            echo "3. Smoke: \`curl -fsS \$BASE_URL/api/health\` → 200; unauthenticated \`/api/v1/inventory\` → 401."
-            echo "4. Rollback = set \`APP_IMAGE\` back to the previous version tag and redeploy."
+            echo "## Rollout (automatic, no action needed)"
+            echo "Portainer's GitOps polling will re-pull \`${{ env.IMAGE }}:latest\` and redeploy the"
+            echo "whole stack on its own interval (deploy/checklist.yaml → s7b-gitops-poll). GitHub"
+            echo "Actions cannot reach the internal-LAN Portainer instance to verify this itself —"
+            echo "**after the poll interval elapses**, confirm from the LAN:"
+            echo '```'
+            echo "curl -fsS https://fridgeplanner.lan:8443/api/health   # expect 200"
+            echo "curl -s -o /dev/null -w '%{http_code}\n' https://fridgeplanner.lan:8443/api/v1/inventory  # expect 401 (unauthenticated)"
+            echo '```'
+            echo "## Manual override (off-cycle rollout, or rollback)"
+            echo "1. Portainer → Stacks → fridge-planner → set stack env \`APP_IMAGE=${{ env.IMAGE }}:${{ steps.meta.outputs.version }}\` (or an older version tag to roll back) → **Pull and redeploy**."
+            echo "2. Auto-update will keep reasserting \`:latest\` on its next poll — **unset the pinned \`APP_IMAGE\`** once you're done, or the override reverts on its own."
           } >> "$GITHUB_STEP_SUMMARY"
