@@ -158,6 +158,38 @@ describe('GroceryListContext', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  // ——— Spec 008 Phase 6 (T030): 404-after-shed and 409 same-day wrong-state un-tick
+  // responses must be handled identically — refetch, no crash, no distinct UI branch
+  // (research D7, FR-RG-005). The 404 case is the rolling-specific one: un-ticking a
+  // row whose anchor day has already shed returns 404 (row gone) rather than 007's 409.
+  it('un-tick: re-fetches (no crash, no error state) on a 409 same-day wrong-state response (research D7)', async () => {
+    mockPatch.mockRejectedValueOnce(new Error('Failed to update grocery item: 409'));
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Uncheck' }).click();
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('error').textContent).toBe('');
+  });
+
+  it('un-tick: re-fetches identically (no crash, no distinct branch) on a 404 shed-row response (research D7, FR-RG-005)', async () => {
+    mockPatch.mockRejectedValueOnce(new Error('Failed to update grocery item: 404'));
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Uncheck' }).click();
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('error').textContent).toBe('');
+  });
+
   it('togglePurchased calls patchGroceryItem to uncheck purchased rows (FR-GC-007)', async () => {
     render(<Wrapper />);
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));

@@ -1013,3 +1013,38 @@ describe('Rolling recompute + tick concurrency (spec 008 US2, T017)', () => {
     expect(ticked.items.find((i) => i._id === basilId)?.purchasedOn).toBeTruthy();
   });
 });
+
+// ——— Spec 008 Phase 6 (T029): literal GET-recompute-then-tick variant ———
+//
+// T017 (US2) exercised the id-stability guarantee via POST .../generate, since at that
+// phase GET still ran the unchanged 007 lazy-generate path. US3/T025 has since wired GET
+// onto the same reconcileRollingList path as generate (research D2, "one date-scoped
+// generation path shared by lazy GET and force-generate"), so this adds the literal
+// "GET the list (triggers a persisted recompute), then PATCH-tick a row by the _id GET
+// returned" variant research risk 2 / FR-RG-011 calls for.
+describe('GET-recompute + tick concurrency (spec 008 Phase 6, T029)', () => {
+  it('a row from a just-GET-recomputed list can be ticked immediately by its returned _id (200, not 404)', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(0),
+          missing: ['cilantro'],
+          mealName: 'Today Tacos',
+          slotId: '99999999-9999-4999-8999-999999999999',
+        }),
+      ],
+    });
+
+    const getRes = await GET(req(), wk());
+    expect(getRes.status).toBe(200);
+    const { groceryList } = (await getRes.json()) as { groceryList: { items: GLItem[] } };
+    const cilantroId = groceryList.items.find((i) => i.ingredientName === 'cilantro')!._id;
+
+    const tickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(cilantroId));
+    expect(tickRes.status).toBe(200); // not 404 — GET's persisted recompute kept a live _id
+    const { groceryList: ticked } = (await tickRes.json()) as { groceryList: { items: GLItem[] } };
+    expect(ticked.items.find((i) => i._id === cilantroId)?.purchasedOn).toBeTruthy();
+  });
+});

@@ -122,7 +122,11 @@ export function GroceryListProvider({ children }: { children: ReactNode }): Reac
           : await checkOffGroceryItem(currentWeekStart, itemId);
         setGroceryList(updated);
       } catch (err) {
-        if (err instanceof Error && err.message.includes(': 409')) {
+        // Spec 008 (research D7): an un-tick can fail either because the row is in the
+        // wrong state (409, unchanged 007 case) or because it already shed off the
+        // rolling list (404 — the row is gone). Both are "cannot reverse, refetch" with
+        // no distinct UI branch, so they're handled identically here.
+        if (err instanceof Error && (err.message.includes(': 409') || err.message.includes(': 404'))) {
           await refresh();
           return;
         }

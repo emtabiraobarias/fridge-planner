@@ -7,7 +7,9 @@ process.env['TZ'] = 'Australia/Sydney'; // UTC+10 in July (no DST); rollover is 
 
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { startOfTodayCutoff, reconcileRollingList } from '@server/lib/rolling-grocery';
+import { generateGroceryList } from '@server/lib/grocery-list-generator';
 import type { IGroceryListItem } from '@server/types/grocery-list';
+import type { IMealPlan } from '@server/types/meal-plan';
 
 afterAll(() => {
   if (ORIGINAL_TZ === undefined) delete process.env['TZ'];
@@ -55,6 +57,57 @@ describe('startOfTodayCutoff', () => {
     expect(cutoff.toISOString()).toBe('2026-07-16T00:00:00.000Z'); // local-day rollover
     expect(meal15.getTime() >= cutoff.getTime()).toBe(false); // yesterday → shed
     expect(meal16.getTime() >= cutoff.getTime()).toBe(true); // today → still in scope
+  });
+});
+
+// ——— T028: full generateGroceryList pipeline at the same 23:59/00:01 local rollover
+// (research D3) — the startOfTodayCutoff test above already locks down the raw
+// cutoff-vs-Date comparison; this closes the gap to an actual meal-plan-entry-style
+// date flowing through the real date-scope filter used by US1/US3 (FR-RG-001/010). ———
+
+function planWithEntry(date: Date): IMealPlan {
+  return {
+    userId: 'user-1',
+    weekStart: new Date('2026-07-13T00:00:00.000Z'),
+    entries: [
+      {
+        slotId: 'boundary-slot',
+        date,
+        mealType: 'dinner',
+        status: 'planned',
+        meal: {
+          mealName: 'Boundary Tacos',
+          suggestedMealType: 'dinner',
+          prepTimeMinutes: 20,
+          cuisine: 'Test',
+          description: '',
+          usesIngredients: [],
+          expiringIngredients: [],
+          missingIngredients: ['cilantro'],
+        },
+      },
+    ],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as unknown as IMealPlan;
+}
+
+describe('generateGroceryList date scope at the local 23:59/00:01 boundary (T028, research D3)', () => {
+  it('keeps a today UTC-midnight-authored entry in scope at 23:59 local, sheds it at 00:01 local across the same rollover', () => {
+    const meal15 = new Date('2026-07-15T00:00:00.000Z'); // entry authored at UTC midnight for "the 15th"
+
+    // 23:59 local Sydney on the 15th (2026-07-15T13:59Z) — local day is still the 15th.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T13:59:00.000Z'));
+    let asOf = startOfTodayCutoff();
+    let result = generateGroceryList(planWithEntry(meal15), [], asOf);
+    expect(result.items.find((i) => i.ingredientName === 'cilantro')).toBeDefined(); // still today → in scope
+
+    // 00:01 local Sydney on the 16th (2026-07-15T14:01Z) — local day rolled to the 16th.
+    vi.setSystemTime(new Date('2026-07-15T14:01:00.000Z'));
+    asOf = startOfTodayCutoff();
+    result = generateGroceryList(planWithEntry(meal15), [], asOf);
+    expect(result.items.find((i) => i.ingredientName === 'cilantro')).toBeUndefined(); // now yesterday → shed
   });
 });
 
