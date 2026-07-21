@@ -98,6 +98,38 @@ steps:
       stack env (Path A) or ensure the host .env exists (Path B). Deploy. Docs: https://docs.portainer.io/user/docker/stacks/add
     done_when: "All services (caddy, app, mongodb, holodeck, holodeck-feedback, keycloak, keycloak-db) show Running."
 
+  - id: s7b-gitops-poll
+    title: "Enable Portainer GitOps auto-update (CD automation, DECIDED 2026-07-21)"
+    stage: 1
+    mode: manual
+    depends_on: [s7-deploy-stack]
+    prompt: |
+      DECIDED (2026-07-21, supersedes the plain "manual Pull and redeploy" default): rather than a
+      self-hosted runner or a Business-only stack webhook, use Portainer CE's built-in GitOps
+      polling so releases roll out with no per-release Portainer click. Every image in
+      docker-compose.prod.yml already defaults to `:latest` (app / holodeck / holodeck-feedback),
+      and every release workflow (deploy-nextjs.yml, agent-image.yml, feedback-agent-image.yml)
+      already publishes `:latest` on tag push — the stack just needs to re-pull + redeploy on an
+      interval to pick new releases up automatically. A useful side effect: because Portainer
+      redeploys the WHOLE stack together on each forced poll, the app and agent images are
+      re-pulled in lockstep — the exact app/agent version-pairing mismatch that spec 006's release
+      required careful manual sequencing to avoid is far less likely to recur.
+
+      One-time setup, Portainer -> Stacks -> fridge-planner -> "GitOps updates" (label may vary
+      by Portainer version — could be "Automatic updates"):
+        1. Enable automatic updates, mechanism = Polling (Webhook is Business-only — leave it off).
+        2. Set a poll interval (5 min is a reasonable default for a single internal-LAN node).
+        3. Enable "Force update" / "Re-pull image" (exact label varies) — REQUIRED, because a
+           floating `:latest` tag means the compose TEXT never changes between releases; only the
+           image digest does, so Portainer must re-pull rather than diff the git content.
+        4. Confirm the stack env does NOT pin APP_IMAGE / AGENT_IMAGE / FEEDBACK_AGENT_IMAGE to a
+           specific version — leave them unset (or explicitly `:latest`) so the compose default
+           applies and polling has something new to pick up on the next release. Pinning a
+           version remains the documented ROLLBACK mechanism (docs/deployment.md) — just remember
+           to unpin afterwards or auto-update will silently override it back to `:latest`.
+      Report back the poll interval you set so it can be recorded in deploy/state.json.
+    done_when: "Automatic updates is ON, polling (not webhook), force-update/re-pull enabled, and no image env var is pinned to a specific version in the stack."
+
   - id: s1-trust-ca
     title: Trust Caddy internal CA on the test machine
     stage: 1
