@@ -146,8 +146,16 @@ describe('GET grocery-lists/[weekStart]', () => {
     expect(((await res.json()) as { groceryList: unknown }).groceryList).toBeNull();
   });
 
-  it('lazily generates a list from the meal plan on first GET', async () => {
-    await seedMealPlan();
+  // Spec 008 US3: GET now recomputes on every view within the rolling (today-onwards)
+  // scope (FR-RG-001/002), not a generate-once lazy create. `validMealEntry`'s fixed
+  // 2026-04-06 date is in the past by the time this suite runs, so these two cases
+  // (previously seeded via `seedMealPlan()`'s past-dated default) are re-anchored to
+  // an in-scope date via `utcMidnightOffset` — otherwise they'd assert on a list that
+  // the rolling scope correctly empties (see the dedicated FR-RG-009 case below for
+  // that scenario). Not a weakening: this is the contract-correct re-anchor noted in
+  // quickstart.md T002.
+  it('generates a list from the meal plan on GET when the entry is in scope', async () => {
+    await seedMealPlan(USER_A, [{ ...validMealEntry, date: utcMidnightOffset(0).toISOString() }]);
     const res = await GET(req(), wk());
     expect(res.status).toBe(200);
     const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[]; generatedAt: string } };
@@ -155,8 +163,11 @@ describe('GET grocery-lists/[weekStart]', () => {
     expect(groceryList.generatedAt).toBeTruthy();
   });
 
-  it('aggregates the same ingredient across multiple meals', async () => {
-    await seedMealPlan(USER_A, [validMealEntry, secondMealEntry]);
+  it('aggregates the same ingredient across multiple in-scope meals', async () => {
+    await seedMealPlan(USER_A, [
+      { ...validMealEntry, date: utcMidnightOffset(0).toISOString() },
+      { ...secondMealEntry, date: utcMidnightOffset(1).toISOString() },
+    ]);
     const res = await GET(req(), wk());
     const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[] } };
     const soy = groceryList.items.find((i) => i.ingredientName === 'soy sauce');
@@ -337,6 +348,138 @@ describe('POST grocery-lists/[weekStart]/generate — rolling date scope (spec 0
     const kombu = groceryList.items.find((i) => i.ingredientName === 'kombu');
     expect(kombu?._id).toBe(originalId); // id preserved → in-flight ticks stay valid
     expect(kombu?.quantity).toBe(1); // requantified to the single in-scope meal
+  });
+});
+
+// ——— Spec 008 US3: GET recompute-on-view (FR-RG-002/008/009, T022/T023) ———
+
+describe('GET grocery-lists/[weekStart] — rolling recompute-on-view (spec 008 US3)', () => {
+  it('recomputes a stale stored document to reflect today scope on GET, no explicit regenerate (FR-RG-002 scenario 1)', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(1),
+          missing: ['kombu'],
+          mealName: 'Future Dinner',
+          slotId: 'aaaaaaaa-1111-4111-8111-111111111111',
+        }),
+      ],
+    });
+    // A document as it stood "yesterday": a generated-only row for a since-passed
+    // meal's ingredient, and no row yet for tomorrow's kombu.
+    await GroceryList.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      items: [
+        {
+          ingredientName: 'nori',
+          displayName: 'Nori',
+          quantity: 3,
+          unit: 'servings',
+          category: 'Other',
+          isPurchased: false,
+          isManuallyAdded: false,
+          sourceMealNames: ['Gone Meal'],
+          notes: '',
+        },
+      ],
+      generatedAt: new Date(),
+    });
+
+    const res = await GET(req(), wk());
+    expect(res.status).toBe(200);
+    const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[] } };
+    expect(groceryList.items.find((i) => i.ingredientName === 'nori')).toBeUndefined();
+    expect(groceryList.items.find((i) => i.ingredientName === 'kombu')).toBeDefined();
+  });
+
+  it('GET and a subsequent force-generate at the same instant return identical items (FR-RG-002 scenario 2)', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(1),
+          missing: ['kombu'],
+          mealName: 'Future Dinner',
+          slotId: 'bbbbbbbb-2222-4222-8222-222222222222',
+        }),
+      ],
+    });
+
+    const getRes = await GET(req(), wk());
+    expect(getRes.status).toBe(200);
+    const { groceryList: getList } = (await getRes.json()) as { groceryList: { items: GLItem[] } };
+
+    const genRes = await GENERATE(req({ method: 'POST' }), wk());
+    expect(genRes.status).toBe(200);
+    const { groceryList: genList } = (await genRes.json()) as { groceryList: { items: GLItem[] } };
+
+    expect(genList.items).toEqual(getList.items);
+  });
+
+  it('a future week GET counts all its planned meals (FR-RG-002 scenario 3)', async () => {
+    const futureWeek = utcMidnightOffset(30).toISOString();
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(futureWeek),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(31),
+          missing: ['kombu'],
+          mealName: 'Future Meal One',
+          slotId: 'cccccccc-3333-4333-8333-333333333333',
+        }),
+        datedEntry({
+          date: utcMidnightOffset(32),
+          missing: ['kombu'],
+          mealName: 'Future Meal Two',
+          slotId: 'dddddddd-4444-4444-8444-444444444444',
+        }),
+      ],
+    });
+
+    const res = await GET(req(), wk(futureWeek));
+    expect(res.status).toBe(200);
+    const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[] } };
+    const kombu = groceryList.items.find((i) => i.ingredientName === 'kombu');
+    expect(kombu?.quantity).toBe(2);
+    expect(kombu?.sourceMealNames).toEqual(['Future Meal One', 'Future Meal Two']);
+  });
+
+  it('a fully-past week recomputes to empty generated needs — no browsable history (FR-RG-009)', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(-2),
+          missing: ['soy sauce'],
+          mealName: 'Long Gone Dinner',
+          slotId: 'eeeeeeee-5555-4555-8555-555555555555',
+        }),
+        datedEntry({
+          date: utcMidnightOffset(-1),
+          missing: ['sriracha'],
+          mealName: 'Yesterday Dinner',
+          slotId: 'ffffffff-6666-4666-8666-666666666666',
+        }),
+      ],
+    });
+
+    const res = await GET(req(), wk());
+    expect(res.status).toBe(200);
+    const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[] } | null };
+    expect(groceryList).not.toBeNull();
+    expect(groceryList?.items).toEqual([]);
+  });
+
+  it('still returns { groceryList: null } when no meal plan and no stored list exist for the week (unchanged null path)', async () => {
+    const res = await GET(req(), wk());
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { groceryList: unknown }).groceryList).toBeNull();
   });
 });
 

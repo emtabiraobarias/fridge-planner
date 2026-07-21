@@ -1,8 +1,8 @@
 import 'server-only';
 import mongoose from 'mongoose';
 import { z } from 'zod';
-import { GroceryList } from '../models/grocery-list';
-import { MealPlan } from '../models/meal-plan';
+import { GroceryList, type GroceryListDocument } from '../models/grocery-list';
+import { MealPlan, type MealPlanDocument } from '../models/meal-plan';
 import { InventoryItem, CATEGORIES, LOCATIONS } from '../models/inventory-item';
 import { generateGroceryList } from '../lib/grocery-list-generator';
 import { reconcileRollingList, startOfTodayCutoff } from '../lib/rolling-grocery';
@@ -268,30 +268,61 @@ function invalidInput(error: z.ZodError): ControllerResult {
   return problem(400, 'Invalid input', error.issues.map((i) => i.message).join('; '));
 }
 
-// GET /api/v1/grocery-lists/:weekStart — fetch; lazily generate from meal plan if absent
+/**
+ * Spec 008 D2/US1/US3: the one date-scoped recompute path shared by GET
+ * (recompute-on-view) and force-generate. Scopes fresh needs to today-onwards
+ * (`asOf`, FR-RG-001), reconciles them in place against `existing` so surviving
+ * generated rows keep their `_id` (FR-RG-006/007), day-anchor-sheds/preserves
+ * sticky rows (FR-RG-004/005), and persists the result (extends the 007 lazy
+ * upsert) so manual and automatic refresh converge (FR-RG-002/008).
+ *
+ * `mealPlan` is `null` when the week has no plan at all — treated as zero
+ * in-scope entries (fresh generated needs = []) rather than an error, so a
+ * still-sticky document (e.g. manual items added after a plan was cleared)
+ * keeps reconciling correctly. Callers that require a plan (force-generate)
+ * check for one before calling this.
+ */
+async function recomputeRollingList(
+  userId: string,
+  weekStart: Date,
+  mealPlan: MealPlanDocument | null,
+  existing: GroceryListDocument | null,
+): Promise<GroceryListDocument | null> {
+  const asOf = startOfTodayCutoff();
+  const inventory = await InventoryItem.find({ userId, ...notExpiredQuery() });
+  const { items: generatedItems, generatedAt } = mealPlan
+    ? generateGroceryList(mealPlan, inventory, asOf)
+    : { items: [] as IGroceryListItem[], generatedAt: new Date() };
+
+  // .toObject() → plain items (never spread hydrated subdocs, per the 006 bug).
+  const existingItems: IGroceryListItem[] = existing ? existing.toObject().items : [];
+  const merged = reconcileRollingList(existingItems, generatedItems, asOf);
+
+  return GroceryList.findOneAndUpdate(
+    { userId, weekStart },
+    { $set: { items: merged, generatedAt } },
+    { upsert: true, new: true },
+  );
+}
+
+// GET /api/v1/grocery-lists/:weekStart — recomputes on every view (spec 008 US3)
 export async function getGroceryList(userId: string, weekStartParam: string): Promise<ControllerResult> {
   const parsed = parseWeekStart(weekStartParam);
   if ('error' in parsed) return parsed.error;
   const { weekStart } = parsed;
 
-  const existing = await GroceryList.findOne({ userId, weekStart });
-  if (existing) return { status: 200, body: { groceryList: existing } };
+  const [existing, mealPlan] = await Promise.all([
+    GroceryList.findOne({ userId, weekStart }),
+    MealPlan.findOne({ userId, weekStart }),
+  ]);
+  // FR-RG contract: no plan and no stored document yet → still null, no recompute.
+  if (!existing && !mealPlan) return { status: 200, body: { groceryList: null } };
 
-  const mealPlan = await MealPlan.findOne({ userId, weekStart });
-  if (!mealPlan) return { status: 200, body: { groceryList: null } };
-
-  const inventory = await InventoryItem.find({ userId, ...notExpiredQuery() });
-  const { items, generatedAt } = generateGroceryList(mealPlan, inventory);
-
-  const list = await GroceryList.findOneAndUpdate(
-    { userId, weekStart },
-    { $set: { items, generatedAt } },
-    { upsert: true, new: true },
-  );
+  const list = await recomputeRollingList(userId, weekStart, mealPlan, existing);
   return { status: 200, body: { groceryList: list } };
 }
 
-// POST /:weekStart/generate — force-regenerate; preserves manually-added items
+// POST /:weekStart/generate — force-regenerate; shares the rolling recompute path with GET
 export async function regenerateGroceryList(userId: string, weekStartParam: string): Promise<ControllerResult> {
   const parsed = parseWeekStart(weekStartParam);
   if ('error' in parsed) return parsed.error;
@@ -300,22 +331,8 @@ export async function regenerateGroceryList(userId: string, weekStartParam: stri
   const mealPlan = await MealPlan.findOne({ userId, weekStart });
   if (!mealPlan) return problem(404, 'Not Found', 'No meal plan found for this week');
 
-  // Spec 008 US1: scope generation to today-onwards and reconcile in place so
-  // surviving generated rows keep their _id (FR-RG-001/006/007).
-  const asOf = startOfTodayCutoff();
-  const inventory = await InventoryItem.find({ userId, ...notExpiredQuery() });
-  const { items: generatedItems, generatedAt } = generateGroceryList(mealPlan, inventory, asOf);
-
   const existing = await GroceryList.findOne({ userId, weekStart });
-  // .toObject() → plain items (never spread hydrated subdocs, per the 006 bug).
-  const existingItems: IGroceryListItem[] = existing ? existing.toObject().items : [];
-  const merged = reconcileRollingList(existingItems, generatedItems, asOf);
-
-  const list = await GroceryList.findOneAndUpdate(
-    { userId, weekStart },
-    { $set: { items: merged, generatedAt } },
-    { upsert: true, new: true },
-  );
+  const list = await recomputeRollingList(userId, weekStart, mealPlan, existing);
   return { status: 200, body: { groceryList: list } };
 }
 

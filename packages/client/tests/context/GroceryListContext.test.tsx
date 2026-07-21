@@ -63,13 +63,15 @@ const mockList: GroceryList = {
 };
 
 function TestConsumer(): React.JSX.Element {
-  const { groceryList, loading, error, generate, togglePurchased, purchaseItem, removeItem } = useGroceryList();
+  const { groceryList, loading, error, refresh, generate, togglePurchased, purchaseItem, removeItem } =
+    useGroceryList();
 
   return (
     <div>
       <span data-testid="loading">{loading ? 'loading' : 'idle'}</span>
       <span data-testid="error">{error}</span>
       <span data-testid="count">{groceryList?.items.length ?? 0}</span>
+      <button onClick={() => { void refresh(); }}>Refresh</button>
       <button onClick={() => { void generate(); }}>Generate</button>
       <button onClick={() => { void togglePurchased('item-1', false); }}>Toggle</button>
       <button onClick={() => { void togglePurchased('item-1', true); }}>Uncheck</button>
@@ -192,6 +194,29 @@ describe('GroceryListContext', () => {
 
     expect(mockDelete).toHaveBeenCalledWith(expect.any(String), 'item-1');
     await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('0'));
+  });
+
+  // ——— Spec 008 US3 (T024): GET now recomputes server-side on every view; the
+  // context must stay a thin server-trusting pass-through — no client-side date
+  // scoping/filtering of items, on either the initial fetch or an explicit refresh.
+  it('surfaces exactly the server-recomputed list on initial fetch and on refresh, with no client-side date logic (FR-RG-002)', async () => {
+    const staleSnapshot: GroceryList = { ...mockList, items: [] };
+    const recomputed: GroceryList = mockList;
+    mockFetch.mockResolvedValueOnce(staleSnapshot).mockResolvedValueOnce(recomputed);
+
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+    // Initial fetch surfaces whatever the server returned, verbatim.
+    expect(screen.getByTestId('count').textContent).toBe('0');
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Refresh' }).click();
+    });
+
+    // A later refresh (e.g. the server recomputed today's scope) is surfaced
+    // verbatim too — the context applies no date/scope logic of its own.
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it('re-fetches when currentWeekStart changes', async () => {

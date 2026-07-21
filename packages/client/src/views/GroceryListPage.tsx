@@ -270,7 +270,7 @@ export function GroceryListPage(): React.JSX.Element {
         <div className="rounded-lg border border-dashed border-divider py-12 text-center">
           <p className="text-muted text-sm">No grocery items yet.</p>
           <p className="text-muted mt-1 text-xs">
-            Plan meals for this week and tap Regenerate, or add something below.
+            Plan meals for this week — your list updates automatically, or add something below.
           </p>
         </div>
       )}
