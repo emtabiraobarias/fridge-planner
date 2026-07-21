@@ -32,6 +32,7 @@ export interface IGroceryListItem {
   isManuallyAdded: boolean;
   sourceMealNames: string[];
   notes: string;
+  purchaseReceipt?: PurchaseReceipt;
 }
 
 export interface IGroceryList {
@@ -41,4 +42,18 @@ export interface IGroceryList {
   generatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface PurchaseReceipt {
+  inventoryItemId: string;
+  quantityAdded: number;
+  unit: string;
+  merged: boolean;
+}
+
+export interface ResolvedPurchaseInput {
+  quantity: number;
+  unit: string;
+  location: 'fridge' | 'freezer' | 'pantry';
+  expiresAt?: string;
 }

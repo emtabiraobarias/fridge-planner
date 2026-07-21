@@ -7,6 +7,7 @@ import { useMealPlan } from '../context/MealPlanContext';
 import { useToast } from '../context/ToastContext';
 import { GroceryListItemRow } from '../components/grocery/GroceryListItemRow';
 import { parseQuick, parseQuickAll, type ParsedQuickItem } from '../lib/quick-parse';
+import { defaultLocationForCategory } from '../lib/category-location';
 import {
   applyOverrides,
   setOverride,
@@ -15,8 +16,14 @@ import {
 } from '../lib/quick-add-overrides';
 import { ParsePreview } from '../components/shared/ParsePreview';
 import { useQuickAdd } from '../context/QuickAddContext';
-import type { GroceryListItem, CompleteItemPayload, GroceryCategory } from '../types/grocery-list';
+import { PurchasePromptSheet } from '../components/grocery/PurchasePromptSheet';
+import type {
+  GroceryListItem,
+  GroceryCategory,
+  ResolvedPurchaseInput,
+} from '../types/grocery-list';
 import { GROCERY_CATEGORIES } from '../types/grocery-list';
+import type { InventoryItem } from '../services/inventory';
 
 function weekLabel(weekStart: string): string {
   if (!weekStart) return '';
@@ -30,22 +37,87 @@ function weekLabel(weekStart: string): string {
 const pluralS = (n: number): string => (n === 1 ? '' : 's');
 const groceryUnit = (unit: string): string => (unit === 'count' ? 'servings' : unit);
 
-/** Build the checkout payload that moves purchased items into inventory. */
-function toCheckoutPayload(purchased: GroceryListItem[]): CompleteItemPayload[] {
-  return purchased.map((i) => ({
-    itemId: i._id,
-    name: i.displayName,
-    quantity: i.quantity,
-    unit: i.unit,
-    category: i.category,
-    location: parseQuick(i.displayName)?.location ?? 'fridge',
-  }));
+interface PurchasePromptState {
+  item: GroceryListItem;
+  parsed: ParsedQuickItem;
+  suggestedExpiresAt?: string;
+}
+
+function itemNameKey(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function hasSameNameAvailableInventory(item: GroceryListItem, inventoryItems: InventoryItem[]): boolean {
+  const displayKey = itemNameKey(item.displayName);
+  const ingredientKey = itemNameKey(item.ingredientName);
+  return inventoryItems.some((inventoryItem) => {
+    const inventoryKey = itemNameKey(inventoryItem.name);
+    return inventoryItem.expirationStatus !== 'expired' && [displayKey, ingredientKey].includes(inventoryKey);
+  });
+}
+
+function parsedGroceryItem(item: GroceryListItem): ParsedQuickItem {
+  const parsed = parseQuick(item.displayName);
+  return {
+    name: item.displayName,
+    quantity: item.quantity,
+    unit: item.unit,
+    category: item.category,
+    location: defaultLocationForCategory(item.category),
+    expiresAt: null,
+    provenance: {
+      quantity: 'explicit',
+      unit: 'guess',
+      category: parsed?.provenance.category ?? 'guess',
+      location: 'guess',
+      expiresAt: 'guess',
+    },
+    ...(parsed?.suggestedExpiresAt ? { suggestedExpiresAt: parsed.suggestedExpiresAt } : {}),
+  };
+}
+
+function promptStateForItem(
+  item: GroceryListItem,
+  inventoryItems: InventoryItem[],
+  enhance: (items: ParsedQuickItem[]) => ParsedQuickItem[],
+): PurchasePromptState | null {
+  if (item.unit !== 'servings' || hasSameNameAvailableInventory(item, inventoryItems)) return null;
+  const [enhanced] = enhance([parsedGroceryItem(item)]);
+  if (!enhanced || enhanced.provenance.unit === 'learned') return null;
+  return {
+    item,
+    parsed: enhanced,
+    ...(enhanced.suggestedExpiresAt ? { suggestedExpiresAt: enhanced.suggestedExpiresAt } : {}),
+  };
+}
+
+function PurchasePromptOverlay({
+  prompt,
+  onCancel,
+  onConfirm,
+}: {
+  prompt: PurchasePromptState | null;
+  onCancel: () => void;
+  onConfirm: (resolvedPurchase: ResolvedPurchaseInput) => void;
+}): React.JSX.Element | null {
+  if (!prompt) return null;
+  return (
+    <PurchasePromptSheet
+      itemName={prompt.item.displayName}
+      quantity={prompt.item.quantity}
+      unit="count"
+      location={defaultLocationForCategory(prompt.item.category)}
+      {...(prompt.suggestedExpiresAt ? { suggestedExpiresAt: prompt.suggestedExpiresAt } : {})}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
+  );
 }
 
 export function GroceryListPage(): React.JSX.Element {
-  const { groceryList, loading, error, generate, addItem, removeItem, togglePurchased, completeSession } =
+  const { groceryList, loading, error, generate, addItem, removeItem, purchaseItem, togglePurchased, completeSession } =
     useGroceryList();
-  const { refresh: refreshInventory } = useInventory();
+  const { items: inventoryItems, refresh: refreshInventory } = useInventory();
   const { currentWeekStart } = useMealPlan();
   const { showToast } = useToast();
 
@@ -53,6 +125,7 @@ export function GroceryListPage(): React.JSX.Element {
   const [generating, setGenerating] = useState(false);
   const [text, setText] = useState('');
   const [overrides, setOverrides] = useState<OverrideMap>({});
+  const [purchasePrompt, setPurchasePrompt] = useState<PurchasePromptState | null>(null);
   const enhanced = enhance(parseQuickAll(text));
   const { items: parsedPreview } = applyOverrides(enhanced, overrides);
 
@@ -64,6 +137,7 @@ export function GroceryListPage(): React.JSX.Element {
 
   const items = groceryList?.items ?? [];
   const purchased = items.filter((i) => i.isPurchased);
+  const receiptless = items.filter((i) => !i.purchaseReceipt);
   const pct = items.length ? Math.round((purchased.length / items.length) * 100) : 0;
   const categories = GROCERY_CATEGORIES.filter((c) => items.some((i) => i.category === c));
 
@@ -101,9 +175,34 @@ export function GroceryListPage(): React.JSX.Element {
     setOverrides({});
   }
 
+  async function handleTogglePurchased(item: GroceryListItem): Promise<void> {
+    if (item.isPurchased) {
+      await togglePurchased(item._id, true);
+      await refreshInventory();
+      return;
+    }
+
+    const prompt = promptStateForItem(item, inventoryItems, enhance);
+    if (prompt) {
+      setPurchasePrompt(prompt);
+      return;
+    }
+
+    await purchaseItem(item._id);
+    await refreshInventory();
+  }
+
+  async function handleConfirmPurchase(resolvedPurchase: ResolvedPurchaseInput): Promise<void> {
+    if (!purchasePrompt) return;
+    await purchaseItem(purchasePrompt.item._id, resolvedPurchase);
+    await refreshInventory();
+    recordCorrection(purchasePrompt.parsed, 'unit', resolvedPurchase.unit);
+    setPurchasePrompt(null);
+  }
+
   async function handleCheckout(): Promise<void> {
-    const count = purchased.length;
-    const result = await completeSession(toCheckoutPayload(purchased));
+    const count = receiptless.length;
+    const result = await completeSession();
     await refreshInventory();
     if (result.errors.length > 0) {
       showToast(`Some items could not be moved: ${result.errors.length} error(s)`);
@@ -188,7 +287,7 @@ export function GroceryListPage(): React.JSX.Element {
                   key={item._id}
                   item={item}
                   last={i === rows.length - 1}
-                  onTogglePurchased={(id, cur) => void togglePurchased(id, cur)}
+                  onTogglePurchased={() => void handleTogglePurchased(item)}
                   onRemove={(id) => void removeItem(id)}
                 />
               ))}
@@ -223,15 +322,21 @@ export function GroceryListPage(): React.JSX.Element {
       <ParsePreview items={parsedPreview} onCorrect={handleCorrect} showLocation={false} showExpiry={false} />
 
       {/* Inline checkout */}
-      {purchased.length > 0 && (
+      {receiptless.length > 0 && (
         <button
           type="button"
           onClick={() => void handleCheckout()}
           className="min-h-[48px] w-full rounded-full bg-accent text-[15px] font-semibold text-bg hover:bg-accent-600"
         >
-          Done shopping — move {purchased.length} item{pluralS(purchased.length)} into my kitchen
+          Done shopping — move {receiptless.length} item{pluralS(receiptless.length)} into my kitchen
         </button>
       )}
+
+      <PurchasePromptOverlay
+        prompt={purchasePrompt}
+        onCancel={() => setPurchasePrompt(null)}
+        onConfirm={(resolvedPurchase) => void handleConfirmPurchase(resolvedPurchase)}
+      />
     </div>
   );
 }

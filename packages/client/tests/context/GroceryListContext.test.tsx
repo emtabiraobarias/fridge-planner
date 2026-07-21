@@ -10,6 +10,7 @@ vi.mock('../../src/services/grocery-lists', () => ({
   generateGroceryList: vi.fn(),
   addGroceryItem: vi.fn(),
   patchGroceryItem: vi.fn(),
+  checkOffGroceryItem: vi.fn(),
   deleteGroceryItem: vi.fn(),
   completeGroceryList: vi.fn(),
 }));
@@ -27,6 +28,7 @@ import {
   generateGroceryList,
   addGroceryItem,
   patchGroceryItem,
+  checkOffGroceryItem,
   deleteGroceryItem,
 } from '../../src/services/grocery-lists';
 
@@ -34,6 +36,7 @@ const mockFetch = vi.mocked(fetchGroceryList);
 const mockGenerate = vi.mocked(generateGroceryList);
 const mockAdd = vi.mocked(addGroceryItem);
 const mockPatch = vi.mocked(patchGroceryItem);
+const mockCheckOff = vi.mocked(checkOffGroceryItem);
 const mockDelete = vi.mocked(deleteGroceryItem);
 
 const mockList: GroceryList = {
@@ -60,7 +63,7 @@ const mockList: GroceryList = {
 };
 
 function TestConsumer(): React.JSX.Element {
-  const { groceryList, loading, error, generate, togglePurchased, removeItem } = useGroceryList();
+  const { groceryList, loading, error, generate, togglePurchased, purchaseItem, removeItem } = useGroceryList();
 
   return (
     <div>
@@ -69,6 +72,14 @@ function TestConsumer(): React.JSX.Element {
       <span data-testid="count">{groceryList?.items.length ?? 0}</span>
       <button onClick={() => { void generate(); }}>Generate</button>
       <button onClick={() => { void togglePurchased('item-1', false); }}>Toggle</button>
+      <button onClick={() => { void togglePurchased('item-1', true); }}>Uncheck</button>
+      <button
+        onClick={() => {
+          void purchaseItem('item-1', { quantity: 2, unit: 'pack', location: 'pantry' });
+        }}
+      >
+        Resolve
+      </button>
       <button onClick={() => { void removeItem('item-1'); }}>Remove</button>
     </div>
   );
@@ -91,6 +102,7 @@ describe('GroceryListContext', () => {
     mockGenerate.mockResolvedValue(mockList);
     mockAdd.mockResolvedValue(mockList);
     mockPatch.mockResolvedValue(mockList);
+    mockCheckOff.mockResolvedValue(mockList);
     mockDelete.mockResolvedValue({ ...mockList, items: [] });
   });
 
@@ -120,7 +132,7 @@ describe('GroceryListContext', () => {
     expect(mockGenerate).toHaveBeenCalledTimes(1);
   });
 
-  it('togglePurchased calls patchGroceryItem with flipped value', async () => {
+  it('togglePurchased calls checkOffGroceryItem for unpurchased rows', async () => {
     render(<Wrapper />);
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
 
@@ -128,11 +140,46 @@ describe('GroceryListContext', () => {
       screen.getByRole('button', { name: 'Toggle' }).click();
     });
 
-    expect(mockPatch).toHaveBeenCalledWith(
-      expect.any(String),
-      'item-1',
-      { isPurchased: true },
-    );
+    expect(mockCheckOff).toHaveBeenCalledWith(expect.any(String), 'item-1');
+  });
+
+  it('re-fetches after a purchase transition race returns 409 (FR-GC-002)', async () => {
+    mockCheckOff.mockRejectedValueOnce(new Error('Failed to update grocery item: 409'));
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Toggle' }).click();
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('togglePurchased calls patchGroceryItem to uncheck purchased rows (FR-GC-007)', async () => {
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Uncheck' }).click();
+    });
+
+    expect(mockPatch).toHaveBeenCalledWith(expect.any(String), 'item-1', { isPurchased: false });
+  });
+
+  it('purchaseItem forwards resolved prompt payloads (FR-GC-009)', async () => {
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('idle'));
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Resolve' }).click();
+    });
+
+    expect(mockCheckOff).toHaveBeenCalledWith(expect.any(String), 'item-1', {
+      quantity: 2,
+      unit: 'pack',
+      location: 'pantry',
+    });
   });
 
   it('removeItem calls deleteGroceryItem', async () => {

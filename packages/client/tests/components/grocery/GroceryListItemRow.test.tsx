@@ -46,6 +46,22 @@ describe('GroceryListItemRow (organic)', () => {
     expect(screen.getByText('Soy Sauce').className).toContain('line-through');
   });
 
+  it('shows when a purchased receipt has moved the item into Kitchen', () => {
+    renderRow({
+      item: {
+        ...mockItem,
+        isPurchased: true,
+        purchaseReceipt: {
+          inventoryItemId: 'inv-1',
+          quantityAdded: 2,
+          unit: 'servings',
+          merged: false,
+        },
+      },
+    });
+    expect(screen.getByText('in Kitchen')).toBeInTheDocument();
+  });
+
   it('removes the item', () => {
     const onRemove = vi.fn();
     renderRow({ onRemove });

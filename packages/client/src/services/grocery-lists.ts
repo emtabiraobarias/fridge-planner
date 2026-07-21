@@ -2,6 +2,7 @@ import type {
   GroceryList,
   AddGroceryItemPayload,
   PatchGroceryItemPayload,
+  ResolvedPurchaseInput,
   CompleteItemPayload,
   CompleteResult,
 } from '../types/grocery-list';
@@ -52,6 +53,17 @@ export async function patchGroceryItem(
   return data.groceryList;
 }
 
+export async function checkOffGroceryItem(
+  weekStart: string,
+  itemId: string,
+  resolvedPurchase?: ResolvedPurchaseInput,
+): Promise<GroceryList> {
+  return patchGroceryItem(weekStart, itemId, {
+    isPurchased: true,
+    ...(resolvedPurchase ? { resolvedPurchase } : {}),
+  });
+}
+
 export async function deleteGroceryItem(weekStart: string, itemId: string): Promise<GroceryList> {
   const res = await apiFetch(`${BASE}/${weekStart}/items/${itemId}`, { method: 'DELETE' });
   ensureOk(res, "delete grocery item");
@@ -61,7 +73,7 @@ export async function deleteGroceryItem(weekStart: string, itemId: string): Prom
 
 export async function completeGroceryList(
   weekStart: string,
-  items: CompleteItemPayload[],
+  items: CompleteItemPayload[] = [],
 ): Promise<CompleteResult> {
   const res = await apiFetch(`${BASE}/${weekStart}/complete`, {
     method: 'POST',

@@ -160,9 +160,9 @@ Rate limit: **10 req/min** for `/recommendations` (30/min for `verify-links`; 20
 | GET | `/grocery-lists/:weekStart` | Fetch list; lazily generates from meal plan if none exists |
 | POST | `/grocery-lists/:weekStart/generate` | Force-regenerate list (preserves manually-added items) |
 | POST | `/grocery-lists/:weekStart/items` | Add a manual item |
-| PATCH | `/grocery-lists/:weekStart/items/:itemId` | Update item (checked state, quantity, etc.) |
+| PATCH | `/grocery-lists/:weekStart/items/:itemId` | Update item fields, or spec 007 purchase lifecycle: `{isPurchased:true, resolvedPurchase?}` immediately adds/merges Kitchen inventory with a `purchaseReceipt`; `{isPurchased:false}` reverses from the stored receipt and returns 409 for receipt-less legacy rows |
 | DELETE | `/grocery-lists/:weekStart/items/:itemId` | Remove item |
-| POST | `/grocery-lists/:weekStart/complete` | Checkout — mark list complete and consume inventory |
+| POST | `/grocery-lists/:weekStart/complete` | Checkout finalizer: server loads the list, skips receipted rows, applies purchase rules to receipt-less rows, stores receipts, and marks rows purchased |
 
 All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
 
@@ -219,12 +219,18 @@ All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
     isManuallyAdded: boolean;
     sourceMealNames: string[]; // which meals need this ingredient
     notes: string;
+    purchaseReceipt?: {
+      inventoryItemId: string;
+      quantityAdded: number;
+      unit: string;
+      merged: boolean;
+    };
   }[];
 }
 ```
 - Compound unique index on `(userId, weekStart)`
 - Lazily created on first GET; `POST /:weekStart/generate` force-regenerates while preserving `isManuallyAdded` items
-- `POST /:weekStart/complete` marks all items purchased and triggers inventory consumption
+- Spec 007 grocery check-off is inventory-positive: ticking a row immediately adds/merges inventory and stores `purchaseReceipt`; un-ticking reverses from that receipt; checkout only adds receipt-less remaining rows and skips rows already added to Kitchen
 
 ---
 

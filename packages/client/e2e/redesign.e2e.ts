@@ -70,17 +70,18 @@ test('Groceries: add, check, and inline checkout', async ({ page }) => {
 
   // Manual NL quick-add (parser).
   const add = page.getByLabel('Add grocery item');
-  await add.fill('2 lemons');
+  await add.fill('2 kg lemons, 1 bag rice');
   await add.press('Enter');
   await expect(page.getByText('Lemons', { exact: true })).toBeVisible();
+  await expect(page.getByText('Rice', { exact: true })).toBeVisible();
 
-  // Check it → progress + inline checkout button appear.
+  // Check one real-amount line → it enters Kitchen immediately; checkout finalizes the receipt-less line.
   await page.getByRole('checkbox', { name: /mark lemons as purchased/i }).click();
   const checkout = page.getByRole('button', { name: /Done shopping — move .* into my kitchen/i });
   await expect(checkout).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/04-grocery.png`, fullPage: true });
 
-  // Checkout moves it into the kitchen (toast).
+  // Checkout moves the remaining receipt-less line into the kitchen (toast).
   await checkout.click();
   await expect(page.getByText(/moved into your kitchen/i)).toBeVisible();
 });

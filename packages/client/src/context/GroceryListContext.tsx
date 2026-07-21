@@ -5,6 +5,7 @@ import type {
   GroceryList,
   AddGroceryItemPayload,
   PatchGroceryItemPayload,
+  ResolvedPurchaseInput,
   CompleteItemPayload,
   CompleteResult,
 } from '../types/grocery-list';
@@ -13,6 +14,7 @@ import {
   generateGroceryList,
   addGroceryItem,
   patchGroceryItem,
+  checkOffGroceryItem,
   deleteGroceryItem,
   completeGroceryList,
 } from '../services/grocery-lists';
@@ -27,8 +29,9 @@ interface GroceryListContextValue {
   addItem: (payload: AddGroceryItemPayload) => Promise<void>;
   updateItem: (itemId: string, payload: PatchGroceryItemPayload) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
+  purchaseItem: (itemId: string, resolvedPurchase?: ResolvedPurchaseInput) => Promise<void>;
   togglePurchased: (itemId: string, current: boolean) => Promise<void>;
-  completeSession: (items: CompleteItemPayload[]) => Promise<CompleteResult>;
+  completeSession: (items?: CompleteItemPayload[]) => Promise<CompleteResult>;
 }
 
 export const GroceryListContext = createContext<GroceryListContextValue | null>(null);
@@ -93,21 +96,49 @@ export function GroceryListProvider({ children }: { children: ReactNode }): Reac
     [currentWeekStart],
   );
 
+  const purchaseItem = useCallback(
+    async (itemId: string, resolvedPurchase?: ResolvedPurchaseInput): Promise<void> => {
+      try {
+        const updated = resolvedPurchase
+          ? await checkOffGroceryItem(currentWeekStart, itemId, resolvedPurchase)
+          : await checkOffGroceryItem(currentWeekStart, itemId);
+        setGroceryList(updated);
+      } catch (err) {
+        if (err instanceof Error && err.message.includes(': 409')) {
+          await refresh();
+          return;
+        }
+        throw err;
+      }
+    },
+    [currentWeekStart, refresh],
+  );
+
   const togglePurchased = useCallback(
     async (itemId: string, current: boolean): Promise<void> => {
-      const updated = await patchGroceryItem(currentWeekStart, itemId, {
-        isPurchased: !current,
-      });
-      setGroceryList(updated);
+      try {
+        const updated = current
+          ? await patchGroceryItem(currentWeekStart, itemId, { isPurchased: false })
+          : await checkOffGroceryItem(currentWeekStart, itemId);
+        setGroceryList(updated);
+      } catch (err) {
+        if (err instanceof Error && err.message.includes(': 409')) {
+          await refresh();
+          return;
+        }
+        throw err;
+      }
     },
-    [currentWeekStart],
+    [currentWeekStart, refresh],
   );
 
   const completeSession = useCallback(
-    async (items: CompleteItemPayload[]): Promise<CompleteResult> => {
-      return completeGroceryList(currentWeekStart, items);
+    async (items: CompleteItemPayload[] = []): Promise<CompleteResult> => {
+      const result = await completeGroceryList(currentWeekStart, items);
+      await refresh();
+      return result;
     },
-    [currentWeekStart],
+    [currentWeekStart, refresh],
   );
 
   return (
@@ -121,6 +152,7 @@ export function GroceryListProvider({ children }: { children: ReactNode }): Reac
         addItem,
         updateItem,
         removeItem,
+        purchaseItem,
         togglePurchased,
         completeSession,
       }}

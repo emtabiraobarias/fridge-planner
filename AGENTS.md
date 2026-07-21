@@ -526,3 +526,4 @@ Production deploys via a **staged runbook driven by an orchestrator**, so most f
 - App image is `ghcr.io/emtabiraobarias/fridge-planner-client`; `…/fridge-planner` (no suffix) is the Holodeck image.
 - CD is **edition-aware**: Portainer **CE** can't use stack webhooks (Business-only). On CE, keep the self-hosted-runner compose rollout (an admin installs the runner once) or stop at build-push and do Portainer **Pull and redeploy** by hand; **BE** could POST a redeploy webhook behind the gate.
 - The prod stack deploys **through Portainer**; the dev `docker compose` commands in §2 are for local development only.
+
