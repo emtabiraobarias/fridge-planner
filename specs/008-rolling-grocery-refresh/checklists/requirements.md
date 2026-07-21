@@ -31,5 +31,5 @@
 
 ## Notes
 
-- The four scope questions queued in ROADMAP_PROGRESS.md backlog #4 were resolved in-spec with documented assumptions (no blocking markers): date scope = entry date ≥ today AND planned (FR-RG-001); refresh mechanism = recompute-on-view, no scheduler (FR-RG-002); manual items + purchases preserved (FR-RG-004/005); whole-week identity with past-day exclusion, past weeks frozen (FR-RG-008/009). Revisit via `/speckit.clarify` if any of these should differ.
+- `/speckit.clarify` session 2026-07-22 (4 questions, user-answered) settled the scope decisions: date scope = entry date ≥ today AND planned, same-day meals count all day (FR-RG-001/010); refresh = recompute-on-view, no scheduler (FR-RG-002); **rolling rest-of-week list** — passed days shed entirely, fully-past weeks not browsable (FR-RG-008/009); **daily reset** — purchased rows and manual items are day-anchored, shed at next rollover, un-tick same-day only (FR-RG-004/005/011). Two draft assumptions (whole-week identity, cross-day preservation) were **overturned** by the user and the spec rewritten accordingly.
 - Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`
