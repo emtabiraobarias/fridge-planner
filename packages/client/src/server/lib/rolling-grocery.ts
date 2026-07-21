@@ -19,24 +19,45 @@ function isReplaceableGenerated(item: IGroceryListItem): boolean {
 }
 
 /**
+ * Reconciles a sticky (manual / purchased / receipted) row against the rolling
+ * cutoff (research D4/D5): a row's anchor day is `purchasedOn ?? addedOn`.
+ *  - anchor >= asOf → preserved verbatim (receipt intact, FR-RG-004/005).
+ *  - anchor < asOf → shed: the row (and its receipt) is dropped, no inventory
+ *    mutation implied (FR-RG-005/011).
+ *  - no anchor at all (legacy pre-008 row) → lazily backfilled to `asOf` and
+ *    preserved for this call (data-model "Back-compat for legacy rows"): purchased/
+ *    receipted rows are stamped `purchasedOn`, everything else `addedOn`.
+ *
+ * @returns the (possibly backfilled) row to keep, or `undefined` if shed.
+ */
+function reconcileSticky(item: IGroceryListItem, asOf: Date): IGroceryListItem | undefined {
+  const anchor = item.purchasedOn ?? item.addedOn;
+  if (anchor === undefined) {
+    const isPurchasedLike = item.isPurchased || !!item.purchaseReceipt;
+    return isPurchasedLike ? { ...item, purchasedOn: asOf } : { ...item, addedOn: asOf };
+  }
+  if (anchor.getTime() < asOf.getTime()) return undefined; // shed
+  return item;
+}
+
+/**
  * Reconciles a freshly generated (date-scoped) need set into the stored grocery
- * items, preserving row identity (research D4). Phase 3 (US1) handles generated
- * rows; sticky-row shed by day-anchor lands in Phase 4 (US2).
+ * items, preserving row identity (research D4).
  *
  * Replaceable generated rows are diffed against `freshGenerated` by
  * `ingredientName`: a surviving name keeps its `_id` and is requantified/re-sourced
  * (FR-RG-007); a name whose fresh need is gone or zero is dropped (FR-RG-006); a
  * fresh need with no stored row is inserted. Sticky rows (manual / purchased /
- * receipted) pass through unchanged for now.
+ * receipted) are day-anchor reconciled per `reconcileSticky` (FR-RG-004/005).
  *
  * @param existing plain (`.toObject()`-ed) stored items — never hydrated subdocs
  * @param freshGenerated fresh generated needs (no `_id`) from `generateGroceryList`
- * @param _asOf the rolling cutoff (used by the US2 shed extension)
+ * @param asOf the rolling cutoff (`startOfTodayCutoff()`)
  */
 export function reconcileRollingList(
   existing: IGroceryListItem[],
   freshGenerated: IGroceryListItem[],
-  _asOf: Date,
+  asOf: Date,
 ): IGroceryListItem[] {
   const freshByName = new Map(freshGenerated.map((f) => [f.ingredientName, f]));
   const matchedNames = new Set<string>();
@@ -44,7 +65,8 @@ export function reconcileRollingList(
 
   for (const item of existing) {
     if (!isReplaceableGenerated(item)) {
-      result.push(item); // sticky — pass through (US2 adds the day-anchored shed)
+      const sticky = reconcileSticky(item, asOf);
+      if (sticky) result.push(sticky);
       continue;
     }
     const fresh = freshByName.get(item.ingredientName);

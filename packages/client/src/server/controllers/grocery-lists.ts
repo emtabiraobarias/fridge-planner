@@ -152,6 +152,10 @@ async function purchaseGroceryItem(
       $set: {
         ...buildArrayItemSetFields(data),
         'items.$[item].isPurchased': true,
+        // Spec 008 US2: day-anchor the row to today in the same write as the tick
+        // (FR-RG-005), on the same projected axis as `startOfTodayCutoff()` — see
+        // the `addedOn` comment in `addGroceryItem` for why a raw timestamp is wrong.
+        'items.$[item].purchasedOn': startOfTodayCutoff(),
       },
     },
     { new: true, arrayFilters: [{ 'item._id': objectId, 'item.isPurchased': false }] },
@@ -193,7 +197,8 @@ async function unpurchaseGroceryItem(
         ...buildArrayItemSetFields(data),
         'items.$[item].isPurchased': false,
       },
-      $unset: { 'items.$[item].purchaseReceipt': '' },
+      // Spec 008 US2: un-tick clears the day-anchor alongside the receipt.
+      $unset: { 'items.$[item].purchaseReceipt': '', 'items.$[item].purchasedOn': '' },
     },
     { new: false, arrayFilters: [{ 'item._id': objectId, 'item.isPurchased': true }] },
   );
@@ -229,7 +234,15 @@ async function processCheckoutItem(
     const receipt = await applyPurchase(userId, purchaseLineFromItem(item));
     await GroceryList.findOneAndUpdate(
       { userId, weekStart, 'items._id': objectId },
-      { $set: { 'items.$.isPurchased': true, 'items.$.purchaseReceipt': receipt } },
+      {
+        $set: {
+          'items.$.isPurchased': true,
+          'items.$.purchaseReceipt': receipt,
+          // Spec 008 US2: rows purchased at checkout follow the same daily shed as
+          // any tick, stamped on the same projected axis (see `addGroceryItem`).
+          'items.$.purchasedOn': startOfTodayCutoff(),
+        },
+      },
     );
     const inventoryItem = await InventoryItem.findOne({ _id: receipt.inventoryItemId, userId });
     const summary = { _id: receipt.inventoryItemId, name: inventoryItem?.name ?? item.displayName };
@@ -328,6 +341,12 @@ export async function addGroceryItem(
     isManuallyAdded: true,
     sourceMealNames: [],
     notes: parsed.data.notes,
+    // Spec 008 US2: day-anchor the manual row to today (FR-RG-004). Stamped on the
+    // same projected UTC-midnight-of-local-day axis as `startOfTodayCutoff()` (not a
+    // raw wall-clock timestamp) — comparing a real instant against the projected
+    // axis used in reconcileSticky would shed rows within hours of creation in any
+    // positive-UTC-offset timezone (contract's example payload confirms midnight).
+    addedOn: startOfTodayCutoff(),
   };
 
   const list = await GroceryList.findOneAndUpdate(

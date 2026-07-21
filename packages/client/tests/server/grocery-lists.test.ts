@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import { startOfTodayCutoff } from '@server/lib/rolling-grocery';
 
 const { invalidateUserSpy } = vi.hoisted(() => ({ invalidateUserSpy: vi.fn() }));
 vi.mock('@server/services/recommendations-cache', async (importOriginal) => {
@@ -128,6 +129,8 @@ interface GLItem {
     unit: string;
     merged: boolean;
   };
+  addedOn?: string;
+  purchasedOn?: string;
 }
 
 async function addItem(item: Record<string, unknown>, userId = USER_A): Promise<GLItem[]> {
@@ -354,6 +357,30 @@ describe('POST grocery-lists/[weekStart]/items', () => {
   });
 });
 
+// ——— Spec 008 US2: day-anchor stamp on manual add (FR-RG-004, T016) ———
+
+describe('POST grocery-lists/[weekStart]/items — day-anchor stamp (spec 008 US2)', () => {
+  it('stamps addedOn on a newly added manual item, on the projected day-cutoff axis (FR-RG-004)', async () => {
+    const items = await addItem({ displayName: 'Vinegar', quantity: 1, unit: 'bottle', category: 'Pantry' });
+    const vinegar = items.find((i) => i.displayName === 'Vinegar');
+    expect(vinegar?.addedOn).toBe(startOfTodayCutoff().toISOString());
+  });
+
+  it('leaves a same-day manual item unchanged (present, still manual) across regenerate (FR-RG-004)', async () => {
+    await MealPlan.create({ userId: USER_A, weekStart: new Date(WEEK_START), entries: [] });
+    const items = await addItem({ displayName: 'Vinegar', quantity: 1, unit: 'bottle', category: 'Pantry' });
+    const vinegarId = items.find((i) => i.displayName === 'Vinegar')!._id;
+
+    const res = await GENERATE(req({ method: 'POST' }), wk());
+    expect(res.status).toBe(200);
+    const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[] } };
+    const vinegar = groceryList.items.find((i) => i._id === vinegarId);
+    expect(vinegar).toBeDefined();
+    expect(vinegar?.isManuallyAdded).toBe(true);
+    expect(vinegar?.addedOn).toBeTruthy();
+  });
+});
+
 describe('PATCH grocery-lists/[weekStart]/items/[itemId]', () => {
   it('toggles isPurchased and updates fields together', async () => {
     const items = await addItem({ displayName: 'Milk', quantity: 1, unit: 'l', category: 'Dairy' });
@@ -530,6 +557,118 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId]', () => {
   });
 });
 
+// ——— Spec 008 US2: day-anchor stamps + daily shed on PATCH (FR-RG-004/005/011, T015) ———
+
+describe('PATCH grocery-lists/[weekStart]/items/[itemId] — day-anchor stamps + shed (spec 008 US2)', () => {
+  it('stamps purchasedOn on tick, on the projected day-cutoff axis (FR-RG-005)', async () => {
+    const items = await addItem({ displayName: 'Eggs', quantity: 12, unit: 'count', category: 'Dairy' });
+    const id = items.find((i) => i.displayName === 'Eggs')!._id;
+
+    const res = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(id));
+
+    expect(res.status).toBe(200);
+    const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[] } };
+    const row = groceryList.items.find((i) => i._id === id);
+    expect(row?.purchasedOn).toBe(startOfTodayCutoff().toISOString());
+  });
+
+  it('regenerating the same day after a tick leaves the row purchased with its receipt (FR-RG-005)', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(0),
+          missing: ['flour'],
+          mealName: 'Today Bake',
+          slotId: '55555555-5555-4555-8555-555555555555',
+        }),
+      ],
+    });
+    const genRes = await GENERATE(req({ method: 'POST' }), wk());
+    const { groceryList: genList } = (await genRes.json()) as { groceryList: { items: GLItem[] } };
+    const flourId = genList.items.find((i) => i.ingredientName === 'flour')!._id;
+
+    const tickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(flourId));
+    expect(tickRes.status).toBe(200);
+
+    const regenRes = await GENERATE(req({ method: 'POST' }), wk());
+    expect(regenRes.status).toBe(200);
+    const { groceryList: regenList } = (await regenRes.json()) as { groceryList: { items: GLItem[] } };
+    const flour = regenList.items.find((i) => i._id === flourId);
+    expect(flour).toBeDefined();
+    expect(flour?.isPurchased).toBe(true);
+    expect(flour?.purchaseReceipt).toBeDefined();
+  });
+
+  it('a recompute fired between a tick and its un-tick does not detach the receipt (mid-shop race, FR-RG-011)', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(0),
+          missing: ['sugar'],
+          mealName: 'Today Bake',
+          slotId: '66666666-6666-4666-8666-666666666666',
+        }),
+      ],
+    });
+    const genRes = await GENERATE(req({ method: 'POST' }), wk());
+    const { groceryList: genList } = (await genRes.json()) as { groceryList: { items: GLItem[] } };
+    const sugarId = genList.items.find((i) => i.ingredientName === 'sugar')!._id;
+
+    const tickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(sugarId));
+    expect(tickRes.status).toBe(200);
+
+    // Mid-shop recompute race: a regenerate fires between the tick and the un-tick.
+    const midRegen = await GENERATE(req({ method: 'POST' }), wk());
+    expect(midRegen.status).toBe(200);
+
+    const untickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: false } }), wkItem(sugarId));
+    expect(untickRes.status).toBe(200);
+    expect(await InventoryItem.findOne({ userId: USER_A, name: 'Sugar' })).toBeNull();
+  });
+
+  it('returns 404 (not 409) for un-tick after the row has shed (research D7)', async () => {
+    await MealPlan.create({ userId: USER_A, weekStart: new Date(WEEK_START), entries: [] });
+    const list = await GroceryList.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      items: [
+        {
+          ingredientName: 'stale milk',
+          displayName: 'Stale Milk',
+          quantity: 1,
+          unit: 'L',
+          category: 'Dairy',
+          isPurchased: true,
+          isManuallyAdded: false,
+          sourceMealNames: [],
+          notes: '',
+          purchasedOn: utcMidnightOffset(-1),
+          purchaseReceipt: {
+            inventoryItemId: new mongoose.Types.ObjectId().toHexString(),
+            quantityAdded: 1,
+            unit: 'L',
+            merged: false,
+          },
+        },
+      ],
+      generatedAt: new Date(),
+    });
+    const id = String(list.items[0]!._id);
+
+    const regen = await GENERATE(req({ method: 'POST' }), wk());
+    expect(regen.status).toBe(200);
+    const { groceryList: regenList } = (await regen.json()) as { groceryList: { items: GLItem[] } };
+    expect(regenList.items.find((i) => i._id === id)).toBeUndefined(); // shed
+
+    const untick = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: false } }), wkItem(id));
+    expect(untick.status).toBe(404);
+  });
+});
+
 describe('DELETE grocery-lists/[weekStart]/items/[itemId]', () => {
   it('removes an item', async () => {
     const items = await addItem({ displayName: 'Garlic', quantity: 3, unit: 'count', category: 'Produce' });
@@ -664,5 +803,70 @@ describe('POST grocery-lists/[weekStart]/complete', () => {
   it('returns 400 for an invalid body', async () => {
     const res = await COMPLETE(req({ method: 'POST', body: { items: [{ name: 'Something' }] } }), wk());
     expect(res.status).toBe(400);
+  });
+
+  // ——— Spec 008 US2: checkout stamps purchasedOn like any tick (contract "008 note", T015) ———
+  it('stamps purchasedOn on every row it marks purchased at checkout, on the projected day-cutoff axis', async () => {
+    const list = await GroceryList.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      items: [
+        {
+          ingredientName: 'flour',
+          displayName: 'Flour',
+          quantity: 2,
+          unit: 'servings',
+          category: 'Grains',
+          isPurchased: false,
+          isManuallyAdded: false,
+          sourceMealNames: [],
+          notes: '',
+        },
+      ],
+      generatedAt: new Date(),
+    });
+
+    const res = await COMPLETE(req({ method: 'POST', body: { items: [] } }), wk());
+    expect(res.status).toBe(200);
+
+    const updated = await GroceryList.findById(list._id);
+    const flour = updated?.items.find((i) => i.ingredientName === 'flour');
+    expect(flour?.isPurchased).toBe(true);
+    expect(flour?.purchasedOn?.toISOString()).toBe(startOfTodayCutoff().toISOString());
+  });
+});
+
+// ——— Spec 008 US2 (T017): rolling recompute + tick concurrency, id-stability guard ———
+//
+// The literal task text says "GET the list (recompute)...", but at this phase (US2)
+// GET still runs the unchanged 007 lazy-generate path (US3/T025 is the one that wires
+// GET onto the shared reconcile path — see CLAUDE.md/orchestrator note: do not touch
+// getGroceryList here). `POST .../generate` already runs the exact same
+// `reconcileRollingList` mechanism GET will reuse in US3 (research D2), so this test
+// exercises the id-stability guarantee (research risk 2 / FR-RG-011) against that
+// shared path today. T029 (Phase 6) adds the literal GET-based variant once US3 lands.
+describe('Rolling recompute + tick concurrency (spec 008 US2, T017)', () => {
+  it('a row from a just-recomputed list can be ticked immediately, and the tick stamps purchasedOn', async () => {
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(0),
+          missing: ['basil'],
+          mealName: 'Today Pasta',
+          slotId: '77777777-7777-4777-8777-777777777777',
+        }),
+      ],
+    });
+    const genRes = await GENERATE(req({ method: 'POST' }), wk());
+    expect(genRes.status).toBe(200);
+    const { groceryList } = (await genRes.json()) as { groceryList: { items: GLItem[] } };
+    const basilId = groceryList.items.find((i) => i.ingredientName === 'basil')!._id;
+
+    const tickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(basilId));
+    expect(tickRes.status).toBe(200); // not 404 — the recomputed row's _id stayed live
+    const { groceryList: ticked } = (await tickRes.json()) as { groceryList: { items: GLItem[] } };
+    expect(ticked.items.find((i) => i._id === basilId)?.purchasedOn).toBeTruthy();
   });
 });

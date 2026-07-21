@@ -142,3 +142,83 @@ describe('reconcileRollingList — generated rows (US1)', () => {
     expect(milk?.purchaseReceipt?.inventoryItemId).toBe('inv1');
   });
 });
+
+// ——— T014: reconcileRollingList sticky-row shed + lazy backfill (FR-RG-004/005, research D5) ———
+
+describe('reconcileRollingList — sticky rows: day-anchored shed + legacy backfill (US2)', () => {
+  const asOf = new Date('2026-07-15T00:00:00.000Z');
+  const today = asOf;
+  const yesterday = new Date('2026-07-14T00:00:00.000Z');
+
+  it('preserves a manual row anchored today verbatim (FR-RG-004)', () => {
+    const existing = [genRow({ _id: 'man1', ingredientName: 'bread', isManuallyAdded: true, addedOn: today })];
+    const result = reconcileRollingList(existing, [], asOf);
+    const bread = result.find((r) => r._id === 'man1');
+    expect(bread).toBeDefined();
+    expect(bread?.isManuallyAdded).toBe(true);
+    expect(bread?.addedOn).toEqual(today);
+  });
+
+  it('sheds a manual row anchored before today (FR-RG-004)', () => {
+    const existing = [genRow({ _id: 'man1', ingredientName: 'bread', isManuallyAdded: true, addedOn: yesterday })];
+    const result = reconcileRollingList(existing, [], asOf);
+    expect(result.find((r) => r._id === 'man1')).toBeUndefined();
+  });
+
+  it('preserves a purchased row anchored today with its receipt intact, even when its source meal has passed (FR-RG-005)', () => {
+    const existing = [
+      genRow({
+        _id: 'buy1',
+        ingredientName: 'milk',
+        isPurchased: true,
+        purchasedOn: today,
+        sourceMealNames: ['Yesterday Dinner'], // source meal date is irrelevant to sticky preservation
+        purchaseReceipt: { inventoryItemId: 'inv1', quantityAdded: 1, unit: 'L', merged: false },
+      }),
+    ];
+    const result = reconcileRollingList(existing, [], asOf);
+    const milk = result.find((r) => r._id === 'buy1');
+    expect(milk).toBeDefined();
+    expect(milk?.isPurchased).toBe(true);
+    expect(milk?.purchaseReceipt?.inventoryItemId).toBe('inv1');
+  });
+
+  it('sheds a purchased row anchored before today, dropping the row and its receipt with no inventory mutation implied (FR-RG-005)', () => {
+    const existing = [
+      genRow({
+        _id: 'buy1',
+        ingredientName: 'milk',
+        isPurchased: true,
+        purchasedOn: yesterday,
+        purchaseReceipt: { inventoryItemId: 'inv1', quantityAdded: 1, unit: 'L', merged: false },
+      }),
+    ];
+    const result = reconcileRollingList(existing, [], asOf);
+    expect(result.find((r) => r._id === 'buy1')).toBeUndefined();
+  });
+
+  it('lazily backfills a legacy manual row with no anchor to addedOn=asOf and preserves it this call (research D5)', () => {
+    const existing = [genRow({ _id: 'legacyManual', ingredientName: 'bread', isManuallyAdded: true })];
+    const result = reconcileRollingList(existing, [], asOf);
+    const bread = result.find((r) => r._id === 'legacyManual');
+    expect(bread).toBeDefined();
+    expect(bread?.addedOn).toEqual(asOf);
+    expect(bread?.purchasedOn).toBeUndefined();
+  });
+
+  it('lazily backfills a legacy purchased/receipted row with no anchor to purchasedOn=asOf and preserves it this call (research D5)', () => {
+    const existing = [
+      genRow({
+        _id: 'legacyBuy',
+        ingredientName: 'milk',
+        isPurchased: true,
+        purchaseReceipt: { inventoryItemId: 'inv1', quantityAdded: 1, unit: 'L', merged: false },
+      }),
+    ];
+    const result = reconcileRollingList(existing, [], asOf);
+    const milk = result.find((r) => r._id === 'legacyBuy');
+    expect(milk).toBeDefined();
+    expect(milk?.purchasedOn).toEqual(asOf);
+    expect(milk?.addedOn).toBeUndefined();
+  });
+});
