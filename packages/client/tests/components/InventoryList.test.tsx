@@ -74,4 +74,59 @@ describe('InventoryList (organic redesign)', () => {
     await userEvent.click(screen.getByRole('button', { name: /edit chicken breast/i }));
     expect(onEdit).toHaveBeenCalledWith(base);
   });
+
+  describe('select mode (spec 009 US2, FR-IR-006 Kitchen entry point)', () => {
+    it('renders no checkbox when select mode is off (default)', () => {
+      render(<InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    });
+
+    it('renders a checkbox per row when select mode is active', () => {
+      const items: InventoryItem[] = [base, { ...base, _id: '2', name: 'Rice' }];
+      render(
+        <InventoryList
+          items={items}
+          onStep={() => {}}
+          onDelete={() => {}}
+          onEdit={() => {}}
+          selectMode
+          selectedIds={new Set<string>()}
+          onToggleSelect={() => {}}
+        />,
+      );
+      expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    });
+
+    it('surfaces the item _id through onToggleSelect when a row is ticked', async () => {
+      const onToggleSelect = vi.fn();
+      render(
+        <InventoryList
+          items={[base]}
+          onStep={() => {}}
+          onDelete={() => {}}
+          onEdit={() => {}}
+          selectMode
+          selectedIds={new Set<string>()}
+          onToggleSelect={onToggleSelect}
+        />,
+      );
+      await userEvent.click(screen.getByRole('checkbox', { name: /select chicken breast/i }));
+      expect(onToggleSelect).toHaveBeenCalledWith('1');
+    });
+
+    it('reflects the ticked state from selectedIds', () => {
+      render(
+        <InventoryList
+          items={[base]}
+          onStep={() => {}}
+          onDelete={() => {}}
+          onEdit={() => {}}
+          selectMode
+          selectedIds={new Set<string>(['1'])}
+          onToggleSelect={() => {}}
+        />,
+      );
+      expect(screen.getByRole('checkbox', { name: /select chicken breast/i })).toBeChecked();
+    });
+  });
 });

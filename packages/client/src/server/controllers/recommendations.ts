@@ -17,18 +17,45 @@ import type { ControllerResult } from '../http';
 // POST /recommendations/verify-links (verifyRecipeLinks below), attaches links as
 // they arrive, and removes any meal that ends up without one. The agent is asked
 // for a 5-10 candidate net (FR-014) so enough meals survive that removal.
-export async function getRecommendations(userId: string): Promise<ControllerResult> {
+export async function getRecommendations(
+  userId: string,
+  ingredientItemIds?: string[],
+): Promise<ControllerResult> {
   // FR-036: scope to the authenticated user; FR-007: exclude expired items from LLM input.
   // Expiry is derived from expiresAt at query time (not the stale stored status — BUG #6).
   const activeItems = await InventoryItem.find({ userId, ...notExpiredQuery() });
 
   // EC-01: nothing to recommend from → popular recipes (pre-verified links — the
-  // lazy verify phase is skipped for fallbacks).
+  // lazy verify phase is skipped for fallbacks). This runs on the WHOLE non-expired
+  // set, before scoping — an empty selection with stock never degrades to popular.
   if (activeItems.length === 0) {
     return { status: 200, body: { recommendations: POPULAR_RECIPES, fallback: 'popular' } };
   }
 
-  const ingredients = activeItems.map((item) => ({
+  // Spec 009 US2 (FR-IR-005/009/010, research D1/D8): when a selection is provided,
+  // intersect it with the live non-expired set by _id. A non-empty intersection
+  // SCOPES generation to that subset, ordered soonest-expiry-first so the agent's
+  // waste-minimising prompt prioritises within the selection (FR-IR-009). An
+  // empty/all-expired/all-absent intersection FALLS BACK to the whole set unchanged
+  // — never an empty agent call (FR-IR-010 server guard). Everything downstream
+  // (ingredients map → buildCacheKey → agent → groundMeals → setCached) runs
+  // unchanged over `scopedItems`, so per-selection caching (D2) and grounding (D1)
+  // fall out for free.
+  let scopedItems = activeItems;
+  if (ingredientItemIds && ingredientItemIds.length > 0) {
+    const selected = new Set(ingredientItemIds);
+    const subset = activeItems.filter((item) => selected.has(String(item._id)));
+    if (subset.length > 0) {
+      subset.sort((a, b) => {
+        const ta = a.expiresAt ? a.expiresAt.getTime() : Infinity;
+        const tb = b.expiresAt ? b.expiresAt.getTime() : Infinity;
+        return ta - tb;
+      });
+      scopedItems = subset;
+    }
+  }
+
+  const ingredients = scopedItems.map((item) => ({
     // Spec 006 FR-MC-001: the agent echoes these ids back as grounded references.
     id: String(item._id),
     name: item.name,
@@ -61,7 +88,7 @@ export async function getRecommendations(userId: string): Promise<ControllerResu
   // Spec 006 US1: validate the untrusted agent payload against live inventory and
   // ground it (tiered resolution + clamping) BEFORE caching, so cached meals are
   // grounded too (research D4). Fallback paths above pass through ungrounded.
-  recommendations = await groundMeals(userId, recommendations, activeItems);
+  recommendations = await groundMeals(userId, recommendations, scopedItems);
 
   setCached(cacheKey, recommendations);
   return { status: 200, body: { recommendations } };

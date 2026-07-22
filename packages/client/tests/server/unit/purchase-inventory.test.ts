@@ -12,6 +12,7 @@ let InventoryItem: typeof import('@server/models/inventory-item').InventoryItem;
 let IngredientAlias: typeof import('@server/models/ingredient-alias').IngredientAlias;
 let applyPurchase: typeof import('@server/lib/purchase-inventory').applyPurchase;
 let reversePurchase: typeof import('@server/lib/purchase-inventory').reversePurchase;
+let findMergeTarget: typeof import('@server/lib/inventory-merge').findMergeTarget;
 
 beforeAll(async () => {
   mongod = await MongoMemoryServer.create();
@@ -21,6 +22,9 @@ beforeAll(async () => {
   ({ InventoryItem } = await import('@server/models/inventory-item'));
   ({ IngredientAlias } = await import('@server/models/ingredient-alias'));
   ({ applyPurchase, reversePurchase } = await import('@server/lib/purchase-inventory'));
+  // Spec 009 T027 — the extraction target (T030/T031); importing it here is what makes
+  // this file's new regression describe block below RED until inventory-merge.ts exists.
+  ({ findMergeTarget } = await import('@server/lib/inventory-merge'));
 });
 
 afterAll(async () => {
@@ -225,5 +229,46 @@ describe('reversePurchase (spec 007 FR-GC-007/008/013)', () => {
 
     const otherAfter = await InventoryItem.findById(other._id);
     expect(otherAfter?.quantity).toBe(2);
+  });
+});
+
+describe('applyPurchase after the T030/T031 extraction (spec 009 T027 — reuse mandate, no behaviour change)', () => {
+  it('merges into exactly the target findMergeTarget would independently pick, by the receipted delta', async () => {
+    const existing = await InventoryItem.create({
+      userId: USER_A,
+      name: 'Milk',
+      quantity: 1,
+      unit: 'L',
+      category: 'Dairy',
+      location: 'fridge',
+    });
+
+    const target = await findMergeTarget(USER_A, 'Milk', 'L');
+    expect(target).not.toBeNull();
+    expect(String(target?._id)).toBe(String(existing._id));
+
+    const receipt = await applyPurchase(USER_A, line({ quantity: 2, unit: 'L' }));
+
+    expect(receipt).toMatchObject({ merged: true, inventoryItemId: String(existing._id), quantityAdded: 2 });
+    const reloaded = await InventoryItem.findById(existing._id);
+    expect(reloaded?.quantity).toBe(3);
+  });
+
+  it('never merges where findMergeTarget independently returns null (expired same-name stock)', async () => {
+    await InventoryItem.create({
+      userId: USER_A,
+      name: 'Milk',
+      quantity: 1,
+      unit: 'L',
+      category: 'Dairy',
+      location: 'fridge',
+      expiresAt: new Date('2020-01-01T00:00:00.000Z'),
+    });
+
+    expect(await findMergeTarget(USER_A, 'Milk', 'L')).toBeNull();
+
+    const receipt = await applyPurchase(USER_A, line({ quantity: 2, unit: 'L' }));
+    expect(receipt.merged).toBe(false);
+    expect(await InventoryItem.countDocuments({ userId: USER_A, name: 'Milk' })).toBe(2);
   });
 });

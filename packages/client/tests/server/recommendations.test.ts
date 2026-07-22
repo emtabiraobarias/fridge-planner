@@ -42,6 +42,7 @@ vi.mock('@server/services/recipe-verifier', () => ({
 let mongod: MongoMemoryServer;
 let InventoryItem: typeof import('@server/models/inventory-item').InventoryItem;
 let invalidateUser: typeof import('@server/services/recommendations-cache').invalidateUser;
+let getRecommendations: typeof import('@server/controllers/recommendations').getRecommendations;
 let POST: typeof import('../../app/api/v1/recommendations/route').POST;
 let POST_LINKS: typeof import('../../app/api/v1/recommendations/verify-links/route').POST;
 
@@ -52,6 +53,7 @@ beforeAll(async () => {
   await db.connectDb();
   ({ InventoryItem } = await import('@server/models/inventory-item'));
   ({ invalidateUser } = await import('@server/services/recommendations-cache'));
+  ({ getRecommendations } = await import('@server/controllers/recommendations'));
   ({ POST } = await import('../../app/api/v1/recommendations/route'));
   ({ POST: POST_LINKS } = await import('../../app/api/v1/recommendations/verify-links/route'));
 });
@@ -76,6 +78,14 @@ function req(userId = USER): Request {
   return new Request('http://localhost/api/v1/recommendations', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-user-id': userId },
+  });
+}
+
+function reqBody(body: unknown, userId = USER): Request {
+  return new Request('http://localhost/api/v1/recommendations', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-user-id': userId },
+    body: JSON.stringify(body),
   });
 }
 
@@ -284,5 +294,100 @@ describe('POST /api/v1/recommendations — grounding (spec 006, FR-MC-001..003)'
       recommendations: Array<{ groundedIngredients?: Array<{ resolution: string }> }>;
     };
     expect(body.recommendations[0]!.groundedIngredients).toHaveLength(1);
+  });
+});
+
+describe('getRecommendations — ingredient scoping (spec 009 US2, FR-IR-005/008/009/010/011)', () => {
+  const days = (n: number): Date => new Date(Date.now() + n * 86_400_000);
+
+  async function seedExpiring(name: string, expiresAt?: Date): Promise<string> {
+    const doc = await InventoryItem.create({
+      userId: USER,
+      name,
+      quantity: 2,
+      unit: 'lbs',
+      category: 'Meat',
+      location: 'fridge',
+      ...(expiresAt ? { expiresAt } : {}),
+    });
+    return String(doc._id);
+  }
+
+  it('sends the agent ONLY the selected subset, in expiry order, and grounds only those (FR-IR-005/008/009)', async () => {
+    // Insert idB (later-expiring) FIRST and idA (sooner-expiring) SECOND so a pass
+    // proves expiry ordering, not accidental insertion order (analyze M1 / FR-IR-009).
+    const idB = await seedExpiring('Broccoli', days(8));
+    const idA = await seedExpiring('Chicken Breast', days(2));
+    const idC = await seedExpiring('Rice'); // not selected — must never reach the agent
+    getMealRecommendations.mockResolvedValue([
+      // grounded ref to the UNSELECTED item idC — must NOT resolve 'direct' since
+      // groundMeals only sees the scoped subset.
+      {
+        ...mockMeal,
+        usesIngredients: [
+          { inventoryItemId: idC, name: 'rice', quantityToConsume: 1, unit: 'cups' },
+        ] as unknown as string[],
+      },
+    ]);
+
+    const result = await getRecommendations(USER, [idA, idB]);
+    expect(result.status).toBe(200);
+
+    const arg = getMealRecommendations.mock.calls[0]?.[0] as Array<{ id: string; name: string }>;
+    // Only the two selected items — Rice (idC) is excluded (FR-IR-005).
+    expect(arg.map((i) => i.name)).toEqual(['Chicken Breast', 'Broccoli']);
+    // Sooner-expiring idA precedes later idB in the payload (FR-IR-009).
+    expect(arg.map((i) => i.id)).toEqual([idA, idB]);
+
+    // groundMeals ran over the subset only: the unselected idC ref cannot resolve 'direct'.
+    const body = result.body as {
+      recommendations: Array<{ groundedIngredients?: Array<{ inventoryItemId?: string; resolution: string }> }>;
+    };
+    const g = body.recommendations[0]?.groundedIngredients?.[0];
+    if (g) expect(g.resolution).not.toBe('direct');
+  });
+
+  it('is a cache hit on an identical selection — the agent is called once (FR-IR-011/SC-IR-005)', async () => {
+    const idA = await seedExpiring('Chicken Breast', days(2));
+    const idB = await seedExpiring('Broccoli', days(8));
+    getMealRecommendations.mockResolvedValue(mockMeals);
+
+    await getRecommendations(USER, [idA, idB]);
+    await getRecommendations(USER, [idA, idB]);
+    expect(getMealRecommendations).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the whole non-expired set when the selection intersects to nothing (FR-IR-010)', async () => {
+    const yesterday = days(-1);
+    await seedExpiring('Fresh Chicken', days(3));
+    const expiredId = await seedExpiring('Old Milk', yesterday); // excluded by notExpiredQuery
+    getMealRecommendations.mockResolvedValue(mockMeals);
+
+    // All-expired / all-absent selection → whole inventory, never an empty agent call.
+    await getRecommendations(USER, [expiredId, 'nonexistent-id']);
+    const arg = getMealRecommendations.mock.calls[0]?.[0] as Array<{ name: string }>;
+    expect(arg.map((i) => i.name)).toEqual(['Fresh Chicken']);
+    expect(arg.length).toBeGreaterThan(0);
+  });
+
+  it('an empty ids array is a whole-inventory request (FR-IR-004/010)', async () => {
+    await seedExpiring('Fresh Chicken', days(3));
+    getMealRecommendations.mockResolvedValue(mockMeals);
+    await getRecommendations(USER, []);
+    const arg = getMealRecommendations.mock.calls[0]?.[0] as Array<{ name: string }>;
+    expect(arg.map((i) => i.name)).toEqual(['Fresh Chicken']);
+  });
+
+  it('POST route parses ingredientItemIds and reaches the scoped controller path end-to-end (T016)', async () => {
+    const idB = await seedExpiring('Broccoli', days(8));
+    const idA = await seedExpiring('Chicken Breast', days(2));
+    await seedExpiring('Rice'); // unselected
+    getMealRecommendations.mockResolvedValue(mockMeals);
+
+    const res = await POST(reqBody({ ingredientItemIds: [idA, idB] }));
+    expect(res.status).toBe(200);
+    const arg = getMealRecommendations.mock.calls[0]?.[0] as Array<{ name: string }>;
+    expect(arg.map((i) => i.name)).toEqual(['Chicken Breast', 'Broccoli']);
+    expect(arg.map((i) => i.name)).not.toContain('Rice');
   });
 });

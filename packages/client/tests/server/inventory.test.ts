@@ -78,6 +78,117 @@ describe('Route Handler: POST /api/v1/inventory', () => {
     expect(json.title).toBe('Invalid input');
     expect(json.status).toBe(400);
   });
+
+  describe('mergeDuplicates (spec 009 US3, FR-IR-012/013)', () => {
+    it('merges into an existing non-expired, compatible-unit same-name item and returns 200 { merged, item, mergedItemId, addedQuantity }', async () => {
+      const existingId = await create({ name: 'Milk', quantity: 1, unit: 'L', category: 'Dairy' });
+
+      const res = await POST(
+        req('/api/v1/inventory', {
+          method: 'POST',
+          body: { name: 'Milk', quantity: 2, unit: 'L', category: 'Dairy', location: 'fridge', mergeDuplicates: true },
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        merged: boolean;
+        item: { quantity: number };
+        mergedItemId: string;
+        addedQuantity: number;
+      };
+      expect(json.merged).toBe(true);
+      expect(json.mergedItemId).toBe(existingId);
+      expect(json.addedQuantity).toBe(2);
+      expect(json.item.quantity).toBe(3);
+
+      const res2 = await GET(req('/api/v1/inventory'));
+      const listed = (await res2.json()) as { items: Array<{ name: string }> };
+      expect(listed.items.filter((i) => i.name === 'Milk')).toHaveLength(1);
+    });
+
+    it('creates a new row (201, byte-identical to today) when mergeDuplicates is absent', async () => {
+      await create({ name: 'Milk', quantity: 1, unit: 'L', category: 'Dairy' });
+
+      const res = await POST(
+        req('/api/v1/inventory', {
+          method: 'POST',
+          body: { name: 'Milk', quantity: 2, unit: 'L', category: 'Dairy', location: 'fridge' },
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      const json = (await res.json()) as { name: string; quantity: number; merged?: boolean };
+      expect(json.name).toBe('Milk');
+      expect(json.quantity).toBe(2);
+      expect(json.merged).toBeUndefined();
+
+      const res2 = await GET(req('/api/v1/inventory'));
+      const listed = (await res2.json()) as { items: Array<{ name: string }> };
+      expect(listed.items.filter((i) => i.name === 'Milk')).toHaveLength(2);
+    });
+
+    it('creates a new row (201) when mergeDuplicates is false', async () => {
+      await create({ name: 'Milk', quantity: 1, unit: 'L', category: 'Dairy' });
+
+      const res = await POST(
+        req('/api/v1/inventory', {
+          method: 'POST',
+          body: {
+            name: 'Milk',
+            quantity: 2,
+            unit: 'L',
+            category: 'Dairy',
+            location: 'fridge',
+            mergeDuplicates: false,
+          },
+        }),
+      );
+
+      expect(res.status).toBe(201);
+    });
+
+    it('creates a new row when the same-name item is expired (consistent with spec 007 FR-GC-005)', async () => {
+      await create({
+        name: 'Milk',
+        quantity: 1,
+        unit: 'L',
+        category: 'Dairy',
+        expiresAt: new Date('2020-01-01T00:00:00.000Z').toISOString(),
+      });
+
+      const res = await POST(
+        req('/api/v1/inventory', {
+          method: 'POST',
+          body: { name: 'Milk', quantity: 2, unit: 'L', category: 'Dairy', location: 'fridge', mergeDuplicates: true },
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      const json = (await res.json()) as { merged?: boolean; name: string };
+      expect(json.merged).toBeUndefined();
+      expect(json.name).toBe('Milk');
+
+      const res2 = await GET(req('/api/v1/inventory'));
+      const listed = (await res2.json()) as { items: Array<{ name: string }> };
+      expect(listed.items.filter((i) => i.name === 'Milk')).toHaveLength(2);
+    });
+
+    it('creates a new row when the same-name item has an incompatible unit', async () => {
+      await create({ name: 'Stock', quantity: 1, unit: 'L', category: 'Pantry' });
+
+      const res = await POST(
+        req('/api/v1/inventory', {
+          method: 'POST',
+          body: { name: 'Stock', quantity: 500, unit: 'g', category: 'Pantry', location: 'pantry', mergeDuplicates: true },
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      const json = (await res.json()) as { merged?: boolean };
+      expect(json.merged).toBeUndefined();
+    });
+  });
 });
 
 describe('Route Handler: GET /api/v1/inventory', () => {

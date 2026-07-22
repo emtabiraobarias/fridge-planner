@@ -4,16 +4,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SuggestionsRail } from '../../../src/components/calendar/SuggestionsRail';
 import { RecommendationsProvider } from '../../../src/context/RecommendationsContext';
 import { PlacementProvider } from '../../../src/context/PlacementContext';
+import { InventoryProvider } from '../../../src/context/InventoryContext';
 import type { MealRecommendation } from '../../../src/types/meal-recommendation';
+import type { InventoryItem } from '../../../src/services/inventory';
 
-const { fetchRecommendations, fetchRecipeLinks } = vi.hoisted(() => ({
+const { fetchRecommendations, fetchRecipeLinks, fetchInventory } = vi.hoisted(() => ({
   fetchRecommendations: vi.fn(),
   fetchRecipeLinks: vi.fn(),
+  fetchInventory: vi.fn(),
 }));
 vi.mock('../../../src/services/inventory', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../src/services/inventory')>()),
   fetchRecommendations,
   fetchRecipeLinks,
+  fetchInventory,
 }));
 
 const linkedMeal: MealRecommendation = {
@@ -41,6 +45,12 @@ function renderRail(): void {
 beforeEach(() => {
   fetchRecommendations.mockReset();
   fetchRecipeLinks.mockReset();
+  fetchInventory.mockReset();
+  fetchInventory.mockResolvedValue({
+    items: [],
+    summary: { total: 0, expired: 0, expiringSoon: 0 },
+    pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
+  });
   // Default: verify everything (no removal). Lazy-phase tests override per-case.
   fetchRecipeLinks.mockImplementation((names: string[]) =>
     Promise.resolve({
@@ -51,6 +61,11 @@ beforeEach(() => {
 });
 
 describe('SuggestionsRail', () => {
+  it('mounting alone triggers zero fetchRecommendations calls (spec 009 IR1 — already manual-trigger, regression lock)', () => {
+    renderRail();
+    expect(fetchRecommendations).not.toHaveBeenCalled();
+  });
+
   it('renders each suggestion with a recipe link opening in a new tab (FR-015/FR-037)', async () => {
     fetchRecommendations.mockResolvedValueOnce({ recommendations: [linkedMeal] });
     renderRail();
@@ -94,5 +109,68 @@ describe('SuggestionsRail', () => {
       'href',
       'https://www.recipetineats.com/curry/',
     );
+  });
+});
+
+describe('SuggestionsRail — ingredient-filter chips (spec 009 US2, FR-IR-006, SC-IR-004)', () => {
+  const chickenItem: InventoryItem = {
+    _id: 'item-chicken',
+    name: 'Chicken',
+    quantity: 1,
+    unit: 'kg',
+    category: 'Meat',
+    location: 'fridge',
+    expirationStatus: 'normal',
+  };
+  const riceItem: InventoryItem = {
+    _id: 'item-rice',
+    name: 'Rice',
+    quantity: 2,
+    unit: 'cups',
+    category: 'Grains',
+    location: 'pantry',
+    expirationStatus: 'none',
+  };
+
+  function renderWithInventory(): void {
+    fetchInventory.mockResolvedValue({
+      items: [chickenItem, riceItem],
+      summary: { total: 2, expired: 0, expiringSoon: 0 },
+      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
+    });
+    render(
+      <InventoryProvider>
+        <RecommendationsProvider>
+          <PlacementProvider>
+            <SuggestionsRail />
+          </PlacementProvider>
+        </RecommendationsProvider>
+      </InventoryProvider>,
+    );
+  }
+
+  it('renders one filter chip per inventory item', async () => {
+    renderWithInventory();
+    expect(await screen.findByRole('button', { name: /filter by chicken/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /filter by rice/i })).toBeInTheDocument();
+  });
+
+  it('requesting suggestions with active chips calls fetchRecommendations with exactly the chipped ids (SC-IR-004)', async () => {
+    fetchRecommendations.mockResolvedValueOnce({ recommendations: [linkedMeal] });
+    renderWithInventory();
+
+    await userEvent.click(await screen.findByRole('button', { name: /filter by chicken/i }));
+    await userEvent.click(screen.getByRole('button', { name: /get suggestions/i }));
+
+    expect(fetchRecommendations).toHaveBeenCalledWith(['item-chicken']);
+  });
+
+  it('with no chip active, requests the whole inventory (no scope argument)', async () => {
+    fetchRecommendations.mockResolvedValueOnce({ recommendations: [linkedMeal] });
+    renderWithInventory();
+
+    await userEvent.click(await screen.findByRole('button', { name: /get suggestions/i }));
+
+    expect(fetchRecommendations).toHaveBeenCalledWith(undefined);
   });
 });

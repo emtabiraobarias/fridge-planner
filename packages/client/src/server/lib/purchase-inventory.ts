@@ -2,9 +2,7 @@ import 'server-only';
 import type { IGroceryListItem, PurchaseReceipt, ResolvedPurchaseInput } from '../types/grocery-list';
 import { IngredientAlias } from '../models/ingredient-alias';
 import { InventoryItem, type InventoryItemDocument, type Location } from '../models/inventory-item';
-import { notExpiredQuery } from './expiration';
-import { normalizeIngredientName } from './ingredient-matcher';
-import { canSubtract, normalizeUnit, resolveAlias } from './unit-normalizer';
+import { canMergeUnits, mergeInto, sameNameCandidates } from './inventory-merge';
 import { defaultLocationForCategory } from '../../lib/category-location';
 
 interface PurchaseLine {
@@ -24,31 +22,6 @@ interface ResolvedPurchase {
 
 function aliasKey(name: string): string {
   return name.toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-function sameIngredient(a: string, b: string): boolean {
-  return normalizeIngredientName(a) === normalizeIngredientName(b);
-}
-
-function isSameResolvedUnit(unitA: string, unitB: string): boolean {
-  return resolveAlias(unitA) === resolveAlias(unitB);
-}
-
-function canMergeUnits(unitA: string, unitB: string): boolean {
-  return canSubtract(unitA, unitB) || isSameResolvedUnit(unitA, unitB);
-}
-
-function convertQuantity(quantity: number, fromUnit: string, toUnit: string): number {
-  if (isSameResolvedUnit(fromUnit, toUnit)) return quantity;
-  const from = normalizeUnit(quantity, fromUnit);
-  const targetOne = normalizeUnit(1, toUnit);
-  if (from.family !== targetOne.family || targetOne.value === 0) return quantity;
-  return Math.round((from.value / targetOne.value) * 100) / 100;
-}
-
-async function sameNameCandidates(userId: string, displayName: string): Promise<InventoryItemDocument[]> {
-  const candidates = await InventoryItem.find({ userId, ...notExpiredQuery() });
-  return candidates.filter((item) => sameIngredient(item.name, displayName)) as InventoryItemDocument[];
 }
 
 async function learnedUnit(userId: string, displayName: string): Promise<string | null> {
@@ -127,9 +100,7 @@ export async function applyPurchase(
   const { purchase, mergeTarget } = await resolvePurchase(userId, line, resolved);
 
   if (mergeTarget) {
-    const quantityAdded = convertQuantity(purchase.quantity, purchase.unit, mergeTarget.unit);
-    mergeTarget.quantity = Math.round((mergeTarget.quantity + quantityAdded) * 100) / 100;
-    await mergeTarget.save();
+    const quantityAdded = await mergeInto(mergeTarget, purchase.quantity, purchase.unit);
     return {
       inventoryItemId: String(mergeTarget._id),
       quantityAdded,

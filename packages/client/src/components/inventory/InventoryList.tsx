@@ -11,6 +11,14 @@ interface Props {
   onDelete: (id: string) => void;
   /** Open the scoped editor — expiry + location (FR-UI-019 revised). */
   onEdit: (item: InventoryItem) => void;
+  /**
+   * Spec 009 US2 (FR-IR-006 Kitchen entry point): when active, each row shows a
+   * checkbox for picking ingredients to scope a recipe search. The selection is
+   * transient and owned by the parent (`InventoryPage`) — no shared context (D5).
+   */
+  selectMode?: boolean;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 const DOT_CLASS = { expired: 'bg-accent-600', soon: 'bg-accent-400', fresh: 'bg-accent2-500' } as const;
@@ -29,7 +37,15 @@ function sortByExpiry(items: InventoryItem[]): InventoryItem[] {
   });
 }
 
-export function InventoryList({ items, onStep, onDelete, onEdit }: Props): React.JSX.Element {
+export function InventoryList({
+  items,
+  onStep,
+  onDelete,
+  onEdit,
+  selectMode = false,
+  selectedIds,
+  onToggleSelect,
+}: Props): React.JSX.Element {
   if (items.length === 0) {
     return (
       <p className="text-muted py-6 text-center text-sm">No ingredients yet. Add your first item above.</p>
@@ -48,6 +64,16 @@ export function InventoryList({ items, onStep, onDelete, onEdit }: Props): React
             aria-label={item.name}
             className={`flex items-center gap-3.5 rounded-lg px-4 py-3 ${expired ? 'bg-accent-100' : 'bg-surface'}`}
           >
+            {selectMode && (
+              <input
+                type="checkbox"
+                aria-label={`Select ${item.name}`}
+                checked={selectedIds?.has(item._id) ?? false}
+                onChange={() => onToggleSelect?.(item._id)}
+                className="h-5 w-5 shrink-0 accent-accent"
+              />
+            )}
+
             <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_CLASS[status]}`} aria-hidden />
 
             <div className="min-w-0 flex-1">

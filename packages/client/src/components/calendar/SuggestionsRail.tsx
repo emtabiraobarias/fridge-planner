@@ -1,9 +1,11 @@
 'use client';
+import { useState } from 'react';
 import {
   fetchRecommendations as fetchRecommendationsService,
   recommendationsErrorMessage,
 } from '../../services/inventory';
 import { useRecommendations } from '../../context/RecommendationsContext';
+import { useInventoryOptional } from '../../context/InventoryContext';
 import { usePlacement } from '../../context/PlacementContext';
 import { groundedAmounts, withGroundedAmount } from '../../lib/grounded-ingredients';
 
@@ -12,11 +14,27 @@ export function SuggestionsRail(): React.JSX.Element {
   const { state, meals, error, linksPending, setLoading, setMeals, setError, checkLinks } =
     useRecommendations();
   const { placing, startPlacing } = usePlacement();
+  // Spec 009 US2 (FR-IR-006, research D5): optional ingredient-filter chips built
+  // from live inventory. Transient per-surface — this rail's selection is
+  // independent of Kitchen select mode; both converge only at the one service call.
+  const items = useInventoryOptional()?.items ?? [];
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  function toggleChip(id: string): void {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleGet(): Promise<void> {
     setLoading();
     try {
-      const result = await fetchRecommendationsService();
+      // Same service as the Kitchen path (SC-IR-004); scope only when chips are active.
+      const scope = selectedIds.size > 0 ? [...selectedIds] : undefined;
+      const result = await fetchRecommendationsService(scope);
       setMeals(result.recommendations, result.fallback ?? null);
       // FR-037 lazy phase (fallback sets already carry pre-verified links).
       if (!result.fallback) void checkLinks(result.recommendations);
@@ -43,6 +61,30 @@ export function SuggestionsRail(): React.JSX.Element {
           </button>
         )}
       </div>
+
+      {meals.length === 0 && items.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Filter suggestions by ingredient">
+          {items.map((item) => {
+            const active = selectedIds.has(item._id);
+            return (
+              <button
+                key={item._id}
+                type="button"
+                aria-label={`Filter by ${item.name}`}
+                aria-pressed={active}
+                onClick={() => toggleChip(item._id)}
+                className={`rounded-full border px-3 py-1 text-[12px] font-semibold ${
+                  active
+                    ? 'border-accent bg-accent text-bg'
+                    : 'border-divider text-ink hover:bg-ink/[0.07]'
+                }`}
+              >
+                {item.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {state === 'error' && (
         <p role="alert" className="mt-4 rounded-lg bg-accent-100 p-3 text-sm text-accent-800">
