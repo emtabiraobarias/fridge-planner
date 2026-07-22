@@ -172,6 +172,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
 - [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
+- [ ] TXXX [P] Add or extend Playwright e2e coverage for every new user-facing flow in packages/client/e2e/
 - [ ] TXXX Security hardening and penetration testing
 - [ ] TXXX [P] Load testing validation (1000+ concurrent users)
 - [ ] TXXX [P] Accessibility audit (WCAG 2.1 AA compliance)

@@ -346,6 +346,12 @@ it('shows expiring badge when ingredient expires soon', () => {
 });
 ```
 
+### Playwright end-to-end coverage
+- **Location:** `packages/client/e2e/*.e2e.ts`; screenshots live in `packages/client/e2e/screenshots/`.
+- Every new user-facing feature MUST add or extend Playwright coverage for its primary journey as part of the story tasks. A feature is not done without that browser-level check.
+- E2E must stay deterministic: seed through the real API/UI, mock Holodeck-dependent recommendation calls at the network edge, and do not hit external services.
+- Before cutting a release tag, the verification log in the spec `quickstart.md` must include the feature's Playwright coverage and a green `npm -w packages/client run test:e2e` result.
+
 ### Pre-commit Hook
 `husky` runs `lint-staged` on every commit — it auto-fixes ESLint errors and Prettier formats all staged `.ts/.tsx/.css` files. **Never skip hooks.**
 
