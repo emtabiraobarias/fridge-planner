@@ -57,14 +57,27 @@ export type CreateItemPayload = Omit<InventoryItem, '_id' | 'expirationStatus'> 
   mergeDuplicates?: boolean;
 };
 
-export async function createItem(data: CreateItemPayload): Promise<InventoryItem> {
+/**
+ * `merged:true` (spec 009 US3, FR-IR-012) reflects the server's opt-in
+ * `mergeDuplicates` merge: no new row was created — `item` is the merged target,
+ * `addedQuantity` (in `item.unit`) is what Undo (FR-IR-013) needs to reverse.
+ */
+export type CreateItemResult =
+  | { merged: false; item: InventoryItem }
+  | { merged: true; item: InventoryItem; mergedItemId: string; addedQuantity: number };
+
+export async function createItem(data: CreateItemPayload): Promise<CreateItemResult> {
   const res = await apiFetch(`${BASE}/inventory`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   ensureOk(res, "create item");
-  return res.json() as Promise<InventoryItem>;
+  const json = (await res.json()) as
+    | (InventoryItem & { merged?: undefined })
+    | { merged: true; item: InventoryItem; mergedItemId: string; addedQuantity: number };
+  if (json.merged === true) return json;
+  return { merged: false, item: json };
 }
 
 /** Updatable fields — expiresAt accepts null to CLEAR the expiry (FR-UI-019 revised). */

@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import { useToast } from '../context/ToastContext';
 import { QuickAdd } from '../components/inventory/QuickAdd';
@@ -22,6 +22,13 @@ export function InventoryPage(): React.JSX.Element {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const recsRef = useRef<HTMLDivElement>(null);
+  // Spec 009 US3 (research D7): the Undo toast's onAction closure is captured once,
+  // at merge time — a ref keeps it reading the LATEST quantity (not the stale one
+  // from when the toast was shown) so an intervening edit is never clobbered.
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   function toggleSelectMode(): void {
     setSelectMode((on) => !on);
@@ -43,7 +50,7 @@ export function InventoryPage(): React.JSX.Element {
   }
 
   async function handleAdd(p: ParsedQuick): Promise<void> {
-    const data: Omit<InventoryItem, '_id' | 'expirationStatus'> = {
+    const data: Omit<InventoryItem, '_id' | 'expirationStatus'> & { mergeDuplicates: boolean } = {
       name: p.name,
       quantity: p.quantity,
       unit: p.unit,
@@ -52,9 +59,29 @@ export function InventoryPage(): React.JSX.Element {
       // Anchor at UTC midnight so the stored ISO datetime keeps the parsed calendar
       // date (a local-midnight conversion can shift the day across the UTC boundary).
       ...(p.expiresAt ? { expiresAt: `${p.expiresAt}T00:00:00.000Z` } : {}),
+      // Spec 009 US3 (FR-IR-012): quick-add is the ONLY opt-in caller — deliberate
+      // creates elsewhere (e.g. a future explicit add form) keep the flag absent.
+      mergeDuplicates: true,
     };
-    await addItem(data);
-    showToast(`${p.name} added to your ${p.location}`);
+    const result = await addItem(data);
+    if (result.merged) {
+      const { mergedItemId, addedQuantity } = result;
+      showToast(`${p.name} merged into your existing item`, {
+        label: 'Undo',
+        onAction: () => {
+          const current = itemsRef.current.find((i) => i._id === mergedItemId);
+          if (!current) return;
+          // Subtract-delta-and-clamp (research D7): reverses exactly the merge's
+          // contribution against whatever the CURRENT quantity is, so an edit made
+          // between merge and Undo is preserved rather than clobbered — and the
+          // result can never go negative/phantom.
+          const next = Math.max(0, Math.round((current.quantity - addedQuantity) * 100) / 100);
+          void editItem(mergedItemId, { quantity: next });
+        },
+      });
+    } else {
+      showToast(`${p.name} added to your ${p.location}`);
+    }
   }
 
   async function handleStep(item: InventoryItem, delta: number): Promise<void> {

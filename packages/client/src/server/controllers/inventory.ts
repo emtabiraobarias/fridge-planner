@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { InventoryItem, CATEGORIES, LOCATIONS } from '../models/inventory-item';
 import { invalidateUser } from '../services/recommendations-cache';
 import { getExpirationStatus, expirationStatusQuery } from '../lib/expiration';
+import { findMergeTarget, mergeInto } from '../lib/inventory-merge';
 import { problem, type ControllerResult } from '../http';
 
 const categoryEnum = z.enum(CATEGORIES as unknown as [string, ...string[]]);
@@ -16,6 +17,9 @@ const createSchema = z.object({
   category: categoryEnum,
   location: locationEnum.default('fridge'),
   expiresAt: z.string().datetime({ offset: true }).optional(),
+  // Spec 009 US3 (FR-IR-012): opt-in, quick-add-only merge into a live, same-name,
+  // non-expired, unit-compatible item — default/absent create is unchanged (201).
+  mergeDuplicates: z.boolean().optional(),
 });
 
 // FR-002 / FR-UI-019 (revised): expiry is UPDATABLE and CLEARABLE — null means
@@ -72,7 +76,20 @@ export async function createInventory(userId: string, body: unknown): Promise<Co
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return invalidInput(parsed.error);
 
-  const data = parsed.data;
+  const { mergeDuplicates, ...data } = parsed.data;
+
+  if (mergeDuplicates === true) {
+    const target = await findMergeTarget(userId, data.name, data.unit);
+    if (target) {
+      const addedQuantity = await mergeInto(target, data.quantity, data.unit);
+      invalidateUser(userId);
+      return {
+        status: 200,
+        body: { merged: true, item: target.toObject(), mergedItemId: String(target._id), addedQuantity },
+      };
+    }
+  }
+
   const item = new InventoryItem({
     ...data,
     userId,

@@ -7,6 +7,7 @@ import { MealPlanProvider } from '../src/context/MealPlanContext';
 import { RecommendationsProvider } from '../src/context/RecommendationsContext';
 import { PlacementProvider } from '../src/context/PlacementContext';
 import { ToastProvider } from '../src/context/ToastContext';
+import { Toast } from '../src/components/shared/Toast';
 import * as inventoryService from '../src/services/inventory';
 
 vi.mock('../src/services/inventory', () => ({
@@ -40,6 +41,7 @@ function renderWithProviders(): ReturnType<typeof render> {
           </RecommendationsProvider>
         </MealPlanProvider>
       </InventoryProvider>
+      <Toast />
     </ToastProvider>,
   );
 }
@@ -137,6 +139,126 @@ describe('InventoryPage (organic redesign)', () => {
       await waitFor(() => expect(screen.getByText('Chicken Breast')).toBeInTheDocument());
       expect(screen.getByRole('button', { name: /get recommendations/i })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /find recipes with selected/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('quick-add merge + Undo (spec 009 US3, FR-IR-012/013)', () => {
+    it('opts quick-add into server-side merging', async () => {
+      renderWithProviders();
+      await waitFor(() => screen.getByLabelText(/quick add item/i));
+      await userEvent.type(screen.getByLabelText(/quick add item/i), '2L milk{Enter}');
+      await waitFor(() => expect(inventoryService.createItem).toHaveBeenCalledTimes(1));
+      expect(inventoryService.createItem).toHaveBeenCalledWith(
+        expect.objectContaining({ mergeDuplicates: true }),
+      );
+    });
+
+    it('a merge response shows an Undo toast that subtracts addedQuantity from the current quantity, clamped at 0', async () => {
+      (inventoryService.fetchInventory as ReturnType<typeof vi.fn>).mockResolvedValue({
+        items: [
+          {
+            _id: 'existing-milk',
+            name: 'Milk',
+            quantity: 7,
+            unit: 'L',
+            category: 'Dairy',
+            location: 'fridge',
+            expirationStatus: 'normal',
+          },
+        ],
+        summary: { total: 1, expired: 0, expiringSoon: 0 },
+        pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+      });
+      (inventoryService.createItem as ReturnType<typeof vi.fn>).mockResolvedValue({
+        merged: true,
+        item: {
+          _id: 'existing-milk',
+          name: 'Milk',
+          quantity: 7,
+          unit: 'L',
+          category: 'Dairy',
+          location: 'fridge',
+          expirationStatus: 'normal',
+        },
+        mergedItemId: 'existing-milk',
+        addedQuantity: 2,
+      });
+
+      renderWithProviders();
+      await waitFor(() => screen.getByLabelText(/quick add item/i));
+      await userEvent.type(screen.getByLabelText(/quick add item/i), '2L milk{Enter}');
+
+      const undoButton = await screen.findByRole('button', { name: /undo/i });
+      await userEvent.click(undoButton);
+
+      await waitFor(() => {
+        expect(inventoryService.updateItem).toHaveBeenCalledWith('existing-milk', { quantity: 5 });
+      });
+    });
+
+    it('clamps the Undo reversal at 0 instead of going negative', async () => {
+      (inventoryService.fetchInventory as ReturnType<typeof vi.fn>).mockResolvedValue({
+        items: [
+          {
+            _id: 'existing-milk',
+            name: 'Milk',
+            quantity: 1,
+            unit: 'L',
+            category: 'Dairy',
+            location: 'fridge',
+            expirationStatus: 'normal',
+          },
+        ],
+        summary: { total: 1, expired: 0, expiringSoon: 0 },
+        pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+      });
+      (inventoryService.createItem as ReturnType<typeof vi.fn>).mockResolvedValue({
+        merged: true,
+        item: {
+          _id: 'existing-milk',
+          name: 'Milk',
+          quantity: 1,
+          unit: 'L',
+          category: 'Dairy',
+          location: 'fridge',
+          expirationStatus: 'normal',
+        },
+        mergedItemId: 'existing-milk',
+        addedQuantity: 5,
+      });
+
+      renderWithProviders();
+      await waitFor(() => screen.getByLabelText(/quick add item/i));
+      await userEvent.type(screen.getByLabelText(/quick add item/i), '2L milk{Enter}');
+
+      const undoButton = await screen.findByRole('button', { name: /undo/i });
+      await userEvent.click(undoButton);
+
+      await waitFor(() => {
+        expect(inventoryService.updateItem).toHaveBeenCalledWith('existing-milk', { quantity: 0 });
+      });
+    });
+
+    it('a non-merge create shows the normal "added" toast with no Undo control', async () => {
+      (inventoryService.createItem as ReturnType<typeof vi.fn>).mockResolvedValue({
+        merged: false,
+        item: {
+          _id: 'new-1',
+          name: 'Olive Oil',
+          quantity: 1,
+          unit: 'bottle',
+          category: 'Pantry',
+          location: 'pantry',
+          expirationStatus: 'none',
+        },
+      });
+
+      renderWithProviders();
+      await waitFor(() => screen.getByLabelText(/quick add item/i));
+      await userEvent.type(screen.getByLabelText(/quick add item/i), 'olive oil{Enter}');
+
+      expect(await screen.findByText(/added to your/i)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
     });
   });
 });
