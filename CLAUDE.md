@@ -350,7 +350,7 @@ it('shows expiring badge when ingredient expires soon', () => {
 - **Location:** `packages/client/e2e/*.e2e.ts`; screenshots live in `packages/client/e2e/screenshots/`.
 - Every new user-facing feature MUST add or extend Playwright coverage for its primary journey as part of the story tasks. A feature is not done without that browser-level check.
 - E2E must stay deterministic: seed through the real API/UI, mock Holodeck-dependent recommendation calls at the network edge, and do not hit external services.
-- Before cutting a release tag, the verification log in the spec `quickstart.md` must include the feature's Playwright coverage and a green `npm -w packages/client run test:e2e` result.
+- **CI runs the full suite automatically** — the `E2E browser tests (Playwright)` step in `.github/workflows/ci-nextjs.yml` runs `npm -w packages/client run test:e2e` on every push/PR to `impl/nextjs`, alongside the deterministic `validate-e2e.sh` API smoke (they are separate: the smoke is curl-based, Playwright drives a real browser). So new `*.e2e.ts` files are enforced by the required `verify` check, not only at release. The release `quickstart.md` verification log should still record the green run.
 
 ### Pre-commit Hook
 `husky` runs `lint-staged` on every commit — it auto-fixes ESLint errors and Prettier formats all staged `.ts/.tsx/.css` files. **Never skip hooks.**
