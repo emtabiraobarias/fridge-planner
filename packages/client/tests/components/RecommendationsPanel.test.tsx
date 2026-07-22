@@ -1,11 +1,11 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { RecommendationsPanel } from '../../src/components/recommendations/RecommendationsPanel';
 import { RecommendationsProvider } from '../../src/context/RecommendationsContext';
 import { InventoryProvider } from '../../src/context/InventoryContext';
 import { PlacementProvider } from '../../src/context/PlacementContext';
 import type { MealRecommendation } from '../../src/types/meal-recommendation';
-import type { RecommendationsResult } from '../../src/services/inventory';
+import type { InventoryItem, RecommendationsResult } from '../../src/services/inventory';
 
 vi.mock('../../src/services/inventory', async (importOriginal) => ({
   // Keep the real recommendationsErrorMessage — the error-detail tests depend on it.
@@ -36,6 +36,16 @@ const mockMeal: MealRecommendation = {
   missingIngredients: ['soy sauce'],
 };
 
+const nonEmptyItem: InventoryItem = {
+  _id: 'item-1',
+  name: 'Chicken breast',
+  quantity: 1,
+  unit: 'kg',
+  category: 'Meat',
+  location: 'fridge',
+  expirationStatus: 'normal',
+};
+
 function renderWithProviders(ui: React.ReactElement): ReturnType<typeof render> {
   return render(
     <InventoryProvider>
@@ -47,6 +57,60 @@ function renderWithProviders(ui: React.ReactElement): ReturnType<typeof render> 
 }
 
 describe('RecommendationsPanel', () => {
+  it('never auto-fetches on mount, even with non-empty inventory, and shows a calm empty-state CTA (spec 009 FR-IR-001/002, SC-IR-001)', async () => {
+    const services = await import('../../src/services/inventory');
+    (services.fetchInventory as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      items: [nonEmptyItem],
+      summary: { total: 1, expired: 0, expiringSoon: 0 },
+    });
+    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({ recommendations: [mockMeal] });
+    renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
+
+    // Let InventoryProvider's mount-time fetch resolve so items.length transitions
+    // from empty to non-empty — the exact transition the old prefetch effect fired on.
+    await waitFor(() => expect(services.fetchInventory).toHaveBeenCalled());
+    // Flush any microtask-queued effect work before asserting nothing fired.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(screen.getByText(/ready when you are/i)).toBeInTheDocument();
+  });
+
+  it('session persistence: results already fetched this session render on re-mount with no new fetchRecommendations call (FR-IR-003)', async () => {
+    const services = await import('../../src/services/inventory');
+    (services.fetchInventory as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [nonEmptyItem],
+      summary: { total: 1, expired: 0, expiringSoon: 0 },
+    });
+    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({ recommendations: [mockMeal] });
+
+    function Wrapper({ showPanel }: { showPanel: boolean }): React.JSX.Element {
+      return (
+        <InventoryProvider>
+          <RecommendationsProvider>
+            <PlacementProvider>
+              {showPanel && <RecommendationsPanel fetchRecommendations={mockFetch} />}
+            </PlacementProvider>
+          </RecommendationsProvider>
+        </InventoryProvider>
+      );
+    }
+
+    const { rerender } = render(<Wrapper showPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
+    await screen.findByText('Chicken Stir-fry');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // Simulate leaving the screen (panel unmounts) and revisiting it (remounts) —
+    // the app-level RecommendationsProvider (app/providers.tsx) stays mounted the
+    // whole time, exactly as it does across real client-side navigation.
+    rerender(<Wrapper showPanel={false} />);
+    rerender(<Wrapper showPanel />);
+
+    expect(await screen.findByText('Chicken Stir-fry')).toBeInTheDocument();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('shows a button to fetch recommendations', () => {
     renderWithProviders(<RecommendationsPanel />);
     expect(screen.getByRole('button', { name: /get.*recommendation/i })).toBeInTheDocument();

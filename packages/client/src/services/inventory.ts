@@ -48,7 +48,16 @@ export async function fetchInventory(params?: { category?: string; status?: stri
   return res.json() as Promise<InventoryResponse>;
 }
 
-export async function createItem(data: Omit<InventoryItem, '_id' | 'expirationStatus'>): Promise<InventoryItem> {
+/**
+ * `mergeDuplicates` (spec 009 EC-03, research D6) is opt-in and quick-add-only —
+ * default/absent create behaves byte-identically to today. Server-side Zod +
+ * branch logic land in IR3 (T032).
+ */
+export type CreateItemPayload = Omit<InventoryItem, '_id' | 'expirationStatus'> & {
+  mergeDuplicates?: boolean;
+};
+
+export async function createItem(data: CreateItemPayload): Promise<InventoryItem> {
   const res = await apiFetch(`${BASE}/inventory`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -112,11 +121,16 @@ export function recommendationsErrorMessage(err: unknown, generic: string): stri
   return detail || generic;
 }
 
-export async function fetchRecommendations(): Promise<RecommendationsResult> {
+/**
+ * `ingredientItemIds` (spec 009, research D3) scopes generation to a selection of
+ * inventory `_id`s — sent ONLY when non-empty, so an empty/absent selection is a
+ * whole-inventory request byte-identical to today (FR-IR-004/007).
+ */
+export async function fetchRecommendations(ingredientItemIds?: string[]): Promise<RecommendationsResult> {
   const res = await apiFetch(`${BASE}/recommendations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
+    body: JSON.stringify(ingredientItemIds && ingredientItemIds.length > 0 ? { ingredientItemIds } : {}),
   });
   // Surface the server's Problem JSON `detail` (e.g. FR-037's 503 "recipe verification
   // unavailable") so the UI can explain the failure instead of a generic message.

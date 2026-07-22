@@ -51,6 +51,11 @@ beforeEach(() => {
 });
 
 describe('SuggestionsRail', () => {
+  it('mounting alone triggers zero fetchRecommendations calls (spec 009 IR1 — already manual-trigger, regression lock)', () => {
+    renderRail();
+    expect(fetchRecommendations).not.toHaveBeenCalled();
+  });
+
   it('renders each suggestion with a recipe link opening in a new tab (FR-015/FR-037)', async () => {
     fetchRecommendations.mockResolvedValueOnce({ recommendations: [linkedMeal] });
     renderRail();

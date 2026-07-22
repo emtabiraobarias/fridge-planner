@@ -13,8 +13,8 @@
 
 **Purpose**: Establish the implementation baseline and confirm the exact seam the plan/research flag before touching any code.
 
-- [ ] T001 Run `npm run lint && npm test` at repo root and record baseline notes in `specs/009-ingredient-recipe-search/quickstart.md` verification log
-- [ ] T002 Review `packages/client/tests/components/RecommendationsPanel.test.tsx`, `packages/client/tests/InventoryPage.test.tsx`, and `packages/client/tests/server/recommendations.test.ts` for assumptions IR1-IR3 change; specifically note that the current RTL suite mounts `RecommendationsPanel` with an **empty** `fetchInventory` mock (`{items:[]}`), so the existing prefetch `useEffect` (`RecommendationsPanel.tsx:38-43`, fires on `items.length` transitioning from empty to non-empty) never actually triggers today — no existing test asserts "no auto-load". IR1's tests (Phase 3) must seed a **non-empty** inventory mock to genuinely exercise the effect being removed.
+- [x] T001 Run `npm run lint && npm test` at repo root and record baseline notes in `specs/009-ingredient-recipe-search/quickstart.md` verification log
+- [x] T002 Review `packages/client/tests/components/RecommendationsPanel.test.tsx`, `packages/client/tests/InventoryPage.test.tsx`, and `packages/client/tests/server/recommendations.test.ts` for assumptions IR1-IR3 change; specifically note that the current RTL suite mounts `RecommendationsPanel` with an **empty** `fetchInventory` mock (`{items:[]}`), so the existing prefetch `useEffect` (`RecommendationsPanel.tsx:38-43`, fires on `items.length` transitioning from empty to non-empty) never actually triggers today — no existing test asserts "no auto-load". IR1's tests (Phase 3) must seed a **non-empty** inventory mock to genuinely exercise the effect being removed.
 
 ---
 
@@ -22,12 +22,12 @@
 
 **Purpose**: Shared groundwork two later stories build on — the `ToastContext` action extension (IR3's Undo prerequisite) and the `ingredientItemIds`/`mergeDuplicates` type/schema plumbing (IR2/IR3 prerequisite). No user-visible behavior change yet.
 
-- [ ] T003 [P] Add a new failing test file `packages/client/tests/context/ToastContext.test.tsx`: the existing `showToast(message)` call still shows the message and auto-dismisses after the timeout (regression); a new `showToast(message, { label, onAction })` call renders a focusable, keyboard-operable action control alongside the message, and activating it invokes `onAction` (research D7 — prerequisite for IR3's Undo)
-- [ ] T004 Extend `ToastContextValue`/`showToast` in `packages/client/src/context/ToastContext.tsx` to accept an optional `action?: { label: string; onAction: () => void }`, stored alongside `toast` state, so T003 passes; existing message-only call sites are unaffected
-- [ ] T005 [P] Render the optional action button in `packages/client/src/components/shared/Toast.tsx` (label text + `onClick` → `onAction()` then dismiss) so T003's action-control assertions pass
-- [ ] T006 [P] Add the optional `ingredientItemIds` field (Zod: `z.array(z.string().min(1).max(64)).max(20)`, optional; malformed/absent treated as no selection, never a 400) to the `POST /api/v1/recommendations` body parsing in `packages/client/app/api/v1/recommendations/route.ts` — parsed but **not yet** passed to the controller (behavior-neutral placeholder; wired in IR2, research D1 / contracts/recommendations-scoping-api.md)
-- [ ] T007 [P] Add the matching optional `ingredientItemIds?: string[]` parameter to `fetchRecommendations()` in `packages/client/src/services/inventory.ts`, included in the POST body **only** when the array is non-empty (D3) — the one service function both IR2 entry points (Kitchen select mode, suggestions-rail chips) will call; not yet passed by any caller
-- [ ] T008 [P] Add the optional `mergeDuplicates?: boolean` field (default false) to the create-payload type used by `createItem()` in `packages/client/src/services/inventory.ts` (typed only; server-side Zod + branch logic land in IR3, T032)
+- [x] T003 [P] Add a new failing test file `packages/client/tests/context/ToastContext.test.tsx`: the existing `showToast(message)` call still shows the message and auto-dismisses after the timeout (regression); a new `showToast(message, { label, onAction })` call renders a focusable, keyboard-operable action control alongside the message, and activating it invokes `onAction` (research D7 — prerequisite for IR3's Undo)
+- [x] T004 Extend `ToastContextValue`/`showToast` in `packages/client/src/context/ToastContext.tsx` to accept an optional `action?: { label: string; onAction: () => void }`, stored alongside `toast` state, so T003 passes; existing message-only call sites are unaffected
+- [x] T005 [P] Render the optional action button in `packages/client/src/components/shared/Toast.tsx` (label text + `onClick` → `onAction()` then dismiss) so T003's action-control assertions pass
+- [x] T006 [P] Add the optional `ingredientItemIds` field (Zod: `z.array(z.string().min(1).max(64)).max(20)`, optional; malformed/absent treated as no selection, never a 400) to the `POST /api/v1/recommendations` body parsing in `packages/client/app/api/v1/recommendations/route.ts` — parsed but **not yet** passed to the controller (behavior-neutral placeholder; wired in IR2, research D1 / contracts/recommendations-scoping-api.md)
+- [x] T007 [P] Add the matching optional `ingredientItemIds?: string[]` parameter to `fetchRecommendations()` in `packages/client/src/services/inventory.ts`, included in the POST body **only** when the array is non-empty (D3) — the one service function both IR2 entry points (Kitchen select mode, suggestions-rail chips) will call; not yet passed by any caller
+- [x] T008 [P] Add the optional `mergeDuplicates?: boolean` field (default false) to the create-payload type used by `createItem()` in `packages/client/src/services/inventory.ts` (typed only; server-side Zod + branch logic land in IR3, T032)
 
 **Foundational verification**: `npx vitest run --coverage=false tests/context/ToastContext.test.tsx` passes; `npm run lint` passes; no other test file's behavior changes yet (new optional fields/params only, unwired).
 
@@ -41,14 +41,14 @@
 
 ### Tests for User Story 1 (write first, must FAIL)
 
-- [ ] T009 [P] [US1] Add a failing test in `packages/client/tests/components/RecommendationsPanel.test.tsx`: render with a **non-empty** `InventoryProvider` (override the `fetchInventory` mock to resolve a populated item — see T002's finding) and assert `fetchRecommendations` is **not** called on mount, and an empty-state CTA is shown (FR-IR-001/002, SC-IR-001)
-- [ ] T010 [US1] Add a failing test in the same file: pre-seed `RecommendationsContext` with an already-successful result (e.g. a small test helper that drives `setMeals` via a stub `fetchRecommendations` and an initial click before the assertion, or a context wrapper that seeds `meals`/`cachedAt`) → re-mount `RecommendationsPanel` → prior results render immediately with **no** new `fetchRecommendations` call (FR-IR-003)
-- [ ] T011 [P] [US1] Add a regression test in `packages/client/tests/components/calendar/SuggestionsRail.test.tsx` asserting mount alone (no click) triggers **zero** `fetchRecommendations` calls — locks down that the calendar rail is already manual-trigger, so IR1's removal work below must target only `RecommendationsPanel.tsx`, not this file (plan.md Risks tension #1)
+- [x] T009 [P] [US1] Add a failing test in `packages/client/tests/components/RecommendationsPanel.test.tsx`: render with a **non-empty** `InventoryProvider` (override the `fetchInventory` mock to resolve a populated item — see T002's finding) and assert `fetchRecommendations` is **not** called on mount, and an empty-state CTA is shown (FR-IR-001/002, SC-IR-001)
+- [x] T010 [US1] Add a failing test in the same file: pre-seed `RecommendationsContext` with an already-successful result (e.g. a small test helper that drives `setMeals` via a stub `fetchRecommendations` and an initial click before the assertion, or a context wrapper that seeds `meals`/`cachedAt`) → re-mount `RecommendationsPanel` → prior results render immediately with **no** new `fetchRecommendations` call (FR-IR-003)
+- [x] T011 [P] [US1] Add a regression test in `packages/client/tests/components/calendar/SuggestionsRail.test.tsx` asserting mount alone (no click) triggers **zero** `fetchRecommendations` calls — locks down that the calendar rail is already manual-trigger, so IR1's removal work below must target only `RecommendationsPanel.tsx`, not this file (plan.md Risks tension #1)
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Remove the prefetch `useEffect` and the now-unused `prefetchedRef` at `packages/client/src/components/recommendations/RecommendationsPanel.tsx:35-43` so mounting never auto-fetches; keep the existing "Get Recommendations" button as the sole trigger (FR-IR-001)
-- [ ] T013 [US1] Add a calm empty-state message in `RecommendationsPanel.tsx`'s `renderResults`/render body, shown when `state === 'idle'` and `meals.length === 0` (before the first request), without regressing the existing loading/error/success branches, so T009 passes (FR-IR-002)
+- [x] T012 [US1] Remove the prefetch `useEffect` and the now-unused `prefetchedRef` at `packages/client/src/components/recommendations/RecommendationsPanel.tsx:35-43` so mounting never auto-fetches; keep the existing "Get Recommendations" button as the sole trigger (FR-IR-001)
+- [x] T013 [US1] Add a calm empty-state message in `RecommendationsPanel.tsx`'s `renderResults`/render body, shown when `state === 'idle'` and `meals.length === 0` (before the first request), without regressing the existing loading/error/success branches, so T009 passes (FR-IR-002)
 
 **Checkpoint**: fresh visits make zero recommendation requests; the manual button and session persistence behave exactly as before; the calendar rail is untouched.
 

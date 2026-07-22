@@ -1,5 +1,4 @@
 'use client';
-import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   fetchRecommendations as fetchRecommendationsService,
@@ -32,15 +31,11 @@ export function RecommendationsPanel({
   const { items } = useInventory();
   const { startPlacing } = usePlacement();
   const router = useRouter();
-  const prefetchedRef = useRef(false);
 
-  // Prefetch when inventory first becomes non-empty
-  useEffect(() => {
-    if (items.length > 0 && state === 'idle' && !prefetchedRef.current) {
-      prefetchedRef.current = true;
-      void handleFetch();
-    }
-  }, [items.length > 0]); // dep is a boolean: fires only when inventory transitions from empty to non-empty
+  // Spec 009 IR1 (FR-IR-001): no prefetch on mount — "Get Recommendations" is the
+  // sole trigger. Session persistence (FR-IR-003) needs no effect here: results
+  // live in the app-level RecommendationsProvider and `handleFetch` below already
+  // short-circuits when fresh results exist.
 
   // Fetch → show immediately → kick off the FR-037 lazy link phase (fallback sets
   // already carry pre-verified links, so they skip it).
@@ -85,6 +80,13 @@ export function RecommendationsPanel({
   const urgentSummary = urgentNames.length ? urgentNames.join(' and ') : 'freshest ingredients';
 
   function renderResults(): React.JSX.Element | null {
+    if (state === 'idle' && meals.length === 0) {
+      return (
+        <p className="text-muted mt-4 text-sm">
+          Ready when you are — tap Get Recommendations for meal ideas using what&rsquo;s in your fridge.
+        </p>
+      );
+    }
     if (state === 'loading') {
       return (
         <ul className="mt-4 space-y-3" aria-label="Loading meal recommendations">
