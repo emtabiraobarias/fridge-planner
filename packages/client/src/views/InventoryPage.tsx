@@ -16,7 +16,26 @@ export function InventoryPage(): React.JSX.Element {
   const { showToast } = useToast();
   const [filter, setFilter] = useState<LocationFilterValue>('All');
   const [editing, setEditing] = useState<InventoryItem | null>(null);
+  // Spec 009 US2 (FR-IR-006/007): transient Kitchen ingredient selection — owned
+  // here, not a shared context (research D5). It scopes the one RecommendationsPanel
+  // action when non-empty.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const recsRef = useRef<HTMLDivElement>(null);
+
+  function toggleSelectMode(): void {
+    setSelectMode((on) => !on);
+    setSelectedIds(new Set());
+  }
+
+  function toggleSelect(id: string): void {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleEditSave(id: string, data: InventoryItemUpdate): Promise<void> {
     await editItem(id, data);
@@ -70,12 +89,25 @@ export function InventoryPage(): React.JSX.Element {
 
         <QuickAdd onAdd={handleAdd} />
 
-        <LocationFilter
-          value={filter}
-          onChange={setFilter}
-          visibleCount={visible.length}
-          totalCount={items.length}
-        />
+        <div className="flex items-center justify-between gap-3">
+          <LocationFilter
+            value={filter}
+            onChange={setFilter}
+            visibleCount={visible.length}
+            totalCount={items.length}
+          />
+          {items.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleSelectMode}
+              aria-pressed={selectMode}
+              aria-label={selectMode ? 'Cancel ingredient selection' : 'Select items for recipe search'}
+              className="shrink-0 rounded-full border border-divider px-3 py-1.5 text-[13px] font-semibold hover:bg-ink/[0.07]"
+            >
+              {selectMode ? 'Cancel' : 'Select items'}
+            </button>
+          )}
+        </div>
 
         {loading && <p className="text-muted animate-pulse text-sm">Loading inventory…</p>}
         {error && (
@@ -84,12 +116,22 @@ export function InventoryPage(): React.JSX.Element {
           </p>
         )}
         {!loading && (
-          <InventoryList items={visible} onStep={handleStep} onDelete={handleDelete} onEdit={setEditing} />
+          <InventoryList
+            items={visible}
+            onStep={handleStep}
+            onDelete={handleDelete}
+            onEdit={setEditing}
+            selectMode={selectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+          />
         )}
       </div>
 
       <div ref={recsRef}>
-        <RecommendationsPanel />
+        <RecommendationsPanel
+          {...(selectMode && selectedIds.size > 0 ? { ingredientItemIds: [...selectedIds] } : {})}
+        />
       </div>
 
       {/* Scoped editor: expiry + location (spec 004 FR-UI-019 revised) */}

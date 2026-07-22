@@ -25,12 +25,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!rl.allowed) {
       return problemResponse(429, 'Rate Limit Exceeded', 'Too many recommendation requests. Try again in a minute.');
     }
-    // T006 (spec 009): parsed here but not yet passed to the controller — wiring
-    // into getRecommendations lands in IR2 (T020/T021).
+    // Spec 009 IR2 (T021): parse the optional ingredient scope and pass it to the
+    // controller. A malformed field is ignored (safeParse failure → undefined) so
+    // the "no body required" contract holds — the controller then guards an
+    // empty/all-expired selection back to whole inventory (FR-IR-010).
     const parsedBody = bodySchema.safeParse(await request.json().catch(() => ({})));
-    void parsedBody;
+    const ingredientItemIds = parsedBody.success ? parsedBody.data.ingredientItemIds : undefined;
     await connectDb();
-    const result = await getRecommendations(userId);
+    const result = await getRecommendations(userId, ingredientItemIds);
     return NextResponse.json(result.body, { status: result.status });
   });
 }

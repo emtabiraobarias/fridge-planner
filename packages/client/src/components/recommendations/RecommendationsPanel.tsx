@@ -20,11 +20,19 @@ const FALLBACK_NOTICE: Record<'popular' | 'cache', string> = {
 };
 
 interface Props {
-  fetchRecommendations?: () => Promise<RecommendationsResult>;
+  fetchRecommendations?: (ingredientItemIds?: string[]) => Promise<RecommendationsResult>;
+  /**
+   * Spec 009 US2 (FR-IR-007): an optional ingredient scope from Kitchen select mode
+   * (`InventoryPage`). When non-empty, the single contextual action relabels to
+   * "Find recipes with selected" and threads the ids into the same service call —
+   * one code path, one endpoint (research D3/D5).
+   */
+  ingredientItemIds?: string[];
 }
 
 export function RecommendationsPanel({
   fetchRecommendations: fetchFn = fetchRecommendationsService,
+  ingredientItemIds,
 }: Props): React.JSX.Element {
   const { state, meals, error, cachedAt, fallback, linksPending, setLoading, setMeals, setError, checkLinks } =
     useRecommendations();
@@ -37,19 +45,24 @@ export function RecommendationsPanel({
   // live in the app-level RecommendationsProvider and `handleFetch` below already
   // short-circuits when fresh results exist.
 
+  const scoped = ingredientItemIds !== undefined && ingredientItemIds.length > 0;
+
   // Fetch → show immediately → kick off the FR-037 lazy link phase (fallback sets
   // already carry pre-verified links, so they skip it).
   async function fetchAndApply(): Promise<void> {
-    const result = await fetchFn();
+    const result = await fetchFn(scoped ? ingredientItemIds : undefined);
     setMeals(result.recommendations, result.fallback ?? null);
     if (!result.fallback) void checkLinks(result.recommendations);
   }
 
   async function handleFetch(): Promise<void> {
+    // A scoped request always re-fetches — the server's per-selection cache (D2)
+    // dedupes, and a new selection must not be masked by stale whole-inventory
+    // results still fresh in the client TTL.
     const age = cachedAt !== null ? Date.now() - cachedAt : Infinity;
-    if (meals.length > 0 && age < CLIENT_CACHE_TTL_MS) return;
+    if (!scoped && meals.length > 0 && age < CLIENT_CACHE_TTL_MS) return;
 
-    if (meals.length > 0 && age >= CLIENT_CACHE_TTL_MS) {
+    if (!scoped && meals.length > 0 && age >= CLIENT_CACHE_TTL_MS) {
       try {
         await fetchAndApply();
       } catch {
@@ -139,7 +152,7 @@ export function RecommendationsPanel({
         disabled={state === 'loading'}
         className="w-full rounded-full bg-accent px-4 py-2.5 font-semibold text-bg hover:bg-accent-600 disabled:opacity-60"
       >
-        {state === 'loading' ? 'Thinking…' : 'Get Recommendations'}
+        {state === 'loading' ? 'Thinking…' : scoped ? 'Find recipes with selected' : 'Get Recommendations'}
       </button>
 
       {renderResults()}
