@@ -1,9 +1,9 @@
 # Fridge Planner Constitution
 
 ## 1. Project Overview
-*   **Goal:** Develop a robust, responsive meal planning application with calendar views.
+*   **Goal:** Develop a robust, responsive meal-planning application: expiration-aware fridge inventory, AI-powered meal recommendations, a weekly meal calendar, and grocery lists that flow back into kitchen inventory.
 *   **Core Philosophy:** Mobile-first, Type-safe, and User-centric.
-*   **Primary Use Case:** Organize daily meals (Breakfast, Lunch, Dinner) across Day, Week, Month, and Year views.
+*   **Primary Use Case:** Organize meals (breakfast, lunch, dinner, snacks) on a **weekly** calendar, planning from what's in the fridge; buy and cook flows keep inventory current. *(Day/Month/Year calendar views are aspirational Phase 2+ — the shipped calendar contract is weekly; clarified 2026-07-22.)*
 
 ## 2. Technology Stack
 
@@ -66,4 +66,4 @@
 *   **Code Review:** Focus on architectural fit, readability, and edge cases.
 *   **Documentation:** Complex logic must be documented. `README.md` must be up to date.
 
-**Version:** 3.1.0 | **Updated:** 2026-06-08
+**Version:** 3.1.1 | **Updated:** 2026-07-22
