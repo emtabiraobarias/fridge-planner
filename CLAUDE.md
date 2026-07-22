@@ -124,14 +124,14 @@ Base URL: `http://localhost:3000/api/v1` (served by Next.js Route Handlers in th
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/inventory` | List items (query: `category`, `status`, `page`, `limit`) |
-| POST | `/inventory` | Create item |
+| POST | `/inventory` | Create item; optional `mergeDuplicates:true` (spec 009 FR-IR-012) merges into an existing non-expired, compatible-unit same-name item instead of creating a duplicate — 200 `{ merged:true, item, mergedItemId, addedQuantity }` on a hit, else the unchanged 201 create (only the Kitchen quick-add path opts in) |
 | PUT | `/inventory/:id` | Update item |
 | DELETE | `/inventory/:id` | Delete item |
 
 ### Recommendations
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/recommendations` | Get AI meal suggestions immediately — links NOT awaited (no body required) |
+| POST | `/recommendations` | Get AI meal suggestions immediately — links NOT awaited; optional body `{ ingredientItemIds?: string[] }` (spec 009 FR-IR-005..010) scopes generation to that live, non-expired subset — absent/empty/all-expired falls back to whole-inventory |
 | POST | `/recommendations/verify-links` | FR-037 lazy phase: `{ mealNames: string[] }` (≤10) → `{ links, available }` |
 
 Rate limit: **10 req/min** for `/recommendations` (30/min for `verify-links`; 20/min for `/quick-add/parse`; 100/min elsewhere)
