@@ -51,7 +51,7 @@
 
 - **EC-01** — Empty inventory on recommend → suggests popular recipes + prompts to add items. ☑ **Verified 2026-06-19** (BUG #5, `3cc068d`) — returns `POPULAR_RECIPES` + `fallback:'popular'`.
 - **EC-02** — Insufficient ingredients (e.g. only condiments) → recommends minimal-addition recipes.
-- **EC-03** — Duplicate ingredient added with different quantities → prompt to merge / choose. ☑ **Verified 2026-06-21** (BUG #2, `abf3088`) — same-name add prompts Merge / Add separately / Cancel.
+- **EC-03** — Duplicate ingredient added with different quantities → merge into the existing item. *(Revised 2026-07-23, spec `009` FR-IR-012/013: the classic Merge / Add separately / Cancel prompt — dropped when the Phase G smart quick-add replaced the classic form — is superseded by **auto-merge into a same-name, non-expired, compatible-unit item with an "Undo" toast**; expired or unit-incompatible same-name items create a new item instead, per spec `007` FR-GC-005.)* ☑ *Original prompt behaviour verified 2026-06-21 (BUG #2, `abf3088`); re-implementation tracked in spec `009`.*
 - **EC-04** — Expired items present → red-flagged + excluded from LLM input.
 - **EC-05** — Fresh + expired versions of same ingredient → distinguished; only non-expired counted.
 - **EC-06** — Ambiguous units on aggregation ("1 large onion" + "200g") → conservative estimate + flag for review.
