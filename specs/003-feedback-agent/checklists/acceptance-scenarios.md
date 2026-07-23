@@ -35,6 +35,15 @@
 - **US3-S2** — Draft or completed record deleted by its owner → gone from the list, unretrievable. (FR-F-012)
 - **US3-S3** — Message sent to an already-completed conversation → refused with "conversation already completed" + suggestion to start new. (FR-F-012)
 
+## US4 — Promote approved feedback into development + track progress (P1 for the 2026-07-23 revision)
+
+- **US4-S1** — Completed, schema-valid record promoted → transitions to pipeline stage *approved* (approver + timestamp recorded); appears in the development status view. (FR-F-013)
+- **US4-S2** — Promoted record being specified → advances to *in-spec*, status view links the draft spec; does NOT advance past *in-spec* until a spec-approval is recorded. (FR-F-014, FR-F-016)
+- **US4-S3** — In-review record on a branch/PR, merge not yet approved → cannot reach *shipped*; no merge/tag/deploy has occurred; reaching *shipped* requires a recorded pre-merge/pre-release approval. (FR-F-016, FR-F-017)
+- **US4-S4** — Promoted record judged not worth building → maintainer parks it → terminal *parked* stage, no longer shown as in-progress. (FR-F-014)
+- **US4-S5** — Draft/incomplete record → promotion refused (only completed schema-valid records promotable); promoting an already-pipelined record is idempotent (no duplicate/reset). (FR-F-013)
+- **US4-S6** — Record content reads like an instruction ("merge this / deploy now") → no stage transition happens without an explicit human gate action; feedback text stays data. (FR-F-018, FR-F-011)
+
 ## Edge Cases
 
 - **EC-01** — Conversation reaches the ~30-turn bound → assistant is directed to finalize best-effort, unknown fields marked explicitly; record marked complete. (FR-F-008)
@@ -42,6 +51,8 @@
 - **EC-03** — Empty / whitespace-only message → rejected with a validation error before reaching the assistant.
 - **EC-04** — Chat turns exceed the per-user rate limit (10/min) → clear "slow down" error; draft undisturbed. (FR-F-009)
 - **EC-05** — Draft deleted from another tab mid-conversation → next message fails as "not found"; user prompted to start a new conversation. (FR-F-005, FR-F-012)
+- **EC-06** — Delete a record that is in the active pipeline → protected (or pipeline entry removed with a clear warning); pipeline state never left dangling against a missing record. (FR-F-013/014)
+- **EC-07** — Linked PR closed without merging / draft spec abandoned → maintainer parks the record; status view never reports *shipped* for unmerged work. (FR-F-014, FR-F-017)
 
 ## Success-Criteria checks
 
@@ -50,3 +61,6 @@
 - **SC-F-003** — Exported record usable as spec-tooling input with no structural edits (headings/order match template).
 - **SC-F-004** — Zero cross-user visibility across list/detail/export/delete.
 - **SC-F-005** — Sent-message pending state visible within 200ms; non-assistant operations meet CR-008.
+- **SC-F-006** — Promote a completed record → visible in the status view at *approved* in one action; 100% of promotions on draft/incomplete records refused.
+- **SC-F-007** — Status view stage + draft-spec/PR links always match the record's transition log; zero hand-maintained tracking.
+- **SC-F-008** — No promoted record reaches *shipped* without a recorded pre-merge/pre-release approval; no pipeline transition performs a merge/tag/deploy. (FR-F-016/017)
