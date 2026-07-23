@@ -1,9 +1,13 @@
 name: CI (impl/nextjs)
 
 # Phase E — E1: the CI gate for the Next.js implementation.
-# Runs lint → unit/integration tests → deterministic E2E smoke on every push to
-# impl/nextjs and every PR targeting it. Branch protection on impl/nextjs should
-# require the `verify` check below.
+# Runs lint → unit/integration tests → deterministic E2E smoke → Playwright browser
+# E2E on every push to impl/nextjs and every PR targeting it. Branch protection on
+# impl/nextjs should require the `verify` check below.
+#
+# Backlog #6 (2026-07-23): the Playwright suite (packages/client/e2e/*.e2e.ts) is now
+# part of this gate, so every new user-facing feature's browser coverage (CLAUDE.md §8)
+# runs automatically here — not only as a manual pre-release step.
 #
 # Scope: impl/nextjs only. The shared contract lives on `main`; impl/vite has its
 # own pipeline. This file is a per-branch file — it must never be merged to `main`.
@@ -52,3 +56,12 @@ jobs:
       # LLM credentials are needed in CI. The live-agent E2E stays manual/nightly.
       - name: E2E smoke (no agent)
         run: bash scripts/validate-e2e.sh --no-agent
+
+      # Playwright browser E2E — the full packages/client/e2e/*.e2e.ts suite against a
+      # real next build + in-memory Mongo (no Docker, no Holodeck; recommendations fall
+      # back to popular recipes by design). Runs alongside the API smoke so every
+      # feature's browser coverage is enforced automatically (backlog #6 / CLAUDE.md §8).
+      - name: E2E browser tests (Playwright)
+        run: |
+          npm -w packages/client exec -- playwright install --with-deps chromium
+          npm -w packages/client run test:e2e
