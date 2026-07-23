@@ -1,6 +1,7 @@
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FeedbackProvider } from '../../src/context/FeedbackContext';
+import { PipelineProvider } from '../../src/context/PipelineContext';
 import { FeedbackPage } from '../../src/views/FeedbackPage';
 import type { FeedbackTurn } from '../../src/services/feedback';
 
@@ -12,13 +13,21 @@ vi.mock('../../src/services/feedback', () => ({
   fetchFeedbackExport: vi.fn(),
 }));
 
+vi.mock('../../src/services/pipeline', () => ({
+  fetchPipeline: vi.fn(),
+  promoteFeedback: vi.fn(),
+  transitionPipelineItem: vi.fn(),
+}));
+
 import {
   startFeedback,
   fetchFeedbackList,
 } from '../../src/services/feedback';
+import { fetchPipeline } from '../../src/services/pipeline';
 
 const mockStart = vi.mocked(startFeedback);
 const mockList = vi.mocked(fetchFeedbackList);
+const mockPipelineList = vi.mocked(fetchPipeline);
 
 const collectingTurn: FeedbackTurn = {
   status: 'draft',
@@ -53,9 +62,11 @@ const completeTurn: FeedbackTurn = {
 
 function setup(): void {
   render(
-    <FeedbackProvider>
-      <FeedbackPage />
-    </FeedbackProvider>,
+    <PipelineProvider>
+      <FeedbackProvider>
+        <FeedbackPage />
+      </FeedbackProvider>
+    </PipelineProvider>,
   );
 }
 
@@ -68,6 +79,7 @@ async function type(text: string): Promise<void> {
 beforeEach(() => {
   vi.clearAllMocks();
   mockList.mockResolvedValue([]);
+  mockPipelineList.mockResolvedValue([]);
 });
 
 describe('FeedbackPage', () => {

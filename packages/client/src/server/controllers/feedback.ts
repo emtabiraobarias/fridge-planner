@@ -2,6 +2,7 @@ import 'server-only';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { FeedbackRecord } from '../models/feedback-record';
+import { PipelineItem } from '../models/pipeline-item';
 import { sendToFeedbackAgent } from '../services/feedback-collector';
 import { renderFeedbackMarkdown } from '../lib/feedback-export';
 import { FEEDBACK_STATUSES, type AgentReply, type IFeedbackMessage } from '../types/feedback';
@@ -144,10 +145,27 @@ export async function getFeedback(userId: string, id: string): Promise<Controlle
 }
 
 // DELETE /api/v1/feedback/:id — remove the user's own record.
+// Spec 003 dev-loop (EC-06, D9): a record with an ACTIVE (non-'parked') PipelineItem
+// is protected from deletion; a record whose only PipelineItem is 'parked' cascades —
+// both the record and the parked item are removed together, so no PipelineItem is
+// ever left pointing at a deleted record.
 export async function deleteFeedback(userId: string, id: string): Promise<ControllerResult> {
   if (!mongoose.isValidObjectId(id)) return problem(404, 'Not Found', 'Feedback conversation not found');
+
+  const pipelineItem = await PipelineItem.findOne({ userId, feedbackRecordId: id });
+  if (pipelineItem && pipelineItem.stage !== 'parked') {
+    return problem(
+      409,
+      'Pipeline Active',
+      'This record is in the active development pipeline. Park it first.',
+    );
+  }
+
   const doc = await FeedbackRecord.findOneAndDelete({ _id: id, userId });
   if (!doc) return problem(404, 'Not Found', 'Feedback conversation not found');
+
+  if (pipelineItem) await PipelineItem.deleteOne({ _id: pipelineItem._id });
+
   return { status: 204, body: null };
 }
 
