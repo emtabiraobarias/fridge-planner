@@ -8,6 +8,7 @@ let PROMOTE: typeof import('../../app/api/v1/feedback/[id]/promote/route').POST;
 let DELETE_ONE: typeof import('../../app/api/v1/feedback/[id]/route').DELETE;
 let GET_ITEM: typeof import('../../app/api/v1/pipeline/[id]/route').GET;
 let PATCH_ITEM: typeof import('../../app/api/v1/pipeline/[id]/route').PATCH;
+let LIST: typeof import('../../app/api/v1/pipeline/route').GET;
 
 beforeAll(async () => {
   mongod = await MongoMemoryServer.create();
@@ -17,6 +18,7 @@ beforeAll(async () => {
   ({ POST: PROMOTE } = await import('../../app/api/v1/feedback/[id]/promote/route'));
   ({ DELETE: DELETE_ONE } = await import('../../app/api/v1/feedback/[id]/route'));
   ({ GET: GET_ITEM, PATCH: PATCH_ITEM } = await import('../../app/api/v1/pipeline/[id]/route'));
+  ({ GET: LIST } = await import('../../app/api/v1/pipeline/route'));
 });
 
 afterAll(async () => {
@@ -117,6 +119,13 @@ function patchReq(id: string, body: unknown, userId = 'u1'): Request {
 }
 function getItemReq(id: string, userId = 'u1'): Request {
   return new Request(`http://localhost/api/v1/pipeline/${id}`, {
+    method: 'GET',
+    headers: { 'x-user-id': userId },
+  });
+}
+function listReq(userId = 'u1', stage?: string): Request {
+  const query = stage ? `?stage=${stage}` : '';
+  return new Request(`http://localhost/api/v1/pipeline${query}`, {
     method: 'GET',
     headers: { 'x-user-id': userId },
   });
@@ -449,6 +458,87 @@ describe('FR-F-018 — injection content never drives a transition (T017)', () =
     // The shipped entry is a gate approval — never derived from the record's injection text.
     expect(afterRelease.item.transitions[3]).toEqual(
       expect.objectContaining({ to: 'shipped', isGateApproval: true }),
+    );
+  });
+});
+
+// ─── DL3 — status view + artifact links (T022-T023) ────────────────────────────
+
+describe('GET /api/v1/pipeline — list + filter (FR-F-015, T022)', () => {
+  it('returns only the caller’s items as PipelineItemSummary (no transitions field), sorted updatedAt desc', async () => {
+    const idA1 = await promoteAndGetItemId(await seedCompleteRecord('userA'), 'userA');
+    const idA2 = await promoteAndGetItemId(await seedCompleteRecord('userA'), 'userA');
+    const idB1 = await promoteAndGetItemId(await seedCompleteRecord('userB'), 'userB');
+
+    const res = await LIST(listReq('userA'));
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { pipeline: Array<Record<string, unknown>> };
+    expect(json.pipeline).toHaveLength(2);
+    const ids = json.pipeline.map((i) => i['_id']);
+    expect(ids).toEqual(expect.arrayContaining([idA1, idA2]));
+    // Cross-user isolation: user B's item never appears for user A.
+    expect(ids).not.toContain(idB1);
+    // Summary projection excludes the transitions log.
+    expect(json.pipeline.every((i) => !('transitions' in i))).toBe(true);
+    // Summary carries the fields the status view needs.
+    expect(json.pipeline[0]).toEqual(
+      expect.objectContaining({
+        stage: 'approved',
+        sourceTitle: 'Grocery count wrong',
+        sourceType: 'bug',
+        sourceAffectedArea: 'grocery',
+        artifacts: [],
+      }),
+    );
+  });
+
+  it('filters by ?stage=', async () => {
+    await promoteAndGetItemId(await seedCompleteRecord('u1'), 'u1'); // stays approved
+    const idInSpec = await promoteAndGetItemId(await seedCompleteRecord('u1'), 'u1');
+    await patch(idInSpec, { action: 'advance' });
+
+    const res = await LIST(listReq('u1', 'in-spec'));
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { pipeline: Array<{ _id: string }> };
+    expect(json.pipeline.map((i) => i._id)).toEqual([idInSpec]);
+  });
+
+  it('an invalid ?stage= value returns 400', async () => {
+    const res = await LIST(listReq('u1', 'not-a-real-stage'));
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('PATCH /api/v1/pipeline/:id — attach-artifact (FR-F-015, D12, T023)', () => {
+  it('draft-spec: appends to artifacts with no stage or transitions-log change', async () => {
+    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
+    const { status, item } = await patch(itemId, {
+      action: 'attach-artifact',
+      artifact: { type: 'draft-spec', ref: 'specs/010-foo/spec.md' },
+    });
+    expect(status).toBe(200);
+    expect(item.stage).toBe('approved');
+    expect(item.artifacts).toHaveLength(1);
+    expect(item.artifacts[0]).toEqual(
+      expect.objectContaining({ type: 'draft-spec', ref: 'specs/010-foo/spec.md' }),
+    );
+    expect(item.transitions).toHaveLength(1); // seed entry only — no new transition appended
+  });
+
+  it('pull-request: appends to artifacts with no stage change, carrying an optional note', async () => {
+    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
+    const { status, item } = await patch(itemId, {
+      action: 'attach-artifact',
+      artifact: { type: 'pull-request', ref: 'https://github.com/org/repo/pull/42', note: 'ready for review' },
+    });
+    expect(status).toBe(200);
+    expect(item.stage).toBe('approved');
+    expect(item.artifacts[0]).toEqual(
+      expect.objectContaining({
+        type: 'pull-request',
+        ref: 'https://github.com/org/repo/pull/42',
+        note: 'ready for review',
+      }),
     );
   });
 });

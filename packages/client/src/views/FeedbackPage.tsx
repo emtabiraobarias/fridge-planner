@@ -4,6 +4,7 @@ import { ChatMessageList } from '../components/feedback/ChatMessageList';
 import { ChatInput } from '../components/feedback/ChatInput';
 import { CompletionCard } from '../components/feedback/CompletionCard';
 import { FeedbackHistory } from '../components/feedback/FeedbackHistory';
+import { PipelineStatusView } from '../components/feedback/PipelineStatusView';
 
 export function FeedbackPage(): React.JSX.Element {
   const { chatState, messages, completedRecord, error, send, reset } = useFeedback();
@@ -37,6 +38,7 @@ export function FeedbackPage(): React.JSX.Element {
       )}
 
       <FeedbackHistory />
+      <PipelineStatusView />
     </div>
   );
 }

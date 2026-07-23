@@ -5,6 +5,7 @@ import { PipelineItem } from '../models/pipeline-item';
 import { assertPromotable, isGateAction, nextStage } from '../lib/pipeline-transitions';
 import { problem, type ControllerResult } from '../http';
 import {
+  pipelineListQuerySchema,
   transitionRequestSchema,
   type ArtifactType,
   type IArtifactLink,
@@ -181,6 +182,26 @@ export async function getPipelineItem(userId: string, id: string): Promise<Contr
   const item = await PipelineItem.findOne({ _id: id, userId });
   if (!item) return notFoundItem();
   return { status: 200, body: { pipelineItem: serialize(item) } };
+}
+
+/**
+ * GET /api/v1/pipeline — owner-scoped list for the status view (FR-F-015), sorted
+ * `updatedAt` desc and projected to the `PipelineItemSummary` shape (no `transitions`
+ * log — kept lean; the full log is served by `getPipelineItem`). Optional `?stage=`
+ * filter, Zod-validated (400 on an invalid value).
+ */
+export async function listPipeline(userId: string, query: URLSearchParams): Promise<ControllerResult> {
+  const parsed = pipelineListQuerySchema.safeParse({ stage: query.get('stage') ?? undefined });
+  if (!parsed.success) {
+    return problem(400, 'Invalid input', parsed.error.issues.map((i) => i.message).join('; '));
+  }
+
+  const filter: Record<string, unknown> = { userId };
+  if (parsed.data.stage) filter['stage'] = parsed.data.stage;
+
+  const docs = await PipelineItem.find(filter).select('-transitions').sort({ updatedAt: -1 }).lean();
+
+  return { status: 200, body: { pipeline: docs } };
 }
 
 /**
