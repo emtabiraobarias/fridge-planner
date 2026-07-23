@@ -164,6 +164,22 @@ Rate limit: **10 req/min** for `/recommendations` (30/min for `verify-links`; 20
 | DELETE | `/grocery-lists/:weekStart/items/:itemId` | Remove item |
 | POST | `/grocery-lists/:weekStart/complete` | Checkout finalizer: server loads the list, skips receipted rows, applies purchase rules to receipt-less rows, stores receipts (stamping `purchasedOn`, spec 008), and marks rows purchased |
 
+### Feedback & Development Pipeline (spec 003, Phase F + dev-loop)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/feedback` | Start a feedback conversation — `{message}` → agent turn (10/min, `feedback-chat:${userId}`, shared with `/messages`) |
+| POST | `/feedback/:id/messages` | Continue an existing conversation — 409 if already `complete` |
+| GET | `/feedback[?status]` | List the caller's own records (lean, no transcript) |
+| GET | `/feedback/:id` | Full record incl. transcript |
+| GET | `/feedback/:id/export` | Spec-template markdown; 409 while still `draft` |
+| DELETE | `/feedback/:id` | Delete — **409 `Pipeline Active`** if a non-`parked` `PipelineItem` references it (park it first); a **`parked`** item's deletion cascades in the same operation; unchanged (204/404) otherwise (dev-loop EC-06) |
+| POST | `/feedback/:id/promote` | Dev-loop (FR-F-013): promote a `complete` record into the pipeline at stage `approved` — **201** on first promotion, idempotent **200** on repeat (never duplicated/reset), **409 `Not Promotable`** on a `draft` record, **404** cross-user/missing (no existence leak); sets the source record's `status` to `reviewed` |
+| GET | `/pipeline[?stage=]` | The caller's promoted records (`PipelineItemSummary[]`, no `transitions` log), `updatedAt` desc; invalid `?stage=` → 400 |
+| GET | `/pipeline/:id` | Full item incl. the ordered `transitions` audit log; 404 cross-user/missing |
+| PATCH | `/pipeline/:id` | Zod action-union: `advance` (`approved→in-spec`, the only non-gated step) \| `approve-spec` (`in-spec→in-review`, **gate**) \| `approve-release` (`in-review→shipped`, **gate** — flips status only, never merges/tags/deploys, FR-F-017) \| `park` (any active stage → terminal `parked`, idempotent) \| `reopen` (`parked→parkedFromStage`) \| `attach-artifact` (`{type:'draft-spec'\|'pull-request', ref}` appended to `artifacts`, no stage change, `ref` ≤2048 chars). Every transition is an atomic guarded `findOneAndUpdate` — a gated/illegal/backward/concurrent transition returns **409 `Illegal Transition`**; `shipped` is reachable **only** via an explicit `approve-release` call, never from record content (FR-F-016/018, SC-F-008) |
+
+`promote`/`/pipeline*` are **100/min** (`promote:${userId}` / `pipeline:${userId}`); the two chat endpoints share the **10/min** `feedback-chat:${userId}` tier noted above.
+
 All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
 
 ---
@@ -234,6 +250,61 @@ All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
 - Lazily created on first GET; `POST /:weekStart/generate` force-regenerates while preserving `isManuallyAdded` items
 - Spec 007 grocery check-off is inventory-positive: ticking a row immediately adds/merges inventory and stores `purchaseReceipt`; un-ticking reverses from that receipt; checkout only adds receipt-less remaining rows and skips rows already added to Kitchen
 - **Spec 008 (2026-07-22):** the document's content is a rolling, date-scoped view recomputed on every GET and force-generate (FR-RG-001/002/008) — generated rows are reconciled in place by `ingredientName` (stable `_id` across recomputes) rather than wiped-and-recreated. Manual/purchased rows are day-anchored via `addedOn`/`purchasedOn`: they survive same-day refreshes verbatim (receipt intact) and are pruned — row **and** receipt dropped, inventory untouched — at the next rollover once their anchor day is in the past (FR-RG-004/005/011); legacy anchor-less rows are lazily backfilled to the current day on first recompute rather than shedding immediately
+
+### FeedbackRecord (MongoDB, spec 003 Phase F)
+```typescript
+{
+  userId: string;               // indexed, compound with status
+  status: 'draft' | 'complete' | 'reviewed';
+  transcript: { role: 'user' | 'agent'; content: string; at: Date }[];
+  // Structured spec-shaped fields — absent until the conversation completes (FR-F-003):
+  type?: 'bug' | 'improvement';
+  title?: string;
+  problemStatement?: string;
+  userStory?: string;
+  acceptanceCriteria?: { given: string; when: string; then: string }[];
+  reproSteps?: string[];
+  expectedBehavior?: string;
+  actualBehavior?: string;
+  affectedArea?: 'inventory' | 'meal-plan' | 'grocery' | 'recommendations' | 'auth' | 'feedback' | 'other';
+  priority?: 'P1' | 'P2' | 'P3';
+}
+```
+- `status` starts `draft`; flips to `complete` once the agent returns a schema-valid record (`structuredRecordSchema`); flips to `reviewed` the first time it is promoted into the pipeline (below) — `reviewed` is a status side effect of promotion, not a separate workflow
+- `{userId, status}` index serves the own-records list view
+
+### PipelineItem (MongoDB, spec 003 dev-loop — DL1-DL4)
+```typescript
+{
+  userId: string;
+  feedbackRecordId: string;     // references the source FeedbackRecord — unique with userId
+  // Immutable identity snapshot taken at promotion (only a 'complete' record promotes):
+  sourceTitle: string;
+  sourceType: 'bug' | 'improvement';
+  sourceAffectedArea: string;
+  stage: 'approved' | 'in-spec' | 'in-review' | 'shipped' | 'parked'; // 'parked' is terminal, off the forward ordinal
+  parkedFromStage?: 'approved' | 'in-spec' | 'in-review'; // the active stage held before a park, for reopen
+  promotedBy: string;           // = userId, the approving maintainer
+  promotedAt: Date;
+  transitions: {                // append-only audit log (_id:false subdocs)
+    from: PipelineStage | null; // null only on the seed (promotion) entry
+    to: PipelineStage;
+    actor: 'human' | 'session'; // audit label, not a permission
+    at: Date;
+    isGateApproval: boolean;    // server-derived from the action verb — never client-forgeable
+    note?: string;
+  }[];
+  artifacts: {                  // append-only draft-spec / PR links (_id:false subdocs)
+    type: 'draft-spec' | 'pull-request';
+    ref: string;                // a URL/spec-dir path — a reference only, never executed
+    at: Date;
+    note?: string;
+  }[];
+}
+```
+- Unique index `{userId, feedbackRecordId}` enforces idempotent promotion at the DB layer (a re-promote hits the existing item — 200, never a duplicate); `{userId, stage}` and `{userId, updatedAt:-1}` serve the status view + `?stage=` filter
+- `shipped` is reachable **only** via an explicit `approve-release` transition (`isGateApproval:true` in the log) — never derived from `FeedbackRecord` content, and no transition here ever performs a git commit/merge/tag/deploy (FR-F-016/017/018, SC-F-008)
+- Deleting a `FeedbackRecord` with a non-`parked` `PipelineItem` is refused (409); deleting one with only a `parked` item cascades the item's deletion (EC-06)
 
 ---
 
