@@ -107,7 +107,7 @@ export function InventoryPage(): React.JSX.Element {
     .filter((u) => isUrgent(u.daysLeft));
 
   return (
-    <div className="grid grid-cols-1 gap-7 min-[900px]:grid-cols-[1fr_400px]">
+    <div className="grid grid-cols-1 gap-7 min900:grid-cols-[1fr_400px]">
       <div className="flex flex-col gap-5">
         <UseSoonStrip
           items={urgent}

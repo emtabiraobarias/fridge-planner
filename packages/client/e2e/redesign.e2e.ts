@@ -12,9 +12,10 @@ test.describe.configure({ mode: 'serial' });
 test('Kitchen: smart quick-add + use-soon + focus outline', async ({ page }) => {
   await page.goto('/');
 
-  // Bottom tab bar with renamed labels + active Kitchen tab.
-  await expect(page.getByRole('link', { name: 'Kitchen' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('link', { name: 'Groceries' })).toBeVisible();
+  // Bottom tab bar with the spec-010 labels + active Fridge tab (010 supersedes
+  // 004's FR-UI-009 labels: Kitchen→Fridge, Meal plan→Plan, Groceries→List).
+  await expect(page.getByRole('link', { name: 'Fridge' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('link', { name: 'List' })).toBeVisible();
 
   const input = page.getByLabel('Quick add item');
 
