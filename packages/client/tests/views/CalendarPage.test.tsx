@@ -9,6 +9,8 @@ import { ToastProvider } from '../../src/context/ToastContext';
 import { Toast } from '../../src/components/shared/Toast';
 import type { MealRecommendation } from '../../src/types/meal-recommendation';
 import * as weekUtils from '../../src/lib/date-utils';
+import { fetchRecommendations } from '../../src/services/inventory';
+import { setViewport } from '../setup';
 
 const addEntry = vi.fn().mockResolvedValue({});
 const removeEntry = vi.fn().mockResolvedValue({});
@@ -171,5 +173,59 @@ describe('CalendarPage planned meals (FR-022 / FR-024)', () => {
     // dnd-kit wires draggables with role/aria — the concrete drag interaction is
     // covered by the Playwright e2e (calendar-dnd.e2e.ts).
     expect(tile).toHaveAttribute('aria-roledescription', 'draggable');
+  });
+});
+
+describe('CalendarPage responsive hybrid (US3, FR-RS-012/013/015, research D4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchMealPlan.mockResolvedValue(null);
+  });
+
+  it('mounts the day strip + day list, and NOT the week grid, at the phone viewport', async () => {
+    setViewport('phone');
+    renderPage();
+    await waitFor(() => screen.getByText('This week'));
+
+    expect(screen.getByTestId('day-strip')).toBeInTheDocument();
+    expect(screen.queryByTestId('week-grid')).not.toBeInTheDocument();
+  });
+
+  it('mounts the week grid, and NOT the day strip, at the desktop viewport', async () => {
+    setViewport('desktop');
+    renderPage();
+    await waitFor(() => screen.getByText('This week'));
+
+    expect(screen.getByTestId('week-grid')).toBeInTheDocument();
+    expect(screen.queryByTestId('day-strip')).not.toBeInTheDocument();
+  });
+
+  it('shows the empty-state prompt for the selected day at phone width when nothing is planned', async () => {
+    setViewport('phone');
+    renderPage();
+    await waitFor(() => screen.getByText('This week'));
+
+    expect(screen.getByText(/nothing planned for this day yet/i)).toBeInTheDocument();
+  });
+
+  it('issues zero recommendation requests on mount at the phone viewport (FR-RS-015)', async () => {
+    setViewport('phone');
+    renderPage();
+    await waitFor(() => screen.getByText('This week'));
+    expect(fetchRecommendations).not.toHaveBeenCalled();
+  });
+
+  it('issues zero recommendation requests on mount at the desktop viewport (FR-RS-015)', async () => {
+    setViewport('desktop');
+    renderPage();
+    await waitFor(() => screen.getByText('This week'));
+    expect(fetchRecommendations).not.toHaveBeenCalled();
+  });
+
+  it('keeps the SuggestionsRail explicit-CTA + ingredient scoping unaffected in both layouts', async () => {
+    setViewport('phone');
+    renderPage();
+    await waitFor(() => screen.getByText('This week'));
+    expect(screen.getByRole('button', { name: /get suggestions/i })).toBeInTheDocument();
   });
 });

@@ -1,37 +1,23 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 import type { MealPlanEntry, MealType } from '../types/meal-plan';
 import { useMealPlan } from '../context/MealPlanContext';
 import { usePlacement } from '../context/PlacementContext';
 import { useToast } from '../context/ToastContext';
-import { getWeekDays } from '../lib/date-utils';
+import { useViewportClass } from '../hooks/useViewportClass';
+import { getWeekDays, dowIndex, todayUtcDate } from '../lib/date-utils';
 import { SuggestionsRail } from '../components/calendar/SuggestionsRail';
-import { PlannedMealTile } from '../components/calendar/PlannedMealTile';
-import { EmptySlotTarget } from '../components/calendar/EmptySlotTarget';
+import { WeekGrid } from '../components/calendar/WeekGrid';
+import { DayStrip } from '../components/calendar/DayStrip';
+import { DayPlanList } from '../components/calendar/DayPlanList';
 import { MealDetailModal } from '../components/calendar/MealDetailModal';
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
-const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function dayNumber(iso: string): number {
-  return new Date(iso).getUTCDate();
-}
-function dowIndex(iso: string): number {
-  return new Date(iso).getUTCDay();
-}
-function todayUtcDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 function rangeLabel(days: string[]): string {
   const first = days[0];
   const last = days[6];
@@ -41,19 +27,36 @@ function rangeLabel(days: string[]): string {
   return `${a.getUTCDate()} ${MONTHS[a.getUTCMonth()]} – ${b.getUTCDate()} ${MONTHS[b.getUTCMonth()]}`;
 }
 
+/** Default selected day (research D4): today when inside the visible week, else the week's first day. */
+function defaultSelectedDate(days: string[], todayIso: string): string {
+  return days.find((d) => d.slice(0, 10) === todayIso) ?? days[0] ?? todayIso;
+}
+
 export function CalendarPage(): React.JSX.Element {
   const { plan, currentWeekStart, setWeekOffset, assignMeal, unassignMeal, moveMeal } = useMealPlan();
   const { placing, clearPlacing } = usePlacement();
   const { showToast } = useToast();
+  const vp = useViewportClass();
+  // Exactly ONE calendar layout is mounted at a time (D4) — never render-both-
+  // and-CSS-toggle: both would register dnd-kit draggables on the same
+  // `slotId`s, and Playwright locators match `display:none` nodes.
+  const phone = vp === 'phone' || vp === 'phone-landscape';
   const [weekOffset, setWeekOffsetLocal] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<MealPlanEntry | null>(null);
 
-  // 6px activation distance: a plain click opens the detail modal (FR-024); only an
-  // actual drag movement starts a move (FR-022).
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
   const weekDays = getWeekDays(currentWeekStart);
   const today = todayUtcDate();
+
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    defaultSelectedDate(weekDays, today),
+  );
+
+  // Re-derive the default selected day whenever the visible week changes
+  // (shiftWeek) — a day carried over from the previous week would no longer
+  // exist in `weekDays`.
+  useEffect(() => {
+    setSelectedDate(defaultSelectedDate(getWeekDays(currentWeekStart), todayUtcDate()));
+  }, [currentWeekStart]);
 
   async function handleDragEnd(event: DragEndEvent): Promise<void> {
     const entry = event.active.data.current?.['entry'] as MealPlanEntry | undefined;
@@ -83,6 +86,16 @@ export function CalendarPage(): React.JSX.Element {
     await assignMeal({ date, mealType, meal });
     showToast(`${meal.mealName} planned for ${DOW_SHORT[dowIndex(date)]} ${mealType}`);
   }
+
+  function hasMeals(date: string): boolean {
+    return MEAL_TYPES.some((mealType) => Boolean(getEntry(date, mealType)));
+  }
+
+  // Same slot order as the grid (breakfast → lunch → dinner → snack), so the
+  // phone day list reads the same way the desktop grid's column does.
+  const selectedDayEntries = MEAL_TYPES.map((mealType) => getEntry(selectedDate, mealType)).filter(
+    (entry): entry is MealPlanEntry => Boolean(entry),
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -132,52 +145,34 @@ export function CalendarPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* Week grid — DndContext enables dragging planned meals between slots (FR-022) */}
-      <DndContext sensors={sensors} onDragEnd={(e) => void handleDragEnd(e)}>
-        <div className="overflow-x-auto">
-          <div className="grid min-w-[720px] grid-cols-7 gap-2.5">
-            {weekDays.map((day) => {
-              const isToday = day.slice(0, 10) === today;
-              return (
-                <div
-                  key={day}
-                  className={`rounded-lg bg-surface p-2.5 ${isToday ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
-                >
-                  <div className="mb-2 text-center">
-                    <div className="text-[12px] font-semibold uppercase text-ink/60">{DOW[dowIndex(day)]}</div>
-                    <div className="font-heading text-[19px] text-ink">{dayNumber(day)}</div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    {MEAL_TYPES.map((mealType) => {
-                      const entry = getEntry(day, mealType);
-                      if (entry) {
-                        return (
-                          <PlannedMealTile
-                            key={mealType}
-                            entry={entry}
-                            onOpen={setSelectedEntry}
-                            onClear={(slotId) => void unassignMeal(slotId)}
-                          />
-                        );
-                      }
-                      return (
-                        <EmptySlotTarget
-                          key={mealType}
-                          date={day}
-                          mealType={mealType}
-                          dayNumber={dayNumber(day)}
-                          placingMode={Boolean(placing)}
-                          onPlace={(d, mt) => void placeInto(d, mt)}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </DndContext>
+      {/* Responsive hybrid (US3, D4): exactly one layout mounted at a time. */}
+      {phone ? (
+        <>
+          <DayStrip
+            days={weekDays}
+            selectedDate={selectedDate}
+            hasMeals={hasMeals}
+            onSelect={setSelectedDate}
+          />
+          <DayPlanList
+            date={selectedDate}
+            entries={selectedDayEntries}
+            onOpenEntry={setSelectedEntry}
+            onClearEntry={(slotId) => void unassignMeal(slotId)}
+          />
+        </>
+      ) : (
+        <WeekGrid
+          weekDays={weekDays}
+          today={today}
+          placing={placing}
+          getEntry={getEntry}
+          onOpenEntry={setSelectedEntry}
+          onClearEntry={(slotId) => void unassignMeal(slotId)}
+          onPlaceEntry={(d, mt) => void placeInto(d, mt)}
+          onDragEnd={handleDragEnd}
+        />
+      )}
 
       {/* FR-024: click a planned meal → details + recipe link */}
       <MealDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />

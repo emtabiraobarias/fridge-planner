@@ -41,3 +41,40 @@ export function formatDayLabel(isoDate: string): string {
   const month = SHORT_MONTHS[d.getUTCMonth()];
   return `${day} ${date} ${month}`;
 }
+
+/**
+ * UTC calendar-day number (1-31) of an ISO date string. Shared by the week
+ * grid and the phone day strip (spec 010 research D4) so both read the same
+ * date the same way — the app is deliberately UTC-anchored end to end.
+ */
+export function dayNumber(iso: string): number {
+  return new Date(iso).getUTCDate();
+}
+
+/** UTC day-of-week index (0=Sun … 6=Sat) of an ISO date string. */
+export function dowIndex(iso: string): number {
+  return new Date(iso).getUTCDay();
+}
+
+/**
+ * The user's **local** calendar day as a `YYYY-MM-DD` key on the UTC-midnight axis
+ * that meal-plan entries are stored on (`getWeekDays` builds them with `Date.UTC`).
+ *
+ * Deliberately NOT `new Date().toISOString().slice(0, 10)`: that yields the *UTC*
+ * date, which is a day behind the user's own date for the first hours of every day
+ * in any positive-offset timezone (e.g. 09:00 AEST on Sun 26 Jul is still Sat 25 Jul
+ * in UTC). Because this value decides which day the calendar treats as "today" — the
+ * grid's today marker and the phone day strip's default selection (spec 010
+ * FR-RS-012) — being a day out means landing the user on yesterday and letting them
+ * plan meals against the wrong date.
+ *
+ * Taking the local Y/M/D and re-projecting it onto the UTC axis compares calendar day
+ * to calendar day, mirroring the server's `startOfTodayCutoff()` (spec 008 research
+ * D3) so both ends of the app agree on what "today" means.
+ */
+export function todayUtcDate(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+    .toISOString()
+    .slice(0, 10);
+}
