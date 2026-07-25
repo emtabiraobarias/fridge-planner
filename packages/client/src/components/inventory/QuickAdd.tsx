@@ -75,17 +75,19 @@ export function QuickAdd({ onAdd }: Props): React.JSX.Element {
   }
 
   return (
-    <section aria-label="Add to your kitchen" className="rounded-lg bg-surface p-6 shadow-sm">
-      <h2 className="font-heading text-h4 text-ink">Add to your kitchen</h2>
-      <p className="text-muted mb-3 text-xs">type it like you&apos;d say it</p>
+    <section aria-label="Add to your kitchen" className="mx-auto w-full max-w-[520px]">
+      <h2 className="sr-only">Add to your kitchen</h2>
 
+      {/* Design §4.2.2 pill: this is a VISUAL treatment only — the shipped spec
+          005 parse-preview UX (correctable chips, alias memory, AI-assist) below
+          is untouched (FR-RS-011). */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Sparkles
-            size={18}
+            size={16}
             strokeWidth={2.75}
             aria-hidden
-            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-accent"
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-accent"
           />
           <input
             type="text"
@@ -95,14 +97,14 @@ export function QuickAdd({ onAdd }: Props): React.JSX.Element {
             onKeyDown={(e) => {
               if (e.key === 'Enter') submit();
             }}
-            placeholder="2L milk expires friday · 500g mince · 6 eggs…"
-            className="min-h-[46px] w-full rounded-full bg-neutral-100 pl-10 pr-4 text-[15px] text-ink placeholder:text-muted"
+            placeholder="Add — 2L milk expires friday…"
+            className="min-h-[50px] w-full rounded-full border-[1.5px] border-divider bg-neutral-100 pl-10 pr-4 text-[14px] text-neutral-600 placeholder:text-neutral-600"
           />
         </div>
         <button
           type="button"
           onClick={submit}
-          className="min-h-[46px] rounded-full bg-accent px-5 font-semibold text-bg hover:bg-accent-600"
+          className="min-h-[50px] shrink-0 rounded-full bg-accent px-5 font-semibold text-bg hover:bg-accent-600"
         >
           Add
         </button>

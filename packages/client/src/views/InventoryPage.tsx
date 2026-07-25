@@ -4,17 +4,16 @@ import { useInventory } from '../context/InventoryContext';
 import { useToast } from '../context/ToastContext';
 import { QuickAdd } from '../components/inventory/QuickAdd';
 import { UseSoonStrip, type UrgentItem } from '../components/inventory/UseSoonStrip';
-import { LocationFilter, type LocationFilterValue } from '../components/inventory/LocationFilter';
-import { InventoryList } from '../components/inventory/InventoryList';
+import { Shelf } from '../components/inventory/Shelf';
 import { EditItemSheet } from '../components/inventory/EditItemSheet';
 import { RecommendationsPanel } from '../components/recommendations/RecommendationsPanel';
+import { LOCATIONS, groupByLocation } from '../lib/locations';
 import { daysLeft, isUrgent, applyStep, type ParsedQuick } from '../lib/quick-parse';
 import type { InventoryItem, InventoryItemUpdate } from '../services/inventory';
 
 export function InventoryPage(): React.JSX.Element {
   const { items, loading, error, addItem, editItem, removeItem } = useInventory();
   const { showToast } = useToast();
-  const [filter, setFilter] = useState<LocationFilterValue>('All');
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   // Spec 009 US2 (FR-IR-006/007): transient Kitchen ingredient selection — owned
   // here, not a shared context (research D5). It scopes the one RecommendationsPanel
@@ -84,14 +83,13 @@ export function InventoryPage(): React.JSX.Element {
     }
   }
 
+  // Spec 010 D10/FR-RS-009: the stepper floors at zero and PERSISTS the row — it
+  // never deletes. The `${name} removed` toast stays on the explicit delete
+  // action (`handleDelete`) below; this is the one deliberate behaviour change
+  // from the shipped app (see research.md D10).
   async function handleStep(item: InventoryItem, delta: number): Promise<void> {
     const next = applyStep(item.quantity, delta);
-    if (next === 0) {
-      await removeItem(item._id);
-      showToast(`${item.name} removed`);
-    } else {
-      await editItem(item._id, { quantity: next });
-    }
+    await editItem(item._id, { quantity: next });
   }
 
   async function handleDelete(id: string): Promise<void> {
@@ -100,11 +98,14 @@ export function InventoryPage(): React.JSX.Element {
     if (item) showToast(`${item.name} removed`);
   }
 
-  const visible = filter === 'All' ? items : items.filter((i) => i.location === filter.toLowerCase());
-
   const urgent: UrgentItem[] = items
     .map((i) => ({ id: i._id, name: i.name, daysLeft: daysLeft(i.expiresAt) }))
     .filter((u) => isUrgent(u.daysLeft));
+
+  // Spec 010 D7/FR-RS-008: group by the shipped `LOCATIONS` enum — all three
+  // known shelves always render (even at zero items); an out-of-enum location
+  // is never dropped, it renders under one fallback shelf instead.
+  const { byLocation, fallback: fallbackItems } = groupByLocation(items);
 
   return (
     <div className="grid grid-cols-1 gap-7 min900:grid-cols-[1fr_400px]">
@@ -116,14 +117,8 @@ export function InventoryPage(): React.JSX.Element {
 
         <QuickAdd onAdd={handleAdd} />
 
-        <div className="flex items-center justify-between gap-3">
-          <LocationFilter
-            value={filter}
-            onChange={setFilter}
-            visibleCount={visible.length}
-            totalCount={items.length}
-          />
-          {items.length > 0 && (
+        {items.length > 0 && (
+          <div className="flex justify-end">
             <button
               type="button"
               onClick={toggleSelectMode}
@@ -133,8 +128,8 @@ export function InventoryPage(): React.JSX.Element {
             >
               {selectMode ? 'Cancel' : 'Select items'}
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {loading && <p className="text-muted animate-pulse text-sm">Loading inventory…</p>}
         {error && (
@@ -143,15 +138,33 @@ export function InventoryPage(): React.JSX.Element {
           </p>
         )}
         {!loading && (
-          <InventoryList
-            items={visible}
-            onStep={handleStep}
-            onDelete={handleDelete}
-            onEdit={setEditing}
-            selectMode={selectMode}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-          />
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+            {LOCATIONS.map((loc) => (
+              <Shelf
+                key={loc}
+                location={loc}
+                items={byLocation.get(loc) ?? []}
+                onStep={handleStep}
+                onDelete={handleDelete}
+                onEdit={setEditing}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+              />
+            ))}
+            {fallbackItems.length > 0 && (
+              <Shelf
+                location="other"
+                items={fallbackItems}
+                onStep={handleStep}
+                onDelete={handleDelete}
+                onEdit={setEditing}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+              />
+            )}
+          </div>
         )}
       </div>
 

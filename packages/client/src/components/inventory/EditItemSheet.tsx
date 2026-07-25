@@ -1,13 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { InventoryItem, InventoryItemUpdate, Location } from '../../services/inventory';
-
-const LOCATIONS: readonly Location[] = ['fridge', 'freezer', 'pantry'];
-const LOCATION_LABEL: Record<Location, string> = {
-  fridge: 'Fridge',
-  freezer: 'Freezer',
-  pantry: 'Pantry',
-};
+import { LOCATIONS, LOCATION_LABEL } from '../../lib/locations';
 
 interface EditItemSheetProps {
   item: InventoryItem | null;

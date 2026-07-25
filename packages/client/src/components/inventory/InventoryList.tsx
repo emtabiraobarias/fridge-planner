@@ -1,12 +1,15 @@
 'use client';
-import { Pencil, Trash2 } from 'lucide-react';
 import type { InventoryItem } from '../../services/inventory';
-import { daysLeft, expiryText, expiryStatus } from '../../lib/quick-parse';
-import { QuantityStepper } from './QuantityStepper';
+import { daysLeft } from '../../lib/quick-parse';
+import { ItemChip } from './ItemChip';
 
 interface Props {
   items: InventoryItem[];
-  /** Apply a signed, unit-sized quantity delta to the item (zero removes it). */
+  /**
+   * Apply a signed, unit-sized quantity delta to the item. Floors at zero and
+   * the row remains — it is never removed by stepping (spec 010 D10, FR-RS-009).
+   * Delete stays the one explicit, destructive action (`onDelete`).
+   */
   onStep: (item: InventoryItem, delta: number) => void;
   onDelete: (id: string) => void;
   /** Open the scoped editor — expiry + location (FR-UI-019 revised). */
@@ -16,17 +19,10 @@ interface Props {
    * checkbox for picking ingredients to scope a recipe search. The selection is
    * transient and owned by the parent (`InventoryPage`) — no shared context (D5).
    */
-  selectMode?: boolean;
-  selectedIds?: ReadonlySet<string>;
-  onToggleSelect?: (id: string) => void;
+  selectMode?: boolean | undefined;
+  selectedIds?: ReadonlySet<string> | undefined;
+  onToggleSelect?: ((id: string) => void) | undefined;
 }
-
-const DOT_CLASS = { expired: 'bg-accent-600', soon: 'bg-accent-400', fresh: 'bg-accent2-500' } as const;
-const EXPIRY_TEXT_CLASS = {
-  expired: 'text-accent-700',
-  soon: 'text-accent-600',
-  fresh: 'text-accent2-700',
-} as const;
 
 /** Sort soonest-expiry first; no-expiry items last. */
 function sortByExpiry(items: InventoryItem[]): InventoryItem[] {
@@ -54,65 +50,18 @@ export function InventoryList({
 
   return (
     <ul className="flex flex-col gap-2" aria-label="Inventory items">
-      {sortByExpiry(items).map((item) => {
-        const dl = daysLeft(item.expiresAt);
-        const status = expiryStatus(dl);
-        const expired = status === 'expired';
-        return (
-          <li
-            key={item._id}
-            aria-label={item.name}
-            className={`flex items-center gap-3.5 rounded-lg px-4 py-3 ${expired ? 'bg-accent-100' : 'bg-surface'}`}
-          >
-            {selectMode && (
-              <input
-                type="checkbox"
-                aria-label={`Select ${item.name}`}
-                checked={selectedIds?.has(item._id) ?? false}
-                onChange={() => onToggleSelect?.(item._id)}
-                className="h-5 w-5 shrink-0 accent-accent"
-              />
-            )}
-
-            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_CLASS[status]}`} aria-hidden />
-
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[15px] font-semibold text-ink">{item.name}</div>
-              <div className="text-muted text-xs">
-                {item.category} · {item.location}
-              </div>
-              <div className={`text-[12.5px] font-semibold ${EXPIRY_TEXT_CLASS[status]}`}>
-                {expiryText(dl)}
-              </div>
-            </div>
-
-            <QuantityStepper
-              quantity={item.quantity}
-              unit={item.unit}
-              name={item.name}
-              onStep={(delta) => onStep(item, delta)}
-            />
-
-            <button
-              type="button"
-              aria-label={`Edit ${item.name}`}
-              onClick={() => onEdit(item)}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
-            >
-              <Pencil size={15} strokeWidth={2.75} aria-hidden />
-            </button>
-
-            <button
-              type="button"
-              aria-label={`Delete ${item.name}`}
-              onClick={() => onDelete(item._id)}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
-            >
-              <Trash2 size={15} strokeWidth={2.75} aria-hidden />
-            </button>
-          </li>
-        );
-      })}
+      {sortByExpiry(items).map((item) => (
+        <ItemChip
+          key={item._id}
+          item={item}
+          onStep={onStep}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          selectMode={selectMode}
+          selected={selectedIds?.has(item._id) ?? false}
+          onToggleSelect={onToggleSelect}
+        />
+      ))}
     </ul>
   );
 }

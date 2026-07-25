@@ -41,6 +41,27 @@ describe('InventoryList (organic redesign)', () => {
     expect(row.className).toMatch(/accent-100/);
   });
 
+  it('pairs the status dot with a text expiry line so status is never colour-only (FR-RS-009)', () => {
+    // A 30-day offset keeps the "expired N days ago" assertion stable regardless
+    // of the runner's timezone (a ±1 shift near a day boundary would not matter here).
+    const item = { ...base, expiresAt: iso(-30), expirationStatus: 'expired' as const };
+    render(<InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    const row = screen.getByRole('listitem', { name: /chicken breast/i });
+    const dot = row.querySelector('[aria-hidden="true"]');
+    expect(dot).toBeInTheDocument();
+    expect(screen.getByText(/expired \d+ days? ago/i)).toBeInTheDocument();
+  });
+
+  it('shows a distinct neutral dot when a quantity has been floored to zero (FR-RS-009, D10)', () => {
+    const item = { ...base, quantity: 0 };
+    render(<InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    const row = screen.getByRole('listitem', { name: /chicken breast/i });
+    const dot = row.querySelector('[aria-hidden="true"]');
+    expect(dot?.className).toMatch(/neutral-400/);
+    // The zero state is corroborated by visible text, not colour alone.
+    expect(screen.getByText(/^0 kg$/)).toBeInTheDocument();
+  });
+
   it('sorts soonest-expiry first, no-expiry last', () => {
     const items: InventoryItem[] = [
       { ...base, _id: 'a', name: 'NoExpiry' },
