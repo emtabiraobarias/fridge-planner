@@ -16,11 +16,21 @@ import { QuickCaptureOverlay } from '../feedback/QuickCaptureOverlay';
  * T061a removed the desktop sidebar's duplicate Feedback entry, so this is the
  * single feedback control per viewport (design §3, research D11).
  */
+// Portrait bottom offsets are 124px, not the design's 96/100px. The design's
+// figures assumed a shorter pill than we ship: FR-RS-025's 44px minimum touch
+// target makes each nav item 44px tall, so the pill occupies roughly 26px
+// (its own offset) + 56px = 82px, leaving the 96px bubble only ~14px of
+// clearance. That held locally and *failed in CI*, where fallback font metrics
+// render the labels slightly taller — caught by `responsive.e2e.ts`'s
+// "must not overlap the nav" assertion. 124px instead clears the **116px band
+// the content padding already reserves for the nav** (design §1.3), so the gap
+// no longer depends on font metrics. Landscape/desktop are unaffected: the nav
+// is docked left there, so it cannot collide with a bottom-right affordance.
 const AFFORDANCE_CLASS = [
-  'fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center gap-2',
+  'fixed bottom-[124px] right-4 z-30 grid h-14 w-14 place-items-center gap-2',
   'rounded-full bg-accent text-bg shadow-lg transition-colors hover:bg-accent-600',
-  // iPad portrait — 60×60 at right 26 / bottom 100
-  'sm:bottom-[100px] sm:right-[26px] sm:h-[60px] sm:w-[60px]',
+  // iPad portrait — 60×60 at right 26, same 116px reserved band
+  'sm:bottom-[124px] sm:right-[26px] sm:h-[60px] sm:w-[60px]',
   // iPad landscape — 60×60 at right 24 / bottom 24
   'lg:bottom-6 lg:right-6 lg:h-[60px] lg:w-[60px]',
   // desktop — 54px `Tell us` pill at right 32 / bottom 32
