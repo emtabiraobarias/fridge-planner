@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { MealPlan, MealPlanEntry, MealType } from '../types/meal-plan';
+import { randomUuid } from '../lib/uuid';
 import {
   fetchMealPlan,
   addEntry,
@@ -56,7 +57,10 @@ export function MealPlanProvider({ children }: { children: ReactNode }): React.J
 
   const assignMeal = useCallback(
     async (entry: Omit<MealPlanEntry, 'slotId'>): Promise<void> => {
-      const slotId = crypto.randomUUID();
+      // `randomUuid()`, not `crypto.randomUUID()`: the latter is secure-context
+      // only, so it is undefined when the app is opened over plain HTTP on a LAN
+      // address — i.e. on a real phone pointed at the dev server. See src/lib/uuid.ts.
+      const slotId = randomUuid();
       await addEntry(currentWeekStart, { ...entry, slotId });
       await refresh();
     },
