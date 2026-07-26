@@ -46,10 +46,16 @@ describe('FeedbackAffordance (FR-RS-006)', () => {
     expect(cls).toContain('fixed');
     // Bottom offsets clear the pill (portrait) and the rail is on the left, so
     // the affordance never obscures navigation (design §2.3).
-    expect(cls).toContain('bottom-24'); // 96px — above the 26px pill
+    //
+    // Portrait is 124px, not the design's 96/100px: FR-RS-025's 44px touch-target
+    // floor makes the pill 66px tall, which left the design's figure only ~5px of
+    // clearance — enough locally, not enough under CI's font metrics (caught by
+    // responsive.e2e.ts's overlap assertion). 124px clears the 116px band the
+    // content padding already reserves for the nav, so the gap is font-independent.
+    expect(cls).toContain('bottom-[124px]');
     expect(cls).toContain('right-4');
     expect(cls).toContain('phland:bottom-5');
-    expect(cls).toContain('sm:bottom-[100px]');
+    expect(cls).toContain('sm:bottom-[124px]');
     expect(cls).toContain('lg:bottom-6');
     expect(cls).toContain('xl:bottom-8');
     expect(cls).toContain('xl:right-8');
