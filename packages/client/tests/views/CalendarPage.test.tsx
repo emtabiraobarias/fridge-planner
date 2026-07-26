@@ -247,3 +247,26 @@ describe('CalendarPage — 44px touch targets (FR-RS-025, SC-RS-003)', () => {
     expect(next.className).toContain('w-11');
   });
 });
+
+describe('CalendarPage tap-to-place on the phone layout (spec 010 FR-RS-012 regression)', () => {
+  // User-reported bug 2026-07-26: on mobile you could not place a suggested meal.
+  // The phone layout rendered only *existing* entries, so placement mode had no
+  // target to tap — while the banner still instructed "tap any open slot".
+  it('offers tappable slot targets on phone and places the meal', async () => {
+    setViewport('phone');
+    renderPage();
+    await waitFor(() => screen.getByText('This week'));
+    // Phone layout, not the grid.
+    expect(screen.getByTestId('day-plan-list')).toBeInTheDocument();
+    expect(screen.queryByTestId('week-grid')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'prime' }));
+
+    const targets = screen.getAllByRole('button', { name: /place here/i });
+    expect(targets.length).toBeGreaterThan(0);
+
+    await userEvent.click(targets[0]!);
+    await waitFor(() => expect(addEntry).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/Placing/)).not.toBeInTheDocument();
+  });
+});

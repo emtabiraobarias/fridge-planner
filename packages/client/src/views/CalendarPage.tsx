@@ -125,10 +125,14 @@ export function CalendarPage(): React.JSX.Element {
   }
 
   // Same slot order as the grid (breakfast → lunch → dinner → snack), so the
-  // phone day list reads the same way the desktop grid's column does.
-  const selectedDayEntries = MEAL_TYPES.map((mealType) => getEntry(selectedDate, mealType)).filter(
-    (entry): entry is MealPlanEntry => Boolean(entry),
-  );
+  // phone day list reads the same way the desktop grid's column does. Empty
+  // slots are kept (not filtered out) because the phone layout needs them as
+  // placement targets while placing — filtering them was the user-reported
+  // "can't place a meal on mobile" bug.
+  const selectedDaySlots = MEAL_TYPES.map((mealType) => ({
+    mealType,
+    entry: getEntry(selectedDate, mealType),
+  }));
 
   return (
     <div className="flex flex-col gap-5">
@@ -189,9 +193,11 @@ export function CalendarPage(): React.JSX.Element {
           />
           <DayPlanList
             date={selectedDate}
-            entries={selectedDayEntries}
+            slots={selectedDaySlots}
+            placingMode={Boolean(placing)}
             onOpenEntry={setSelectedEntry}
             onClearEntry={(slotId) => void unassignMeal(slotId)}
+            onPlace={(d, mt) => void placeInto(d, mt)}
           />
         </>
       ) : (
