@@ -288,3 +288,22 @@ bash scripts/validate-e2e.sh --no-agent        # deterministic API smoke (unchan
 - **SC-RS-008 fully clean:** a grep for raw non-token colours (`bg-white|text-gray-|bg-gray-|bg-indigo-|bg-green-|bg-red-|bg-yellow-|bg-black|text-white|bg-cream`) across `src/` and `app/` now returns **nothing**. Beyond the enumerated 9 files, one last straggler outside the plan's list (`app/auth/callback/page.tsx` `text-gray-600`) was re-tokened to `text-muted`.
 - **Both user-reported nits verified fixed in-browser** (computed styles, not assertions): exactly **one** feedback control visible per viewport (`BUTTON "Tell us — send feedback"` — the duplicate sidebar entry is gone, and `/feedback` stays reachable via the overlay's "Open full feedback" link), and the sidebar wordmark renders **"Fridge Planner"** in full with `clipped=false`.
 - The overlay retrofit kept all four suites green **unmodified**, which is the evidence that no shipped flow regressed: inventory edit, the grocery ambiguous-quantity prompt, the meal detail modal, and the spec-006 consumption review. The sheet↔dialog swap is one static class list evaluated by the browser's own media queries — never a React branch — so rotating a device cannot remount an open overlay or drop its trapped focus.
+
+### RS7 verification gate (T062–T068), 2026-07-26
+
+**T062/T063** were delivered early, in RS1, at the user's request that Playwright capture the new behaviour as it landed rather than at the end — the five named viewport projects and `e2e/responsive.e2e.ts` have been running every slice since.
+
+**T064 — full gate, all green:**
+- `npm run lint` — clean, 0 warnings.
+- `npm test` — **exit 0, zero failures**, coverage thresholds met. ✅ *This closes the one open verification item carried since RS1:* earlier whole-suite runs reported 5 `MongoNetworkTimeoutError` failures in `tests/server/*`. Re-run on a quiet machine (dev server and stray workers stopped, load 2.0 vs 8.3) they are **gone** — confirming they were resource contention, never a regression, exactly as the isolation check (1.74s pass) indicated.
+- `npm -w packages/client run build` — compiled successfully; `○ /home` registered.
+- `npm -w packages/client run test:e2e` — **39 passed / 8 skipped** across all five viewport projects (skips are the intentional per-project guards).
+- `bash scripts/validate-e2e.sh --no-agent` — **pass=16 fail=0**.
+
+**T065 — doc cascade** in `CLAUDE.md`: §3 gained `app/home/`, `src/hooks/`, `src/components/shell/`, the new `home/`/`calendar/`/`grocery/`/`inventory/` component paths and the nav's three modes; §7 gained a **Responsive viewport classes** subsection documenting the five classes and the two load-bearing rules (`phland` must stay last; use named screens because a `raw` object silently disables arbitrary `min-[…]:` variants build-wide) plus the shell's scroll-container and `box-border` invariants. §4/§5 need no change — there is no API or model change.
+
+**T065a — SC-RS-006 proven by diff, not assertion:** `git diff origin/impl/nextjs...HEAD -- packages/client/app/api packages/client/src/server` is **empty**. The Home dashboard's four figures are reads of already-fetched data.
+
+**T066 — spec cascade verified:** `git diff origin/main...HEAD -- specs/010-responsive-redesign/spec.md` is empty; `spec.md` originates on `main` and was not edited from this branch, so `004`'s `SC-UI-008` boundary stays verifiable.
+
+**T068 — release handoff:** the checkboxes in the *Release handoff* section below are intentionally left **unchecked** for the human/release flow.

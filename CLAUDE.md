@@ -70,20 +70,26 @@ fridge-planner/
 │       │   ├── layout.tsx            # Root layout (fonts, global providers)
 │       │   ├── page.tsx              # / → InventoryPage
 │       │   ├── providers.tsx         # Client-side context providers wrapper
-│       │   ├── nav.tsx               # Top navigation bar
+│       │   ├── nav.tsx               # ONE nav, three positional modes (spec 010): portrait pill /
+│       │   │                         # landscape left rail / desktop collapsible sidebar (250↔76px, persisted)
+│       │   ├── home/page.tsx         # /home route — at-a-glance dashboard (spec 010 US5, net-new)
 │       │   ├── calendar/page.tsx     # /calendar route
 │       │   ├── grocery/page.tsx      # /grocery route
 │       │   └── api/v1/               # ROUTE HANDLERS (the backend): inventory/, grocery-lists/[weekStart]/*,
 │       │                             # meal-plans/[weekStart]/*, recommendations/, quick-add/ (aliases + parse assist)
 │       │                             # — thin; call src/server controllers
 │       ├── src/
-│       │   ├── components/           # calendar/, grocery/, inventory/, recommendations/, shared/ (incl. ParsePreview)
+│       │   ├── components/           # calendar/ (WeekGrid, DayStrip, DayPlanList), grocery/ (ProgressRing),
+│       │   │                         # home/ (StatCard, UseItUpBanner, …), inventory/ (Shelf, ItemChip, ParsePreview),
+│       │   │                         # recommendations/, shell/ (AppShell, FeedbackAffordance), shared/ (Overlay, Toast)
 │       │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext,
 │       │   │                         # QuickAddContext (alias memory + AI-assist merge, spec 005)
-│       │   ├── views/                # InventoryPage, CalendarPage, GroceryListPage (all 'use client')
+│       │   ├── hooks/                # useViewportClass (the 5 spec-010 viewport classes), useFocusTrap
+│       │   ├── views/                # HomePage, InventoryPage, CalendarPage, GroceryListPage (all 'use client')
 │       │   ├── services/             # inventory.ts, meal-plans.ts, grocery-lists.ts, quick-add.ts (browser API fetch wrappers)
 │       │   ├── types/                # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
-│       │   ├── lib/                  # date-utils.ts, quick-parse.ts (NL parser, spec 005), quick-add-overrides.ts
+│       │   ├── lib/                  # date-utils.ts, quick-parse.ts (NL parser, spec 005), quick-add-overrides.ts,
+│       │   │                         # viewport.ts (media queries), locations.ts, home-summary.ts
 │       │   └── server/               # SERVER LAYER (Node-only; `import 'server-only'`):
 │       │       ├── db.ts             #   globalThis-cached Mongoose connection
 │       │       ├── auth.ts           #   authenticate(): OIDC JWT verify (jose) + dev seam (X-User-Id)
@@ -350,6 +356,24 @@ Copy `.env.example` to `.env` before running locally.
 | Utilities / routes | kebab-case | `date-utils.ts`, `error-handler.ts` |
 | TypeScript interfaces | PascalCase | `InventoryItem`, `MealRecommendation` |
 | Tailwind classes | Mobile-first | `class="flex md:grid"` |
+
+### Responsive viewport classes (spec 010)
+
+Five viewport classes, declared in `tailwind.config.ts` → `theme.extend.screens`. Four are stock min-width breakpoints; phone landscape is the one that cannot be expressed that way (it is width- *and* orientation- *and* height-bound):
+
+| Class | Prefix | Condition |
+|-------|--------|-----------|
+| Phone portrait | *(base)* | `< 640px` |
+| iPad portrait | `sm:` | `≥ 640px` |
+| iPad landscape | `lg:` | `≥ 1024px` |
+| Desktop | `xl:` | `≥ 1280px` |
+| Phone landscape | `phland:` | `(max-width:899px) and (orientation:landscape) and (max-height:500px)` |
+
+**Two rules that are load-bearing, not stylistic:**
+- **`phland` must stay LAST in `extend.screens`.** A phone in landscape is ~844px wide, so it also matches `sm:`; Tailwind emits screen variants in declaration order and only the last-declared query wins at equal specificity. `e2e/responsive.e2e.ts` asserts the 844×390 content wrapper computes `padding-left: 96px` as the proof.
+- **Use named screens, never arbitrary `min-[…]:`/`max-[…]:` variants.** A `screens` map containing an object (the `phland` raw query) **disables Tailwind's arbitrary variants build-wide** — silently. That is why the shipped `min-[900px]:` utility became the named `min900:` screen.
+
+Layout invariants: the app root fills the viewport and `<main>` is the **only** scroll container (`AppShell`), so the nav can never scroll away; the padded content wrapper carries `box-border`, or §1.3 padding overflows a `width:100%` box.
 
 ### Formatting (Prettier)
 - 2-space indentation
