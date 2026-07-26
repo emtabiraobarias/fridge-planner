@@ -42,7 +42,12 @@ async function navReady(page: Page) {
   return nav;
 }
 
-const SCREENS = ['/', '/calendar', '/grocery'] as const;
+// All five routes. `/home` and `/feedback` were originally missing here, and that
+// gap let a real defect through: `FeedbackHistory`'s action group overflowed to
+// 394px in a 390px viewport and was *clipped* — Export/Promote/Delete unreachable
+// on a phone — while the document itself never scrolled, so a scrollWidth-only
+// assertion could not see it. Hence the second check below.
+const SCREENS = ['/', '/home', '/calendar', '/grocery', '/feedback'] as const;
 
 test('navigation renders in the mode its viewport calls for (FR-RS-002)', async ({ page }) => {
   const { width, height } = viewportOf(page);
@@ -101,6 +106,36 @@ test('no screen scrolls the page horizontally (SC-RS-001)', async ({ page }) => 
     expect(overflow.scrollWidth, `${path} must not overflow horizontally`).toBeLessThanOrEqual(
       overflow.clientWidth,
     );
+  }
+});
+
+test('no interactive control is clipped outside the viewport (SC-RS-001)', async ({ page }) => {
+  // A scrollWidth check alone is insufficient: an element can overflow its
+  // (overflow-hidden) ancestor and be silently clipped without the document ever
+  // scrolling. That is exactly how the feedback history's Export/Promote/Delete
+  // became unreachable on a phone. Assert on real controls, which is what a user
+  // can actually lose access to.
+  for (const path of SCREENS) {
+    await page.goto(path);
+    await navReady(page);
+    await page.waitForTimeout(1200); // let client-fetched lists paint
+    const clipped = await page.evaluate(() => {
+      const limit = document.documentElement.clientWidth;
+      return Array.from(document.querySelectorAll('button, a, input, textarea, select'))
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) return false;
+          if (getComputedStyle(el).visibility === 'hidden') return false;
+          return r.right > limit + 1 || r.left < -1;
+        })
+        .slice(0, 5)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          const name = el.getAttribute('aria-label') ?? (el.textContent ?? '').trim().slice(0, 28);
+          return `${el.tagName.toLowerCase()}"${name}" left=${Math.round(r.left)} right=${Math.round(r.right)} (limit ${limit})`;
+        });
+    });
+    expect(clipped, `${path} clips interactive controls outside the viewport`).toEqual([]);
   }
 });
 

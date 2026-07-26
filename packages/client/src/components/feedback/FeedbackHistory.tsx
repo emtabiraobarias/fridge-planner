@@ -44,16 +44,27 @@ export function FeedbackHistory(): React.JSX.Element {
         <p className="text-muted text-sm">You haven’t submitted any feedback yet.</p>
       )}
 
+      {/* Rows wrap rather than sitting on one line: the action group (status +
+          Export + Promote to development + Delete) needs ~230px, which does not
+          fit beside the title at 390px. It was `shrink-0` inside a non-wrapping
+          flex row, so it overflowed to 394px and was *clipped* — no page
+          scrollbar, just unreachable buttons. Reported by the user as "the
+          feedback workflow is broken on mobile" (spec 010 FR-RS-005/SC-RS-001).
+          `min-w-0` lets the title truncate; the actions wrap beneath on narrow
+          viewports and sit inline from `sm:`. */}
       <ul className="flex flex-col gap-2">
         {records.map((r) => (
-          <li key={r._id} className="flex items-center justify-between gap-3 rounded-lg bg-surface p-3">
-            <div className="min-w-0">
+          <li
+            key={r._id}
+            className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg bg-surface p-3"
+          >
+            <div className="min-w-0 flex-1 basis-full sm:basis-auto">
               <p className="truncate text-sm font-semibold text-ink">{r.title ?? '(draft — not yet titled)'}</p>
               <p className="text-muted text-xs">
                 {r.type ?? 'unclassified'} · {new Date(r.updatedAt).toLocaleDateString()}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[r.status] ?? ''}`}>
                 {r.status}
               </span>
