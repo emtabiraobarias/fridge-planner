@@ -6,6 +6,7 @@ import { useInventory } from '../context/InventoryContext';
 import { useMealPlan } from '../context/MealPlanContext';
 import { useToast } from '../context/ToastContext';
 import { GroceryListItemRow } from '../components/grocery/GroceryListItemRow';
+import { ProgressRing } from '../components/grocery/ProgressRing';
 import { parseQuick, parseQuickAll, type ParsedQuickItem } from '../lib/quick-parse';
 import { defaultLocationForCategory } from '../lib/category-location';
 import {
@@ -138,7 +139,6 @@ export function GroceryListPage(): React.JSX.Element {
   const items = groceryList?.items ?? [];
   const purchased = items.filter((i) => i.isPurchased);
   const receiptless = items.filter((i) => !i.purchaseReceipt);
-  const pct = items.length ? Math.round((purchased.length / items.length) * 100) : 0;
   const categories = GROCERY_CATEGORIES.filter((c) => items.some((i) => i.category === c));
 
   async function handleGenerate(): Promise<void> {
@@ -230,13 +230,10 @@ export function GroceryListPage(): React.JSX.Element {
   }
 
   return (
-    <div className="mx-auto flex max-w-[720px] flex-col gap-[18px]">
+    <div className="flex flex-col gap-[18px]">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-h2 text-ink">Grocery list</h1>
-          <p className="text-muted text-[13px]">{weekLabel(currentWeekStart)} · built from your meal plan</p>
-        </div>
+        <h1 className="font-heading text-h2 text-ink">Grocery list</h1>
         <button
           type="button"
           onClick={() => void handleGenerate()}
@@ -248,21 +245,19 @@ export function GroceryListPage(): React.JSX.Element {
         </button>
       </div>
 
-      {/* Progress */}
+      {/* Progress summary — ring + trolley copy + the covered week (FR-RS-016/019,
+          design §4.4.2). The week label used to live in the header (spec 007); it's
+          promoted here so a row shedding off the rolling list (spec 008) at a day
+          rollover reads as expected rather than a bug. */}
       {items.length > 0 && (
-        <div className="flex items-center gap-3">
-          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-neutral-200">
-            <div
-              className="h-full rounded-full bg-accent2-500 transition-[width] duration-300"
-              style={{ width: `${pct}%` }}
-              role="progressbar"
-              aria-valuenow={purchased.length}
-              aria-valuemax={items.length}
-            />
+        <div className="mx-auto flex w-full max-w-[520px] items-center gap-[18px] rounded-[22px] bg-surface p-[18px]">
+          <ProgressRing checked={purchased.length} total={items.length} />
+          <div>
+            <p className="text-[16px] font-bold text-ink">In the trolley</p>
+            <p className="text-muted text-[13px]">
+              {weekLabel(currentWeekStart)} · built from your meal plan
+            </p>
           </div>
-          <span className="text-[13px] font-semibold text-ink">
-            {purchased.length}/{items.length} in the trolley
-          </span>
         </div>
       )}
 
@@ -275,26 +270,32 @@ export function GroceryListPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* Category groups */}
-      {categories.map((cat) => {
-        const rows = items.filter((i) => i.category === cat) as GroceryListItem[];
-        return (
-          <div key={cat}>
-            <h2 className="text-h6 mb-1.5 font-body font-bold uppercase text-accent-700">{cat}</h2>
-            <ul className="rounded-lg bg-surface px-2.5 py-1.5">
-              {rows.map((item, i) => (
-                <GroceryListItemRow
-                  key={item._id}
-                  item={item}
-                  last={i === rows.length - 1}
-                  onTogglePurchased={() => void handleTogglePurchased(item)}
-                  onRemove={(id) => void removeItem(id)}
-                />
-              ))}
-            </ul>
-          </div>
-        );
-      })}
+      {/* Category groups — 1 / 2 / 3 columns by viewport (design §1.2 "Grocery
+          categories", same mapping as Fridge shelves, InventoryPage.tsx). */}
+      <div
+        data-testid="grocery-category-groups"
+        className="grid grid-cols-1 items-start gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        {categories.map((cat) => {
+          const rows = items.filter((i) => i.category === cat) as GroceryListItem[];
+          return (
+            <div key={cat}>
+              <h2 className="text-h6 mb-1.5 font-body font-bold uppercase text-accent-700">{cat}</h2>
+              <ul className="rounded-[20px] bg-surface px-1.5 py-[5px]">
+                {rows.map((item, i) => (
+                  <GroceryListItemRow
+                    key={item._id}
+                    item={item}
+                    last={i === rows.length - 1}
+                    onTogglePurchased={() => void handleTogglePurchased(item)}
+                    onRemove={(id) => void removeItem(id)}
+                  />
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Quick add */}
       <div className="flex gap-2">

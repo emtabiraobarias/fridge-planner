@@ -15,6 +15,8 @@
   --color-accent-600: #b2622d;
   --color-accent-700: #8c491a;
   --color-accent2: #7a8a5e;
+  --color-accent2-500: #8fa073;
+  --color-neutral-300: #dcd3c4;
   --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
   --color-muted: color-mix(in srgb, #201e1d 55%, transparent);
 }
@@ -70,5 +72,17 @@
 @layer utilities {
   .text-muted {
     color: var(--color-muted);
+  }
+
+  /*
+   * Grocery shopping-progress ring (spec 010 design §4.4.2, FR-RS-016).
+   * `--pct` (a plain custom property) is set inline per-render; the
+   * conic-gradient itself lives here rather than in an inline style because
+   * jsdom's CSS parser does not implement `conic-gradient()` and silently
+   * drops the whole `style` attribute if it's assigned inline — tests assert
+   * the `--pct` custom property (which jsdom does preserve) and this class.
+   */
+  .progress-ring {
+    background: conic-gradient(var(--color-accent2-500) var(--pct, 0%), var(--color-neutral-300) 0);
   }
 }

@@ -18,24 +18,30 @@ export function GroceryListItemRow({
   last = false,
 }: GroceryListItemRowProps): React.JSX.Element {
   return (
-    <li className={`flex items-center gap-3 px-1.5 py-[11px] ${last ? '' : 'border-b border-divider'}`}>
+    <li className={`flex items-center gap-[13px] p-3 ${last ? '' : 'border-b border-divider'}`}>
+      {/* 44px hit target (accessibility punch list) around the design's 26px visual circle
+          (design §4.4.3) — the negative margin keeps row spacing unchanged. */}
       <button
         type="button"
         role="checkbox"
         aria-checked={item.isPurchased}
         aria-label={`Mark ${item.displayName} as purchased`}
         onClick={() => onTogglePurchased(item._id, item.isPurchased)}
-        className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 transition-colors ${
-          item.isPurchased ? 'border-accent bg-accent text-bg' : 'border-neutral-400 text-transparent'
-        }`}
+        className="-m-[9px] grid h-11 w-11 shrink-0 place-items-center rounded-full"
       >
-        <Check size={15} strokeWidth={3.5} aria-hidden />
+        <span
+          className={`grid h-[26px] w-[26px] place-items-center rounded-full border-2 transition-colors ${
+            item.isPurchased ? 'border-accent bg-accent text-bg' : 'border-divider text-transparent'
+          }`}
+        >
+          <Check size={15} strokeWidth={3.4} aria-hidden />
+        </span>
       </button>
 
       <div className="min-w-0 flex-1">
         <div
-          className={`text-[14.5px] font-semibold ${
-            item.isPurchased ? 'text-ink/45 line-through' : 'text-ink'
+          className={`text-[15px] font-semibold ${
+            item.isPurchased ? 'text-ink/[0.42] line-through' : 'text-ink'
           }`}
         >
           {item.displayName}
@@ -54,7 +60,7 @@ export function GroceryListItemRow({
         type="button"
         aria-label={`Remove ${item.displayName}`}
         onClick={() => onRemove(item._id)}
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink/60 hover:bg-neutral-200"
+        className="-m-[7px] grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink/60 hover:bg-neutral-200"
       >
         ×
       </button>
