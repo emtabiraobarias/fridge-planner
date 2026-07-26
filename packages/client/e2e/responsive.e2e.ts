@@ -139,6 +139,34 @@ test('no interactive control is clipped outside the viewport (SC-RS-001)', async
   }
 });
 
+test('form controls are >=16px on touch, so iOS never auto-zooms (SC-RS-003)', async ({ page }) => {
+  const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+  test.skip(!coarse, 'touch projects only — desktop deliberately keeps the design’s smaller sizes');
+
+  // iOS Safari zooms toward a focused control whose font-size is under 16px and
+  // never zooms back out, which is how "modals zoom in and never zoom out" was
+  // reported. A 16px floor on coarse pointers prevents it without disabling
+  // pinch-zoom (which would fail WCAG 1.4.4).
+  for (const path of SCREENS) {
+    await page.goto(path);
+    await navReady(page);
+    await page.waitForTimeout(1000);
+    const tooSmall = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('input, textarea, select'))
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0 && parseFloat(getComputedStyle(el).fontSize) < 16;
+        })
+        .slice(0, 5)
+        .map((el) => {
+          const name = el.getAttribute('aria-label') ?? el.getAttribute('placeholder') ?? el.tagName;
+          return `${name}: ${getComputedStyle(el).fontSize}`;
+        }),
+    );
+    expect(tooSmall, `${path} has sub-16px form controls — iOS will auto-zoom`).toEqual([]);
+  }
+});
+
 test('only the content region scrolls; the nav never scrolls away (FR-RS-004, SC-RS-002)', async ({
   page,
 }) => {

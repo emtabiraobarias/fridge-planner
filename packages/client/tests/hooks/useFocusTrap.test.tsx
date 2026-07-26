@@ -51,3 +51,26 @@ describe('useFocusTrap (research D5/D12, FR-RS-023, SC-RS-004)', () => {
     await waitFor(() => expect(document.activeElement).toBe(opener));
   });
 });
+
+describe('useFocusTrap — does not auto-focus text entry (mobile zoom/keyboard, spec 010)', () => {
+  function TrapWithInput(): React.JSX.Element {
+    const ref = useRef<HTMLDivElement>(null);
+    useFocusTrap(ref, true);
+    return (
+      <div ref={ref} tabIndex={-1} data-testid="panel">
+        <input aria-label="Name" defaultValue="" />
+        <button type="button">Save</button>
+      </div>
+    );
+  }
+
+  it('focuses the panel, not the leading text input', async () => {
+    // iOS zooms toward a focused sub-16px field and never zooms back out, and the
+    // on-screen keyboard springs up unbidden — reported as "modals zoom in the
+    // view but fail to zoom out". Focus lands on the panel instead; Tab still
+    // reaches the input.
+    render(<TrapWithInput />);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('panel')));
+    expect(document.activeElement).not.toBe(screen.getByLabelText('Name'));
+  });
+});

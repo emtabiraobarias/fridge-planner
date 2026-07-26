@@ -40,22 +40,22 @@ export default defineConfig({
     {
       name: 'phone-portrait',
       testMatch: RESPONSIVE_SPEC,
-      use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: false },
+      use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, hasTouch: true },
     },
     {
       name: 'phone-landscape',
       testMatch: RESPONSIVE_SPEC,
-      use: { ...devices['Desktop Chrome'], viewport: { width: 844, height: 390 }, isMobile: false },
+      use: { ...devices['Desktop Chrome'], viewport: { width: 844, height: 390 }, hasTouch: true },
     },
     {
       name: 'ipad-portrait',
       testMatch: RESPONSIVE_SPEC,
-      use: { ...devices['Desktop Chrome'], viewport: { width: 834, height: 1112 } },
+      use: { ...devices['Desktop Chrome'], viewport: { width: 834, height: 1112 }, hasTouch: true },
     },
     {
       name: 'ipad-landscape',
       testMatch: RESPONSIVE_SPEC,
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1194, height: 834 } },
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1194, height: 834 }, hasTouch: true },
     },
   ],
   webServer: {

@@ -120,4 +120,39 @@
   .progress-ring {
     background: conic-gradient(var(--color-accent2-500) var(--pct, 0%), var(--color-neutral-300) 0);
   }
+
+}
+
+/*
+ * iOS Safari auto-zooms the page when a focused form control's font-size is
+ * **below 16px**, and it does NOT zoom back out when the control blurs — so
+ * opening any sheet with an input left the whole view zoomed in, exactly as
+ * reported ("modal windows zoom in the view but fail to zoom out"). Our controls
+ * are 12–15px per the design, which is precisely the trigger.
+ *
+ * 16px applies on **touch pointers only**, so the design keeps its smaller sizes
+ * on desktop, where no such zoom behaviour exists.
+ *
+ * ⚠ `!important` is load-bearing here, and two weaker attempts failed first:
+ *   1. inside `@layer components` — no effect;
+ *   2. moved outside `@layer` — still no effect (measured: 14px under
+ *      `pointer: coarse` both times).
+ * The reason is specificity, not layering: Tailwind v3 emits **unlayered** CSS, so
+ * these element selectors (`input`, specificity 0,0,1) can never outrank a utility
+ * class such as `text-sm` or `text-[15px]` (0,1,0) no matter the source order.
+ * `!important` is the narrowest fix that wins; the alternative — a custom
+ * `coarse:` variant applied to every control — would spread the concern across
+ * many files for the same result.
+ *
+ * ⚠ Deliberately NOT fixed with `maximum-scale=1` / `user-scalable=no` on the
+ * viewport meta: that stops the zoom by **disabling pinch-zoom entirely**, a
+ * WCAG 1.4.4 failure. The 16px floor gets the same result while leaving users
+ * free to zoom when they want to.
+ */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }

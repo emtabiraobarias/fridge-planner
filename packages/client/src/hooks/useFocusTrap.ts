@@ -15,6 +15,31 @@ function getTabbable(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR));
 }
 
+/** Text-entry controls open the on-screen keyboard when focused (see below). */
+const TEXT_ENTRY_INPUT_TYPES = new Set([
+  'text',
+  'search',
+  'email',
+  'url',
+  'tel',
+  'password',
+  'number',
+  'date',
+  'datetime-local',
+  'month',
+  'week',
+  'time',
+]);
+
+function isTextEntry(node: HTMLElement | undefined): boolean {
+  if (!node) return false;
+  if (node instanceof HTMLTextAreaElement) return true;
+  if (node instanceof HTMLInputElement) {
+    return TEXT_ENTRY_INPUT_TYPES.has(node.type);
+  }
+  return node.isContentEditable;
+}
+
 /**
  * Hand-rolled focus trap (research D5/D12 — ~30 lines, zero dependency): while
  * `active`, records the element that had focus, moves focus into `containerRef`'s
@@ -32,7 +57,13 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
 
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const [first] = getTabbable(container);
-    (first ?? container).focus();
+    // Focus the panel rather than a text-entry control: auto-focusing an input
+    // on a phone springs the on-screen keyboard unbidden and — because iOS zooms
+    // toward a focused field — was part of the reported "modal zooms in and never
+    // zooms out". Non-text controls (buttons, checkboxes) are still focused
+    // directly, so keyboard users land on the first actionable thing. Tab order
+    // is unchanged either way, and the panel carries `tabIndex={-1}`.
+    (isTextEntry(first) ? container : (first ?? container)).focus();
 
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key !== 'Tab' || !container) return;
