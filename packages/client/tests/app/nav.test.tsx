@@ -50,11 +50,18 @@ describe('Nav — labels and routes (FR-RS-002/026)', () => {
     expect(screen.getByText('List').closest('a')).toHaveAttribute('href', '/grocery');
   });
 
-  it('keeps /feedback reachable from the desktop sidebar (research D11)', () => {
+  it('does not duplicate the feedback affordance in the desktop sidebar — the Tell us pill is the single control per viewport (T061a)', () => {
+    // RS1 shipped a secondary sidebar `Feedback` NavItem alongside the
+    // floating/pill FeedbackAffordance (research D11), so desktop showed both
+    // at once — a user-reported nit. Design §3 specifies exactly one feedback
+    // affordance per viewport; the pill now reaches `/feedback` transitively
+    // via QuickCaptureOverlay's "Open full feedback" link (see
+    // FeedbackAffordance.test.tsx), so the sidebar no longer needs its own
+    // entry — Nav renders only the four primary tabs.
     setViewport('desktop');
     vi.mocked(usePathname).mockReturnValue('/');
     render(<Nav />);
-    expect(screen.getByText('Feedback').closest('a')).toHaveAttribute('href', '/feedback');
+    expect(screen.queryByText('Feedback')).not.toBeInTheDocument();
   });
 
   it('renders without a badge when there is no inventory provider', () => {
@@ -76,6 +83,14 @@ describe('Nav — three positional modes (FR-RS-002)', () => {
     expect(nav().className).toContain('left-1/2');
     expect(nav().className).toContain('-translate-x-1/2');
     expect(nav().className).toContain('rounded-full');
+  });
+
+  it('gives every pill item a 44px touch target (FR-RS-025, SC-RS-003)', () => {
+    vi.mocked(usePathname).mockReturnValue('/');
+    render(<Nav />);
+    const item = screen.getByText('Fridge').closest('a');
+    expect(item?.className).toContain('min-h-[44px]');
+    expect(item?.className).toContain('min-w-[44px]');
   });
 
   it('is a pill at iPad portrait too', () => {
@@ -168,5 +183,16 @@ describe('Nav — sidebar collapse persistence (FR-RS-003, SC-RS-009)', () => {
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText('Fridge Planner')).not.toBeInTheDocument();
+  });
+
+  it('renders the full wordmark, not truncated, in the expanded sidebar (T061b)', () => {
+    // `truncate` used to clip the 250px expanded sidebar's wordmark to
+    // "Fridge Pl…"; it now wraps instead, so the full string is present.
+    setViewport('desktop');
+    vi.mocked(usePathname).mockReturnValue('/');
+    render(<Nav />);
+    const wordmark = screen.getByText('Fridge Planner');
+    expect(wordmark).toBeInTheDocument();
+    expect(wordmark.className).not.toContain('truncate');
   });
 });

@@ -1,5 +1,7 @@
-import Link from 'next/link';
+'use client';
+import { useState } from 'react';
 import { MessageCircle } from 'lucide-react';
+import { QuickCaptureOverlay } from '../feedback/QuickCaptureOverlay';
 
 /**
  * The always-present feedback affordance (FR-RS-006, design §2.3): a round bubble
@@ -9,9 +11,10 @@ import { MessageCircle } from 'lucide-react';
  * `<main>` inside `AppShell`, which is what makes it structurally unable to
  * scroll out of view (FR-RS-004).
  *
- * RS1 target is the full `/feedback` surface. RS6 (T058) replaces this link with
- * a button that opens `QuickCaptureOverlay`; the `/feedback` route stays
- * reachable from that overlay and from the desktop sidebar (research D11).
+ * RS6 (T058): opens `QuickCaptureOverlay` instead of navigating directly — the
+ * overlay's own "Open full feedback" link is what reaches `/feedback` now.
+ * T061a removed the desktop sidebar's duplicate Feedback entry, so this is the
+ * single feedback control per viewport (design §3, research D11).
  */
 const AFFORDANCE_CLASS = [
   'fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center gap-2',
@@ -28,10 +31,19 @@ const AFFORDANCE_CLASS = [
 ].join(' ');
 
 export function FeedbackAffordance(): React.JSX.Element {
+  const [open, setOpen] = useState(false);
   return (
-    <Link href="/feedback" aria-label="Tell us — send feedback" className={AFFORDANCE_CLASS}>
-      <MessageCircle size={24} strokeWidth={2.5} aria-hidden className="shrink-0" />
-      <span className="hidden text-sm font-bold xl:inline">Tell us</span>
-    </Link>
+    <>
+      <button
+        type="button"
+        aria-label="Tell us — send feedback"
+        onClick={() => setOpen(true)}
+        className={AFFORDANCE_CLASS}
+      >
+        <MessageCircle size={24} strokeWidth={2.5} aria-hidden className="shrink-0" />
+        <span className="hidden text-sm font-bold xl:inline">Tell us</span>
+      </button>
+      <QuickCaptureOverlay open={open} onClose={() => setOpen(false)} />
+    </>
   );
 }

@@ -1,18 +1,21 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check } from 'lucide-react';
 import type { DragEndEvent } from '@dnd-kit/core';
 import type { MealPlanEntry, MealType } from '../types/meal-plan';
 import { useMealPlan } from '../context/MealPlanContext';
 import { usePlacement } from '../context/PlacementContext';
 import { useToast } from '../context/ToastContext';
+import { useInventoryOptional } from '../context/InventoryContext';
 import { useViewportClass } from '../hooks/useViewportClass';
 import { getWeekDays, dowIndex, todayUtcDate } from '../lib/date-utils';
+import { buildReviewLines, type ConsumptionReviewLine } from '../lib/consumption-review';
 import { SuggestionsRail } from '../components/calendar/SuggestionsRail';
 import { WeekGrid } from '../components/calendar/WeekGrid';
 import { DayStrip } from '../components/calendar/DayStrip';
 import { DayPlanList } from '../components/calendar/DayPlanList';
 import { MealDetailModal } from '../components/calendar/MealDetailModal';
+import { ConsumptionReviewSheet } from '../components/calendar/ConsumptionReviewSheet';
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -33,9 +36,10 @@ function defaultSelectedDate(days: string[], todayIso: string): string {
 }
 
 export function CalendarPage(): React.JSX.Element {
-  const { plan, currentWeekStart, setWeekOffset, assignMeal, unassignMeal, moveMeal } = useMealPlan();
+  const { plan, currentWeekStart, setWeekOffset, assignMeal, unassignMeal, moveMeal, cookMeal } = useMealPlan();
   const { placing, clearPlacing } = usePlacement();
   const { showToast } = useToast();
+  const inventory = useInventoryOptional();
   const vp = useViewportClass();
   // Exactly ONE calendar layout is mounted at a time (D4) — never render-both-
   // and-CSS-toggle: both would register dnd-kit draggables on the same
@@ -43,6 +47,16 @@ export function CalendarPage(): React.JSX.Element {
   const phone = vp === 'phone' || vp === 'phone-landscape';
   const [weekOffset, setWeekOffsetLocal] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<MealPlanEntry | null>(null);
+  // Research D5: the consumption-review open state is hoisted here (out of
+  // MealDetailModal/CookControls) so the cook flow never nests one overlay
+  // inside another — opening the review closes the detail overlay first, one
+  // overlay at a time, one trap, unambiguous focus restoration.
+  const [cookingEntry, setCookingEntry] = useState<MealPlanEntry | null>(null);
+  const [cookSubmitting, setCookSubmitting] = useState(false);
+  const cookReview = useMemo(
+    () => (cookingEntry ? buildReviewLines(cookingEntry.meal, inventory?.items ?? []) : { lines: [], unresolved: [] }),
+    [cookingEntry, inventory?.items],
+  );
 
   const weekDays = getWeekDays(currentWeekStart);
   const today = todayUtcDate();
@@ -91,6 +105,25 @@ export function CalendarPage(): React.JSX.Element {
     return MEAL_TYPES.some((mealType) => Boolean(getEntry(date, mealType)));
   }
 
+  function openCookReview(entry: MealPlanEntry): void {
+    // Close the detail overlay before opening the review one (D5 — never nest).
+    setSelectedEntry(null);
+    setCookingEntry(entry);
+  }
+
+  async function confirmCook(lines: ConsumptionReviewLine[]): Promise<void> {
+    if (!cookingEntry) return;
+    const slotId = cookingEntry.slotId;
+    setCookSubmitting(true);
+    try {
+      await cookMeal(slotId, lines);
+      await inventory?.refresh();
+      setCookingEntry(null);
+    } finally {
+      setCookSubmitting(false);
+    }
+  }
+
   // Same slot order as the grid (breakfast → lunch → dinner → snack), so the
   // phone day list reads the same way the desktop grid's column does.
   const selectedDayEntries = MEAL_TYPES.map((mealType) => getEntry(selectedDate, mealType)).filter(
@@ -110,7 +143,7 @@ export function CalendarPage(): React.JSX.Element {
             type="button"
             aria-label="Previous week"
             onClick={() => shiftWeek(-1)}
-            className="grid h-9 w-9 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
+            className="grid h-11 w-11 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
           >
             ←
           </button>
@@ -118,7 +151,7 @@ export function CalendarPage(): React.JSX.Element {
             type="button"
             aria-label="Next week"
             onClick={() => shiftWeek(1)}
-            className="grid h-9 w-9 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
+            className="grid h-11 w-11 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
           >
             →
           </button>
@@ -175,7 +208,24 @@ export function CalendarPage(): React.JSX.Element {
       )}
 
       {/* FR-024: click a planned meal → details + recipe link */}
-      <MealDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
+      <MealDetailModal
+        entry={selectedEntry}
+        onClose={() => setSelectedEntry(null)}
+        onMarkCooked={openCookReview}
+      />
+
+      {/* Promoted to a standalone overlay (research D5): opening this closes the
+          detail overlay first, so the two never nest. */}
+      {cookingEntry && (
+        <ConsumptionReviewSheet
+          mealName={cookingEntry.meal.mealName}
+          lines={cookReview.lines}
+          unresolvedNames={cookReview.unresolved}
+          submitting={cookSubmitting}
+          onConfirm={(lines) => void confirmCook(lines)}
+          onCancel={() => setCookingEntry(null)}
+        />
+      )}
 
       <SuggestionsRail />
     </div>

@@ -1,19 +1,25 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect } from 'vitest';
 import { FeedbackAffordance } from '../../../src/components/shell/FeedbackAffordance';
 
 describe('FeedbackAffordance (FR-RS-006)', () => {
   it('is a labelled control reachable from every screen', () => {
     render(<FeedbackAffordance />);
-    const affordance = screen.getByRole('link', { name: /tell us/i });
-    // Interim target (RS1): the full /feedback surface. RS6 swaps it for the
-    // quick-capture overlay trigger.
-    expect(affordance).toHaveAttribute('href', '/feedback');
+    expect(screen.getByRole('button', { name: /tell us/i })).toBeInTheDocument();
+  });
+
+  it('opens QuickCaptureOverlay on tap, which reaches the full /feedback surface via its own link (RS6 T058, research D11)', async () => {
+    render(<FeedbackAffordance />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /tell us/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open full feedback/i })).toHaveAttribute('href', '/feedback');
   });
 
   it('renders a round bubble at the touch viewport classes', () => {
     render(<FeedbackAffordance />);
-    const cls = screen.getByRole('link', { name: /tell us/i }).className;
+    const cls = screen.getByRole('button', { name: /tell us/i }).className;
     expect(cls).toContain('rounded-full');
     // design §2.3 — 56×56 at phone portrait, 54×54 phone landscape, 60×60 iPad
     expect(cls).toContain('h-14');
@@ -25,7 +31,7 @@ describe('FeedbackAffordance (FR-RS-006)', () => {
 
   it('becomes a labelled `Tell us` pill at desktop only', () => {
     render(<FeedbackAffordance />);
-    const cls = screen.getByRole('link', { name: /tell us/i }).className;
+    const cls = screen.getByRole('button', { name: /tell us/i }).className;
     expect(cls).toContain('xl:h-[54px]');
     expect(cls).toContain('xl:w-auto');
     expect(cls).toContain('xl:px-[22px]');
@@ -36,7 +42,7 @@ describe('FeedbackAffordance (FR-RS-006)', () => {
 
   it('is fixed clear of the nav at every viewport class', () => {
     render(<FeedbackAffordance />);
-    const cls = screen.getByRole('link', { name: /tell us/i }).className;
+    const cls = screen.getByRole('button', { name: /tell us/i }).className;
     expect(cls).toContain('fixed');
     // Bottom offsets clear the pill (portrait) and the rail is on the left, so
     // the affordance never obscures navigation (design §2.3).

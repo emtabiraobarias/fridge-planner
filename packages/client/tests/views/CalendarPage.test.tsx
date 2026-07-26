@@ -229,3 +229,21 @@ describe('CalendarPage responsive hybrid (US3, FR-RS-012/013/015, research D4)',
     expect(screen.getByRole('button', { name: /get suggestions/i })).toBeInTheDocument();
   });
 });
+
+describe('CalendarPage — 44px touch targets (FR-RS-025, SC-RS-003)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchMealPlan.mockResolvedValue(null);
+  });
+
+  it('gives the week-nav chevrons a 44px touch target', async () => {
+    renderPage();
+    await waitFor(() => screen.getByText('This week'));
+    const prev = screen.getByRole('button', { name: 'Previous week' });
+    const next = screen.getByRole('button', { name: 'Next week' });
+    expect(prev.className).toContain('h-11');
+    expect(prev.className).toContain('w-11');
+    expect(next.className).toContain('h-11');
+    expect(next.className).toContain('w-11');
+  });
+});

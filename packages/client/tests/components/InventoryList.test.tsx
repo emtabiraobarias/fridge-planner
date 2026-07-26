@@ -96,6 +96,16 @@ describe('InventoryList (organic redesign)', () => {
     expect(onEdit).toHaveBeenCalledWith(base);
   });
 
+  it('gives the edit/delete icon buttons a 44px touch target (FR-RS-025, SC-RS-003)', () => {
+    render(<InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    const edit = screen.getByRole('button', { name: /edit chicken breast/i });
+    const del = screen.getByRole('button', { name: /delete chicken breast/i });
+    expect(edit.className).toContain('h-11');
+    expect(edit.className).toContain('w-11');
+    expect(del.className).toContain('h-11');
+    expect(del.className).toContain('w-11');
+  });
+
   describe('select mode (spec 009 US2, FR-IR-006 Kitchen entry point)', () => {
     it('renders no checkbox when select mode is off (default)', () => {
       render(<InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
@@ -148,6 +158,25 @@ describe('InventoryList (organic redesign)', () => {
         />,
       );
       expect(screen.getByRole('checkbox', { name: /select chicken breast/i })).toBeChecked();
+    });
+
+    it('wraps the select checkbox in a 44px touch target (FR-RS-025, SC-RS-003)', () => {
+      render(
+        <InventoryList
+          items={[base]}
+          onStep={() => {}}
+          onDelete={() => {}}
+          onEdit={() => {}}
+          selectMode
+          selectedIds={new Set<string>()}
+          onToggleSelect={() => {}}
+        />,
+      );
+      const checkbox = screen.getByRole('checkbox', { name: /select chicken breast/i });
+      const hitArea = checkbox.closest('label');
+      expect(hitArea).not.toBeNull();
+      expect(hitArea?.className).toContain('h-11');
+      expect(hitArea?.className).toContain('w-11');
     });
   });
 });

@@ -77,7 +77,9 @@ test('navigation renders in the mode its viewport calls for (FR-RS-002)', async 
 
   // The feedback affordance is present on every viewport (FR-RS-006) and must not
   // sit on top of the nav.
-  const fb = page.getByRole('link', { name: 'Tell us — send feedback' });
+  // RS6 (T058) rewired the affordance to open QuickCaptureOverlay instead of
+  // navigating directly, so its role is now `button`, not `link`.
+  const fb = page.getByRole('button', { name: 'Tell us — send feedback' });
   await expect(fb).toBeVisible();
   const fbBox = (await fb.boundingBox())!;
   const overlaps =

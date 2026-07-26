@@ -363,6 +363,13 @@ describe('GroceryListPage (organic redesign)', () => {
     await waitFor(() => expect(mockGenerate).toHaveBeenCalledTimes(1));
   });
 
+  it('gives the Regenerate button a 44px touch target (FR-RS-025, SC-RS-003)', async () => {
+    mockFetch.mockResolvedValue(mockListWithItems);
+    render(<Wrapper />);
+    const button = await screen.findByRole('button', { name: /Regenerate/i });
+    expect(button.className).toContain('min-h-[44px]');
+  });
+
   it('quick-adds every comma-separated item (spec 005 FR-IQ-006/007)', async () => {
     const { addGroceryItem } = await import('../../src/services/grocery-lists');
     const mockAdd = vi.mocked(addGroceryItem);

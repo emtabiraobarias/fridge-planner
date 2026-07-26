@@ -64,13 +64,18 @@ export function ItemChip({
           `shrink-0`; the name is the only flexible element and truncates. */}
       <div className="flex min-w-0 items-center gap-2">
         {selectMode && (
-          <input
-            type="checkbox"
-            aria-label={`Select ${item.name}`}
-            checked={selected}
-            onChange={() => onToggleSelect?.(item._id)}
-            className="h-5 w-5 shrink-0 accent-accent"
-          />
+          // Native `<label>` wrapping only the input gives a real 44px tap
+          // target for free (clicking anywhere in it toggles the checkbox)
+          // without shrinking the compact 20px visual (FR-RS-025, SC-RS-003).
+          <label className="grid h-11 w-11 shrink-0 place-items-center">
+            <input
+              type="checkbox"
+              aria-label={`Select ${item.name}`}
+              checked={selected}
+              onChange={() => onToggleSelect?.(item._id)}
+              className="h-5 w-5 accent-accent"
+            />
+          </label>
         )}
         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotClass}`} aria-hidden />
         <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink">
@@ -102,7 +107,7 @@ export function ItemChip({
             type="button"
             aria-label={`Edit ${item.name}`}
             onClick={() => onEdit(item)}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
           >
             <Pencil size={15} strokeWidth={2.75} aria-hidden />
           </button>
@@ -110,7 +115,7 @@ export function ItemChip({
             type="button"
             aria-label={`Delete ${item.name}`}
             onClick={() => onDelete(item._id)}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-divider text-ink hover:bg-ink/[0.07]"
           >
             <Trash2 size={15} strokeWidth={2.75} aria-hidden />
           </button>

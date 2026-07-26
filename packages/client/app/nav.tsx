@@ -2,15 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import {
-  Home,
-  Refrigerator,
-  Calendar,
-  ShoppingCart,
-  MessageCircle,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+import { Home, Refrigerator, Calendar, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useInventoryOptional } from '../src/context/InventoryContext';
 import { daysLeft, isUrgent } from '../src/lib/quick-parse';
@@ -133,7 +125,11 @@ function NavBrand({
         <Refrigerator size={20} strokeWidth={2.75} />
       </span>
       {!collapsed && (
-        <span className="truncate font-heading text-[19px] text-ink">Fridge Planner</span>
+        // T061b: `truncate` used to clip this to "Fridge Pl…" at the 250px
+        // expanded sidebar — the row has room for two short lines but not one
+        // long one. Wrapping (not truncating) reads the full wordmark while
+        // keeping the brand row's vertical rhythm via `items-center`.
+        <span className="font-heading text-[19px] leading-[1.15] text-ink">Fridge Planner</span>
       )}
       <button
         type="button"
@@ -232,20 +228,6 @@ export function Nav(): React.JSX.Element {
           badge={tab.href === '/' ? urgentCount : 0}
         />
       ))}
-
-      {/* Secondary entry so the full /feedback surface stays reachable now that it
-          is no longer a primary tab (research D11). Sidebar only — the pill and
-          rail reach it through the feedback affordance. */}
-      <div className="hidden xl:mt-auto xl:block">
-        <NavItem
-          href="/feedback"
-          label="Feedback"
-          Icon={MessageCircle}
-          active={isActive('/feedback', pathname)}
-          collapsed={collapsed}
-          badge={0}
-        />
-      </div>
     </nav>
   );
 }

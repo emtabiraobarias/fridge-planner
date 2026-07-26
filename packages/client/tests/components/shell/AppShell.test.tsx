@@ -31,7 +31,7 @@ describe('AppShell (FR-RS-004/005, SC-RS-001/002)', () => {
     render(<AppShell>content</AppShell>);
     const main = screen.getByRole('main');
     const nav = screen.getByRole('navigation', { name: 'Main navigation' });
-    const affordance = screen.getByRole('link', { name: /tell us/i });
+    const affordance = screen.getByRole('button', { name: /tell us/i });
     expect(main.contains(nav)).toBe(false);
     expect(main.contains(affordance)).toBe(false);
     expect(nav.parentElement).toBe(main.parentElement);

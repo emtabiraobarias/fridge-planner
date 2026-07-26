@@ -238,7 +238,7 @@ export function GroceryListPage(): React.JSX.Element {
           type="button"
           onClick={() => void handleGenerate()}
           disabled={generating}
-          className="flex items-center gap-1.5 rounded-full border border-divider px-4 py-2 text-[13px] hover:bg-ink/[0.07] disabled:opacity-60"
+          className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-divider px-4 py-2 text-[13px] hover:bg-ink/[0.07] disabled:opacity-60"
         >
           <RefreshCw size={14} strokeWidth={2.75} aria-hidden />
           {generating ? 'Regenerating…' : 'Regenerate'}
