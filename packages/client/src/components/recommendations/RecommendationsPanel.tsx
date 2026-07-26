@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   fetchRecommendations as fetchRecommendationsService,
@@ -28,11 +29,22 @@ interface Props {
    * one code path, one endpoint (research D3/D5).
    */
   ingredientItemIds?: string[];
+  /**
+   * Spec 010 US5 (FR-RS-021, research D6): when `true` AND `ingredientItemIds`
+   * is non-empty, fires the same scoped `handleFetch()` once on mount instead
+   * of waiting for a click on this panel's own button. Used only by Home's
+   * "Cook this →" banner CTA — that tap IS the user action, so the request it
+   * issues is exactly one, not a prefetch (default `false`/absent keeps every
+   * other caller, e.g. `InventoryPage`'s select mode, on FR-IR-001's no-mount-
+   * fetch contract unchanged).
+   */
+  autoFetch?: boolean;
 }
 
 export function RecommendationsPanel({
   fetchRecommendations: fetchFn = fetchRecommendationsService,
   ingredientItemIds,
+  autoFetch = false,
 }: Props): React.JSX.Element {
   const { state, meals, error, cachedAt, fallback, linksPending, setLoading, setMeals, setError, checkLinks } =
     useRecommendations();
@@ -80,6 +92,19 @@ export function RecommendationsPanel({
       setError(recommendationsErrorMessage(err, 'Could not load recommendations. Please try again.'));
     }
   }
+
+  // Spec 010 US5 (FR-RS-021): the Home "Cook this →" tap already happened before
+  // this panel mounted — `autoFetch` fires the identical `handleFetch()` path
+  // exactly once so that single tap is the request, with no separate click on
+  // this panel's own button required. A ref (not a dep array) guards the
+  // one-time fire so a re-render from the resulting state change can't refire.
+  const autoFetched = useRef(false);
+  useEffect(() => {
+    if (autoFetch && scoped && !autoFetched.current) {
+      autoFetched.current = true;
+      void handleFetch();
+    }
+  }, []);
 
   function handlePlan(meal: MealRecommendation): void {
     startPlacing(meal);

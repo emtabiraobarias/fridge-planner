@@ -13,9 +13,9 @@ describe('Nav — labels and routes (FR-RS-002/026)', () => {
   it('renders the four spec-010 labels (supersedes 004 FR-UI-009)', () => {
     vi.mocked(usePathname).mockReturnValue('/');
     render(<Nav />);
-    // Home ('/home') is intentionally absent until RS5 builds that route — RS1
-    // ships standalone, so the nav never links to a non-existent page.
-    expect(screen.queryByText('Home')).not.toBeInTheDocument();
+    // Home ('/home') is restored now that RS5 builds the route (FR-RS-020/022).
+    expect(screen.getByText('Home')).toBeInTheDocument();
+    expect(screen.getByText('Home').closest('a')).toHaveAttribute('href', '/home');
     expect(screen.getByText('Fridge')).toBeInTheDocument();
     expect(screen.getByText('Plan')).toBeInTheDocument();
     expect(screen.getByText('List')).toBeInTheDocument();

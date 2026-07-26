@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  Home,
   Refrigerator,
   Calendar,
   ShoppingCart,
@@ -35,10 +36,11 @@ interface Tab {
 }
 
 // Labels per design §2.1 (spec 010 supersedes 004's FR-UI-009 labels); every href
-// is an existing route. The design's fourth item, Home (`/home`), is deliberately
-// absent until RS5 builds that route — RS1 ships standalone, so linking to a route
-// that does not exist yet would be a dead tab. RS5 adds it back here (FR-RS-020/022).
+// is an existing route. RS1 shipped without the Home tab (the `/home` route did
+// not exist yet, and a tab pointing at a dead route would have been worse than
+// omitting it); RS5 builds `/home` and restores the tab here (FR-RS-020/022).
 const TABS: readonly Tab[] = [
+  { href: '/home', label: 'Home', Icon: Home },
   { href: '/', label: 'Fridge', Icon: Refrigerator },
   { href: '/calendar', label: 'Plan', Icon: Calendar },
   { href: '/grocery', label: 'List', Icon: ShoppingCart },
