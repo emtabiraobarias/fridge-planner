@@ -41,6 +41,27 @@ describe('InventoryList (organic redesign)', () => {
     expect(row.className).toMatch(/accent-100/);
   });
 
+  it('pairs the status dot with a text expiry line so status is never colour-only (FR-RS-009)', () => {
+    // A 30-day offset keeps the "expired N days ago" assertion stable regardless
+    // of the runner's timezone (a ±1 shift near a day boundary would not matter here).
+    const item = { ...base, expiresAt: iso(-30), expirationStatus: 'expired' as const };
+    render(<InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    const row = screen.getByRole('listitem', { name: /chicken breast/i });
+    const dot = row.querySelector('[aria-hidden="true"]');
+    expect(dot).toBeInTheDocument();
+    expect(screen.getByText(/expired \d+ days? ago/i)).toBeInTheDocument();
+  });
+
+  it('shows a distinct neutral dot when a quantity has been floored to zero (FR-RS-009, D10)', () => {
+    const item = { ...base, quantity: 0 };
+    render(<InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    const row = screen.getByRole('listitem', { name: /chicken breast/i });
+    const dot = row.querySelector('[aria-hidden="true"]');
+    expect(dot?.className).toMatch(/neutral-400/);
+    // The zero state is corroborated by visible text, not colour alone.
+    expect(screen.getByText(/^0 kg$/)).toBeInTheDocument();
+  });
+
   it('sorts soonest-expiry first, no-expiry last', () => {
     const items: InventoryItem[] = [
       { ...base, _id: 'a', name: 'NoExpiry' },
@@ -73,6 +94,16 @@ describe('InventoryList (organic redesign)', () => {
     render(<InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={onEdit} />);
     await userEvent.click(screen.getByRole('button', { name: /edit chicken breast/i }));
     expect(onEdit).toHaveBeenCalledWith(base);
+  });
+
+  it('gives the edit/delete icon buttons a 44px touch target (FR-RS-025, SC-RS-003)', () => {
+    render(<InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    const edit = screen.getByRole('button', { name: /edit chicken breast/i });
+    const del = screen.getByRole('button', { name: /delete chicken breast/i });
+    expect(edit.className).toContain('h-11');
+    expect(edit.className).toContain('w-11');
+    expect(del.className).toContain('h-11');
+    expect(del.className).toContain('w-11');
   });
 
   describe('select mode (spec 009 US2, FR-IR-006 Kitchen entry point)', () => {
@@ -127,6 +158,25 @@ describe('InventoryList (organic redesign)', () => {
         />,
       );
       expect(screen.getByRole('checkbox', { name: /select chicken breast/i })).toBeChecked();
+    });
+
+    it('wraps the select checkbox in a 44px touch target (FR-RS-025, SC-RS-003)', () => {
+      render(
+        <InventoryList
+          items={[base]}
+          onStep={() => {}}
+          onDelete={() => {}}
+          onEdit={() => {}}
+          selectMode
+          selectedIds={new Set<string>()}
+          onToggleSelect={() => {}}
+        />,
+      );
+      const checkbox = screen.getByRole('checkbox', { name: /select chicken breast/i });
+      const hitArea = checkbox.closest('label');
+      expect(hitArea).not.toBeNull();
+      expect(hitArea?.className).toContain('h-11');
+      expect(hitArea?.className).toContain('w-11');
     });
   });
 });

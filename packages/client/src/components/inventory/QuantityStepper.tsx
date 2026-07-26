@@ -9,6 +9,13 @@ interface Props {
   name: string;
 }
 
+// Design §4.2.3's stepper pill is visually compact (30px glyphs), but FR-RS-025 /
+// SC-RS-003 require a 44px touch target in each dimension. `before:` extends the
+// hit area 7px past every edge (30 + 2×7 = 44) via a pseudo-element — pseudo-
+// elements participate in the parent's hit-testing box, so no extra DOM node or
+// dependency is needed, and the ink stays the compact pill the design specifies.
+const HIT_AREA = 'relative before:absolute before:-inset-[7px] before:content-[""]';
+
 /** Cream pill with round −/+ buttons around a unit-aware quantity (spec 004 §3.1). */
 export function QuantityStepper({ quantity, unit, onStep, name }: Props): React.JSX.Element {
   const step = stepFor(unit);
@@ -18,7 +25,7 @@ export function QuantityStepper({ quantity, unit, onStep, name }: Props): React.
         type="button"
         aria-label={`Decrease ${name}`}
         onClick={() => onStep(-step)}
-        className="grid h-[30px] w-[30px] place-items-center rounded-full text-lg leading-none text-ink hover:bg-neutral-200"
+        className={`grid h-[30px] w-[30px] place-items-center rounded-full text-lg leading-none text-ink hover:bg-neutral-200 ${HIT_AREA}`}
       >
         −
       </button>
@@ -29,7 +36,7 @@ export function QuantityStepper({ quantity, unit, onStep, name }: Props): React.
         type="button"
         aria-label={`Increase ${name}`}
         onClick={() => onStep(step)}
-        className="grid h-[30px] w-[30px] place-items-center rounded-full text-lg leading-none text-ink hover:bg-neutral-200"
+        className={`grid h-[30px] w-[30px] place-items-center rounded-full text-lg leading-none text-ink hover:bg-neutral-200 ${HIT_AREA}`}
       >
         +
       </button>

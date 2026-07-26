@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { ResolvedPurchaseInput } from '../../types/grocery-list';
 import type { Location } from '../../services/inventory';
+import { Overlay } from '../shared/Overlay';
 
 interface PurchasePromptSheetProps {
   itemName: string;
@@ -43,13 +44,8 @@ export function PurchasePromptSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-40 grid place-items-end bg-ink/30 px-3 py-4 sm:place-items-center">
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="purchase-prompt-title"
-        className="w-full max-w-[420px] rounded-lg bg-bg p-4 shadow-xl"
-      >
+    <Overlay open onClose={onCancel} titleId="purchase-prompt-title">
+      <div>
         <h2 id="purchase-prompt-title" className="font-heading text-h4 text-ink">
           Add {itemName}
         </h2>
@@ -117,7 +113,7 @@ export function PurchasePromptSheet({
             Confirm
           </button>
         </div>
-      </section>
-    </div>
+      </div>
+    </Overlay>
   );
 }

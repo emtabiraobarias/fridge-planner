@@ -40,6 +40,20 @@ describe('QuickAdd', () => {
     expect(onAdd).not.toHaveBeenCalled();
   });
 
+  // ── spec 010 US2 — design §4.2 pill treatment (FR-RS-011) ──
+
+  it('adopts the pill visual treatment while retaining the shipped parse-preview UX beneath it', async () => {
+    render(<QuickAdd onAdd={() => {}} />);
+    const input = screen.getByLabelText(/quick add item/i) as HTMLInputElement;
+    expect(input.className).toMatch(/rounded-full/);
+    expect(input.placeholder).toMatch(/2L milk expires friday/i);
+
+    // The shipped 005 correctable-provenance-chip preview still renders beneath it.
+    await userEvent.type(input, '2L milk');
+    expect(screen.getByText("I'll add:")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /category: Dairy/i })).toBeInTheDocument();
+  });
+
   it('fills the input from a staple chip', async () => {
     render(<QuickAdd onAdd={() => {}} />);
     await userEvent.click(screen.getByRole('button', { name: '+ Eggs' }));

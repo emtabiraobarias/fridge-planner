@@ -29,6 +29,15 @@ export function CompletionCard({ record, onStartAnother }: CompletionCardProps):
 
   async function copy(): Promise<void> {
     await withExport(async (md) => {
+      // `navigator.clipboard` is secure-context only, so it is undefined over
+      // plain HTTP on a LAN address — i.e. on a phone pointed at a dev server.
+      // Same class of bug as `crypto.randomUUID` (see src/lib/uuid.ts): rather
+      // than throwing an unexplained error, point the user at Download, which
+      // works everywhere.
+      if (!navigator.clipboard?.writeText) {
+        setError('Copying needs a secure (https) connection — use Download instead.');
+        return;
+      }
       await navigator.clipboard.writeText(md);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);

@@ -1,13 +1,38 @@
 import type { Config } from 'tailwindcss';
+import { PHONE_LANDSCAPE_QUERY } from './src/lib/viewport';
 
 /**
  * Organic design system tokens (spec 004 — Phase G).
  * Canonical values: specs/004-organic-redesign/design/organic-design-system.md
+ *
+ * Spec 010 adds the five responsive viewport classes via `extend.screens`
+ * (design/responsive-system.md §1.1, research D1).
  */
 export default {
   content: ['./src/**/*.{ts,tsx}', './app/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // The five spec-010 viewport classes. `extend`, NEVER `theme.screens` —
+      // replacing the map would break the `sm:`/`lg:`/`min-[900px]:` utilities
+      // already shipped. Four classes reuse Tailwind's defaults, which already
+      // sit on the design's boundaries; only phone landscape needs a raw query.
+      //
+      // ORDER IS LOAD-BEARING: Tailwind emits screen variants in declaration
+      // order, so `phland` MUST stay LAST — a phone in landscape is ~844px wide
+      // and therefore also matches `sm:`, and only the last-declared query wins
+      // at equal specificity (research D1; proven by the 844×390
+      // `padding-left: 96px` assertion in e2e/responsive.e2e.ts).
+      // NOTE: a `screens` map containing an object (the `phland` raw query below)
+      // disables Tailwind's arbitrary `min-[…]:`/`max-[…]:` variants build-wide.
+      // `min900` therefore replaces the one shipped `min-[900px]:` utility
+      // (src/views/InventoryPage.tsx). Use named screens only from here on.
+      screens: {
+        sm: '640px', // iPad portrait  640–1023px
+        min900: '900px', // shipped 004 Kitchen two-column threshold
+        lg: '1024px', // iPad landscape 1024–1279px
+        xl: '1280px', // desktop       ≥1280px
+        phland: { raw: PHONE_LANDSCAPE_QUERY }, // phone landscape — KEEP LAST
+      },
       colors: {
         bg: '#f5ead8',
         surface: '#ebddc5',
@@ -74,6 +99,8 @@ export default {
       },
       maxWidth: {
         shell: '1160px',
+        // Desktop content cap, centred (design/responsive-system.md §1.3).
+        content: '1120px',
       },
     },
   },

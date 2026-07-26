@@ -59,12 +59,15 @@ describe('InventoryPage (organic redesign)', () => {
     expect(screen.getByText('Add to your kitchen')).toBeInTheDocument();
   });
 
-  it('renders the location filter with an item count', async () => {
+  it('renders a shelf per storage location with its own item count (spec 010 D7, FR-RS-008)', async () => {
     renderWithProviders();
     await waitFor(() => {
-      expect(screen.getByText('0 of 0 items')).toBeInTheDocument();
+      expect(screen.getByRole('region', { name: /fridge shelf/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole('group', { name: /filter by location/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /freezer shelf/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /pantry shelf/i })).toBeInTheDocument();
+    // All three known shelves render at zero items rather than disappearing (D7).
+    expect(screen.getAllByText('0 items')).toHaveLength(3);
   });
 
   it('renders the recommendations panel', async () => {
@@ -84,6 +87,41 @@ describe('InventoryPage (organic redesign)', () => {
     expect(inventoryService.createItem).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Milk', quantity: 2, unit: 'L', category: 'Dairy', location: 'fridge' }),
     );
+  });
+
+  describe('step-to-zero floors instead of deleting (spec 010 D10, FR-RS-009)', () => {
+    it('flooring a quantity to zero via the stepper persists the row and never removes it', async () => {
+      (inventoryService.fetchInventory as ReturnType<typeof vi.fn>).mockResolvedValue({
+        items: [
+          {
+            _id: 'item-tortillas',
+            name: 'Tortillas',
+            quantity: 1,
+            unit: 'count',
+            category: 'Grains',
+            location: 'pantry',
+            expirationStatus: 'none',
+          },
+        ],
+        summary: { total: 1, expired: 0, expiringSoon: 0 },
+        pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+      });
+
+      renderWithProviders();
+      await waitFor(() => expect(screen.getByText('Tortillas')).toBeInTheDocument());
+
+      await userEvent.click(screen.getByRole('button', { name: /decrease tortillas/i }));
+
+      await waitFor(() => {
+        expect(inventoryService.updateItem).toHaveBeenCalledWith('item-tortillas', { quantity: 0 });
+      });
+      // Flooring never deletes — the stepper path must not call deleteItem.
+      expect(inventoryService.deleteItem).not.toHaveBeenCalled();
+      // ...and no "removed" toast fires from the stepper (it stays on the delete button).
+      expect(screen.queryByText(/tortillas removed/i)).not.toBeInTheDocument();
+      // The row remains visible.
+      expect(screen.getByText('Tortillas')).toBeInTheDocument();
+    });
   });
 
   describe('select mode → scoped recommendations (spec 009 US2, FR-IR-006/007, SC-IR-002)', () => {

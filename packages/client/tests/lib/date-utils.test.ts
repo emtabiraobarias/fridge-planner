@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { getWeekStart, getWeekDays, formatDayLabel } from '../../src/lib/date-utils';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { getWeekStart, getWeekDays, formatDayLabel, todayUtcDate } from '../../src/lib/date-utils';
 
 // Helper: parse the ISO string returned and get the day of week (0=Sun,1=Mon,...)
 function dayOfWeek(iso: string): number {
@@ -85,5 +85,33 @@ describe('formatDayLabel', () => {
     expect(label).toMatch(/Sun/);
     expect(label).toMatch(/12/);
     expect(label).toMatch(/Apr/);
+  });
+});
+
+describe('todayUtcDate (spec 010 FR-RS-012 — the calendar\'s notion of "today")', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('uses the LOCAL calendar day, not the UTC date, in a positive-offset timezone', () => {
+    // 09:22 on Sun 26 Jul 2026 in AEST (+10) is still Sat 25 Jul in UTC. The user's
+    // day is the 26th, so that is the day the calendar must treat as today —
+    // `toISOString().slice(0,10)` would wrongly answer '2026-07-25' and land the day
+    // strip on yesterday.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-25T23:22:00Z')); // = 2026-07-26 09:22 AEST
+    const local = new Date();
+    const expected = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(
+      local.getDate(),
+    ).padStart(2, '0')}`;
+    expect(todayUtcDate()).toBe(expected);
+  });
+
+  it('returns a UTC-midnight-anchored YYYY-MM-DD key that matches the meal-plan axis', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-14T12:00:00Z'));
+    expect(todayUtcDate()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // The key must round-trip through the same UTC axis getWeekDays builds on.
+    expect(new Date(`${todayUtcDate()}T00:00:00.000Z`).getUTCHours()).toBe(0);
   });
 });

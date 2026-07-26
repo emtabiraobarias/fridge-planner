@@ -1,13 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { InventoryItem, InventoryItemUpdate, Location } from '../../services/inventory';
-
-const LOCATIONS: readonly Location[] = ['fridge', 'freezer', 'pantry'];
-const LOCATION_LABEL: Record<Location, string> = {
-  fridge: 'Fridge',
-  freezer: 'Freezer',
-  pantry: 'Pantry',
-};
+import { LOCATIONS, LOCATION_LABEL } from '../../lib/locations';
+import { Overlay } from '../shared/Overlay';
 
 interface EditItemSheetProps {
   item: InventoryItem | null;
@@ -31,13 +26,7 @@ export function EditItemSheet({ item, onClose, onSave }: EditItemSheetProps): Re
     setDate(item.expiresAt ? item.expiresAt.slice(0, 10) : '');
     setLocation(item.location);
     setSaving(false);
-
-    function handleKey(e: KeyboardEvent): void {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKey);
-    return (): void => document.removeEventListener('keydown', handleKey);
-  }, [item, onClose]);
+  }, [item]);
 
   if (!item) return null;
 
@@ -52,20 +41,8 @@ export function EditItemSheet({ item, onClose, onSave }: EditItemSheetProps): Re
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="edit-item-title"
-        className="relative z-10 w-full max-w-sm rounded-xl bg-surface p-6 shadow-xl"
-      >
+    <Overlay open onClose={onClose} titleId="edit-item-title">
+      <div>
         <h2 id="edit-item-title" className="font-heading text-h4 text-ink pr-6">
           Edit {item.name}
         </h2>
@@ -133,6 +110,6 @@ export function EditItemSheet({ item, onClose, onSave }: EditItemSheetProps): Re
           </button>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }

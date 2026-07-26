@@ -41,7 +41,7 @@ export default function AuthCallbackPage(): React.JSX.Element {
           </a>
         </div>
       ) : (
-        <p className="text-gray-600">Signing you in…</p>
+        <p className="text-muted">Signing you in…</p>
       )}
     </main>
   );

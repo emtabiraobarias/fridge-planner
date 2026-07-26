@@ -15,7 +15,7 @@ const STAGE_BADGE_CLASS: Record<PipelineStage, string> = {
   approved: 'bg-neutral-100 text-neutral-800',
   'in-spec': 'bg-accent2-100 text-accent2-800',
   'in-review': 'bg-accent-100 text-accent-800',
-  shipped: 'bg-emerald-100 text-emerald-800',
+  shipped: 'bg-accent2-100 text-accent2-800',
   parked: 'bg-neutral-200 text-neutral-600',
 };
 
