@@ -23,7 +23,9 @@ function currentWeekStart(): string {
   const now = new Date();
   const day = now.getUTCDay();
   const daysToMonday = day === 0 ? 6 : day - 1;
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysToMonday)).toISOString();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysToMonday),
+  ).toISOString();
 }
 
 async function addGroceryItem(
@@ -31,12 +33,29 @@ async function addGroceryItem(
   weekStart: string,
   item: { displayName: string; quantity: number; unit: string; category: string },
 ): Promise<string> {
-  const res = await request.post(`/api/v1/grocery-lists/${encodeURIComponent(weekStart)}/items`, { data: item });
+  const res = await request.post(`/api/v1/grocery-lists/${encodeURIComponent(weekStart)}/items`, {
+    data: item,
+  });
   expect(res.status()).toBe(201);
   const data = (await res.json()) as GroceryListResponse;
   const created = data.groceryList.items.find((row) => row.displayName === item.displayName);
   if (!created) throw new Error(`grocery item not found after add: ${item.displayName}`);
   return created._id;
+}
+
+/**
+ * How many rows are still un-ticked, read off the page. Checkout offers exactly these
+ * (receipted rows are skipped — FR-GC-011), so deriving the number beats hardcoding it:
+ * the whole suite shares one user and one week, and the spec-008 rolling refresh
+ * regenerates rows from whatever meal plan the earlier calendar specs left behind. That
+ * set depends on the suggested meal and on where today falls in the week, which is why
+ * a hardcoded count passed or failed by calendar date. Purging the list does not help —
+ * the refresh puts the rows straight back on the next load.
+ */
+async function pendingRowCount(page: Page): Promise<number> {
+  const all = page.getByRole('checkbox', { name: /as purchased/i });
+  const ticked = page.getByRole('checkbox', { name: /as purchased/i, checked: true });
+  return (await all.count()) - (await ticked.count());
 }
 
 async function inventoryItems(page: Page): Promise<InventoryResponse['items']> {
@@ -111,8 +130,12 @@ test('Groceries: tick adds, un-tick reverses, checkout skips receipted rows (FR-
   await page.getByRole('checkbox', { name: /mark e2e checkoff rice as purchased/i }).click();
   await expectInventoryQuantity(page, 'E2E Checkoff Rice', 1);
 
-  await expect(page.getByRole('button', { name: /done shopping.*move 1 item into my kitchen/i })).toBeVisible();
-  await page.getByRole('button', { name: /done shopping.*move 1 item into my kitchen/i }).click();
+  // Ticked "E2E Checkoff Rice" must NOT be offered; every other row must be. Asserting
+  // the derived count is the FR-GC-011 claim itself, not an incidental total.
+  const pending = await pendingRowCount(page);
+  const checkoutLabel = new RegExp(`done shopping.*move ${pending} items? into my kitchen`, 'i');
+  await expect(page.getByRole('button', { name: checkoutLabel })).toBeVisible();
+  await page.getByRole('button', { name: checkoutLabel }).click();
 
   await expectInventoryQuantity(page, 'E2E Checkoff Rice', 1);
   await expectInventoryQuantity(page, 'E2E Checkoff Pasta', 1);

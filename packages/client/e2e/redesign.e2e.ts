@@ -71,10 +71,21 @@ test('Groceries: add, check, and inline checkout', async ({ page }) => {
 
   // Manual NL quick-add (parser).
   const add = page.getByLabel('Add grocery item');
+  // Assert each add appends a row, rather than that exactly one row bears the name.
+  // Two reasons a bare name match is ambiguous here: the quick-add parse preview shows
+  // each parsed name as a chip too (spec 005 `ParsePreview`), and this week's list also
+  // carries rows the spec-008 rolling refresh generated from the meal plan the calendar
+  // test above left — which can itself include rice.
+  const rows = page.getByTestId('grocery-category-groups');
+  const lemonRows = rows.getByText('Lemons', { exact: true });
+  const riceRows = rows.getByText('Rice', { exact: true });
+  const lemonsBefore = await lemonRows.count();
+  const riceBefore = await riceRows.count();
+
   await add.fill('2 kg lemons, 1 bag rice');
   await add.press('Enter');
-  await expect(page.getByText('Lemons', { exact: true })).toBeVisible();
-  await expect(page.getByText('Rice', { exact: true })).toBeVisible();
+  await expect(lemonRows).toHaveCount(lemonsBefore + 1);
+  await expect(riceRows).toHaveCount(riceBefore + 1);
 
   // Check one real-amount line → it enters Kitchen immediately; checkout finalizes the receipt-less line.
   await page.getByRole('checkbox', { name: /mark lemons as purchased/i }).click();
