@@ -122,11 +122,18 @@ steps:
         3. Enable "Force update" / "Re-pull image" (exact label varies) — REQUIRED, because a
            floating `:latest` tag means the compose TEXT never changes between releases; only the
            image digest does, so Portainer must re-pull rather than diff the git content.
-        4. Confirm the stack env does NOT pin APP_IMAGE / AGENT_IMAGE / FEEDBACK_AGENT_IMAGE to a
-           specific version — leave them unset (or explicitly `:latest`) so the compose default
-           applies and polling has something new to pick up on the next release. Pinning a
-           version remains the documented ROLLBACK mechanism (docs/deployment.md) — just remember
-           to unpin afterwards or auto-update will silently override it back to `:latest`.
+        4. Confirm the stack env does NOT set APP_IMAGE / AGENT_IMAGE / FEEDBACK_AGENT_IMAGE at
+           all — leave them unset so the compose default applies.
+
+      ⚠ REVISED 2026-07-27 — step 3 above is no longer what releases depend on. Force-update was
+      configured and the stack did redeploy, yet release 4.9.0 still never reached prod: with a
+      floating `:latest`, `docker compose up -d` reuses the locally cached image, so the redeploy
+      changed nothing while reporting success. `docker-compose.prod.yml` now pins each image to an
+      explicit VERSION in git, so bumping the pin IS the release — polling sees a new commit and
+      the resolved tag cannot be served from cache, forcing the pull with no setting to get wrong.
+      Keep polling enabled as the delivery mechanism; verify every release with
+      `scripts/verify-rollout.sh <version>` (a 200 from /api/health proves nothing — a stale
+      container returns it too).
       Report back the poll interval you set so it can be recorded in deploy/state.json.
     done_when: "Automatic updates is ON, polling (not webhook), force-update/re-pull enabled, and no image env var is pinned to a specific version in the stack."
 

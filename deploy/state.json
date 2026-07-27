@@ -35,7 +35,10 @@
     "oidc_client_id": "fridge-planner-app",
     "e0b_login_verified": true,
     "stage1_complete": true,
-    "stage2_decision": "deferred — internal-only for now"
+    "stage2_decision": "deferred \u2014 internal-only for now",
+    "cd_rollout": "version-pinned-in-git (decided 2026-07-27) \u2014 docker-compose.prod.yml pins each image to an explicit version; bumping the pin IS the release, rollback is reverting it. Replaces the floating :latest, which let a redeploy succeed while reusing the cached image (4.9.0 sat unshipped for a day). Portainer API script exists but is optional.",
+    "ghcr_packages_private": true,
+    "ghcr_portainer_credential": "non-expiring classic PAT (read:packages), configured ~2026-07-20 \u2014 NOT the cause of the 4.9.0 stall"
   },
-  "current": "DONE (Stage 1 internal). CD automation DECIDED 2026-07-21 (gitops-poll) and s7b-gitops-poll COMPLETE (5 min poll interval, force-update enabled, image env vars unpinned) — releases now roll out automatically. Stage 2 not started — resume with /deploy-runbook when a domain is ready."
+  "current": "DONE (Stage 1 internal). CD automation DECIDED 2026-07-21 (gitops-poll) and s7b-gitops-poll COMPLETE (5 min poll interval, force-update enabled, image env vars unpinned) \u2014 releases now roll out automatically. Stage 2 not started \u2014 resume with /deploy-runbook when a domain is ready."
 }
