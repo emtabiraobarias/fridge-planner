@@ -28,6 +28,10 @@ export function FeedbackHistory(): React.JSX.Element {
   // Export runs outside the context, so it needs its own slot — but shares one message
   // area, because two stacked error banners would be noise.
   const [exportError, setExportError] = useState('');
+  // Two-step delete (FR-F-020): a record and its whole transcript are irreversible, and
+  // every other destructive action in this app is either confirmed or undoable. Inline
+  // rather than a modal — it reads fine at 390px and needs no focus management.
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const message = listError || exportError;
 
   useEffect(() => {
@@ -112,13 +116,37 @@ export function FeedbackHistory(): React.JSX.Element {
                 </button>
               )}
               <PromoteButton record={r} />
-              <button
-                onClick={() => void remove(r._id)}
-                aria-label={`Delete feedback ${r.title ?? r._id}`}
-                className="text-xs font-semibold text-accent-700 hover:text-accent-800"
-              >
-                Delete
-              </button>
+              {pendingDelete === r._id ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setPendingDelete(null);
+                      void remove(r._id);
+                    }}
+                    aria-label={`Confirm delete feedback ${r.title ?? r._id}`}
+                    className="text-xs font-semibold text-accent-700 underline hover:text-accent-800"
+                  >
+                    Confirm delete
+                  </button>
+                  <button
+                    onClick={() => setPendingDelete(null)}
+                    className="text-muted text-xs font-semibold hover:text-ink"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setExportError('');
+                    setPendingDelete(r._id);
+                  }}
+                  aria-label={`Delete feedback ${r.title ?? r._id}`}
+                  className="text-xs font-semibold text-accent-700 hover:text-accent-800"
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </li>
         ))}

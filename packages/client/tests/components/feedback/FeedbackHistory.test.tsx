@@ -80,11 +80,14 @@ describe('FeedbackHistory', () => {
   it('shows a refused delete and keeps the row (FR-F-021)', async () => {
     mockList.mockResolvedValue([record({ status: 'complete', title: 'Dupe rows' })]);
     mockDelete.mockRejectedValue(
-      new Error('This feedback is already in development. Park it in the pipeline first, then delete.'),
+      new Error(
+        'This feedback is already in development. Park it in the pipeline first, then delete.',
+      ),
     );
     setup();
 
-    await userEvent.click(await screen.findByRole('button', { name: /delete feedback/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^delete feedback/i }));
+    await userEvent.click(screen.getByRole('button', { name: /confirm delete feedback/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/already in development/i);
     // The row must survive a refused delete.
     expect(screen.getByText('Dupe rows')).toBeInTheDocument();
@@ -104,5 +107,30 @@ describe('FeedbackHistory', () => {
 
     expect(await screen.findByText(/haven’t submitted any feedback yet/i)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+/** FR-F-020: a record plus its whole transcript is irreversible — one tap must not do it. */
+describe('deleting requires confirmation (FR-F-020, SC-F-011)', () => {
+  it('does not delete on the first click; only after confirming', async () => {
+    mockList.mockResolvedValue([record({ status: 'complete', title: 'Dupe rows' })]);
+    mockDelete.mockResolvedValue(undefined);
+    setup();
+
+    await userEvent.click(await screen.findByRole('button', { name: /^delete feedback/i }));
+    expect(mockDelete).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: /confirm delete feedback/i }));
+    await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('f1'));
+  });
+
+  it('can be backed out of with Cancel', async () => {
+    mockList.mockResolvedValue([record({ status: 'complete', title: 'Dupe rows' })]);
+    setup();
+
+    await userEvent.click(await screen.findByRole('button', { name: /^delete feedback/i }));
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /^delete feedback/i })).toBeInTheDocument();
   });
 });

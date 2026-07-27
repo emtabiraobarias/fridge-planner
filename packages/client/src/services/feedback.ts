@@ -52,12 +52,25 @@ export interface FeedbackTurn {
 
 const BASE = '/api/v1/feedback';
 
+/**
+ * Thrown when the collector agent is unreachable (502). The draft IS still persisted
+ * server-side (FR-F-002), so callers must say "saved but unfinished" rather than "failed"
+ * — a distinct type because `ensureOk` flattens it to "Failed to start feedback: 502".
+ */
+export class FeedbackAgentUnavailableError extends Error {
+  constructor() {
+    super('Saved as a draft, but the assistant is unavailable — open Feedback to finish it.');
+    this.name = 'FeedbackAgentUnavailableError';
+  }
+}
+
 export async function startFeedback(message: string): Promise<FeedbackTurn> {
   const res = await apiFetch(BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
   });
+  if (res.status === 502) throw new FeedbackAgentUnavailableError();
   ensureOk(res, 'start feedback');
   return res.json() as Promise<FeedbackTurn>;
 }
