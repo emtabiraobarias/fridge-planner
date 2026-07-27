@@ -200,11 +200,12 @@ describe('HomePage (FR-RS-020/021/022)', () => {
 
   it('links Tonight and Grocery run cards to /calendar and /grocery (FR-RS-022)', async () => {
     renderHome();
-    await waitFor(() => expect(screen.getByText('Tonight')).toBeInTheDocument());
+    // 'Tonight' is a static card label, so waiting on it is satisfied before the meal-plan
+    // context resolves — the same race as the stats test above. Wait on the meal itself.
+    expect(await screen.findByText('Chicken Adobo · 45 min')).toBeInTheDocument();
 
     expect(screen.getByRole('link', { name: /week →/i })).toHaveAttribute('href', '/calendar');
     expect(screen.getByRole('link', { name: /grocery run/i })).toHaveAttribute('href', '/grocery');
-    expect(screen.getByText('Chicken Adobo · 45 min')).toBeInTheDocument();
   });
 
   it('shows calm empty states for every card when the underlying data is empty (FR-RS-022)', async () => {
