@@ -22,14 +22,20 @@ test('Kitchen: extended grammar + multi-item + tap-to-correct (FR-IQ-001..006, 0
   await expect(page.getByRole('button', { name: /quantity: 500 g/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /location: freezer/ })).toBeVisible();
   await input.press('Enter');
-  await expect(page.getByText('Mince', { exact: true })).toBeVisible();
+  await expect(page.getByRole('listitem', { name: /^Mince$/i })).toBeVisible();
 
   // Multi-item input previews one correctable row per item.
   await input.fill('milk 2L, 6 eggs');
   await expect(page.getByRole('group', { name: /parsed item Milk/i })).toBeVisible();
   await expect(page.getByRole('group', { name: /parsed item Eggs/i })).toBeVisible();
   await input.press('Enter');
-  await expect(page.getByText('Eggs', { exact: true })).toBeVisible();
+  // Singular OR plural: the whole suite shares one kitchen, so an "Egg" row may
+  // already exist from an earlier spec's grocery checkout — in which case spec 009's
+  // EC-03 auto-merge folds this add into it rather than creating an "Eggs" row. Either
+  // outcome satisfies what this test is about (the parser handled "6 eggs"), and
+  // matching the row's own label rather than page text also avoids colliding with the
+  // parse-preview chip of the same name.
+  await expect(page.getByRole('listitem', { name: /^Eggs?$/i })).toBeVisible();
 
   // Tap-to-correct: a guessed location chip → picker → corrected (explicit).
   await input.fill('tortillas');

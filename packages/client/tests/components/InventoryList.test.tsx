@@ -22,11 +22,16 @@ const base: InventoryItem = {
 };
 
 describe('InventoryList (organic redesign)', () => {
-  it('renders name, category·location, and quantity', () => {
-    render(<InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+  it('renders name and quantity, and no longer repeats category·location (spec 010)', () => {
+    render(
+      <InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />,
+    );
     expect(screen.getByText('Chicken Breast')).toBeInTheDocument();
-    expect(screen.getByText(/Meat · fridge/)).toBeInTheDocument();
     expect(screen.getByText(/2 kg/)).toBeInTheDocument();
+    // The chip is a fixed two-row layout at 236–320px of shelf width; the enclosing
+    // shelf header already names the location, so the metadata line was dropped to
+    // keep every chip the same height (FR-RS-005/010 refinement — see quickstart.md).
+    expect(screen.queryByText(/Meat · fridge/)).not.toBeInTheDocument();
   });
 
   it('shows the empty state when there are no items', () => {
@@ -36,7 +41,9 @@ describe('InventoryList (organic redesign)', () => {
 
   it('uses the accent-100 background for expired rows', () => {
     const item = { ...base, expiresAt: iso(-3), expirationStatus: 'expired' as const };
-    render(<InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    render(
+      <InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />,
+    );
     const row = screen.getByRole('listitem', { name: /chicken breast/i });
     expect(row.className).toMatch(/accent-100/);
   });
@@ -45,7 +52,9 @@ describe('InventoryList (organic redesign)', () => {
     // A 30-day offset keeps the "expired N days ago" assertion stable regardless
     // of the runner's timezone (a ±1 shift near a day boundary would not matter here).
     const item = { ...base, expiresAt: iso(-30), expirationStatus: 'expired' as const };
-    render(<InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    render(
+      <InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />,
+    );
     const row = screen.getByRole('listitem', { name: /chicken breast/i });
     const dot = row.querySelector('[aria-hidden="true"]');
     expect(dot).toBeInTheDocument();
@@ -54,7 +63,9 @@ describe('InventoryList (organic redesign)', () => {
 
   it('shows a distinct neutral dot when a quantity has been floored to zero (FR-RS-009, D10)', () => {
     const item = { ...base, quantity: 0 };
-    render(<InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    render(
+      <InventoryList items={[item]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />,
+    );
     const row = screen.getByRole('listitem', { name: /chicken breast/i });
     const dot = row.querySelector('[aria-hidden="true"]');
     expect(dot?.className).toMatch(/neutral-400/);
@@ -69,7 +80,9 @@ describe('InventoryList (organic redesign)', () => {
       { ...base, _id: 'c', name: 'Later', expiresAt: iso(10) },
     ];
     render(<InventoryList items={items} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
-    const names = screen.getAllByRole('listitem').map((li) => within(li).getByText(/Soon|Later|NoExpiry/).textContent);
+    const names = screen
+      .getAllByRole('listitem')
+      .map((li) => within(li).getByText(/Soon|Later|NoExpiry/).textContent);
     expect(names).toEqual(['Soon', 'Later', 'NoExpiry']);
   });
 
@@ -84,7 +97,9 @@ describe('InventoryList (organic redesign)', () => {
 
   it('deletes an item', async () => {
     const onDelete = vi.fn();
-    render(<InventoryList items={[base]} onStep={() => {}} onDelete={onDelete} onEdit={() => {}} />);
+    render(
+      <InventoryList items={[base]} onStep={() => {}} onDelete={onDelete} onEdit={() => {}} />,
+    );
     await userEvent.click(screen.getByRole('button', { name: /delete chicken breast/i }));
     expect(onDelete).toHaveBeenCalledWith('1');
   });
@@ -97,7 +112,9 @@ describe('InventoryList (organic redesign)', () => {
   });
 
   it('gives the edit/delete icon buttons a 44px touch target (FR-RS-025, SC-RS-003)', () => {
-    render(<InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+    render(
+      <InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />,
+    );
     const edit = screen.getByRole('button', { name: /edit chicken breast/i });
     const del = screen.getByRole('button', { name: /delete chicken breast/i });
     expect(edit.className).toContain('h-11');
@@ -108,7 +125,9 @@ describe('InventoryList (organic redesign)', () => {
 
   describe('select mode (spec 009 US2, FR-IR-006 Kitchen entry point)', () => {
     it('renders no checkbox when select mode is off (default)', () => {
-      render(<InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />);
+      render(
+        <InventoryList items={[base]} onStep={() => {}} onDelete={() => {}} onEdit={() => {}} />,
+      );
       expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     });
 

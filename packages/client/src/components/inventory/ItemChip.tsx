@@ -55,18 +55,22 @@ export function ItemChip({
   return (
     <li
       aria-label={item.name}
-      className={`flex flex-col gap-2 rounded-[14px] px-3 py-2.5 ${expired ? 'bg-accent-100' : 'bg-surface'}`}
+      className={`flex flex-col gap-2 rounded-[14px] px-3 py-2 ${
+        expired ? 'bg-accent-100' : 'bg-surface'
+      }`}
     >
-      {/* Identity row. The chip stacks rather than sitting on one line because a
-          shelf column is only ~180px wide at the 3-column desktop count (design
-          §1.2) — a single horizontal row collapses the name to nothing and pushes
-          the stepper outside the card. Every child that must never shrink is
-          `shrink-0`; the name is the only flexible element and truncates. */}
+      {/* Exactly TWO rows, never more: identity above, controls below. The design's
+          single-line pill (§4.2) is unreachable here — dot + name + expiry + stepper
+          + edit/delete + a 44px touch floor (FR-RS-025) needs ~450px of inner width,
+          and a shelf column is 236–320px. What matters instead is that EVERY chip is
+          the same height, so the shelf keeps a steady rhythm: hence a fixed two-row
+          layout rather than `flex-wrap`, which produced 85px and 98px chips side by
+          side depending on name length. Nothing in either row may wrap — the name is
+          the sole flexible element and truncates. */}
       <div className="flex min-w-0 items-center gap-2">
         {selectMode && (
-          // Native `<label>` wrapping only the input gives a real 44px tap
-          // target for free (clicking anywhere in it toggles the checkbox)
-          // without shrinking the compact 20px visual (FR-RS-025, SC-RS-003).
+          // A native `<label>` around just the input buys a real 44px tap target
+          // without enlarging the compact 20px visual (FR-RS-025, SC-RS-003).
           <label className="grid h-11 w-11 shrink-0 place-items-center">
             <input
               type="checkbox"
@@ -81,21 +85,16 @@ export function ItemChip({
         <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink">
           {item.name}
         </span>
-      </div>
-
-      {/* Metadata. Expiry is a text line, so status is never colour-only (FR-RS-009). */}
-      <div className="min-w-0">
-        <div className="truncate text-xs text-muted">
-          {item.category} · {item.location}
-        </div>
-        <div className={`truncate text-[12.5px] font-semibold ${EXPIRY_TEXT_CLASS[status]}`}>
+        {/* Expiry is a text line, so status is never colour-only (FR-RS-009). The
+            shelf header already names the location and the category adds nothing at
+            this size, so both leave the chip — FR-RS-010's retention list covers
+            expiry, quantity, edit, delete and select, all still here. */}
+        <span className={`shrink-0 text-[12.5px] font-semibold ${EXPIRY_TEXT_CLASS[status]}`}>
           {expiryText(dl)}
-        </div>
+        </span>
       </div>
 
-      {/* Controls. `flex-wrap` lets the actions drop below the stepper on the
-          narrowest shelves instead of overflowing the card. */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <QuantityStepper
           quantity={item.quantity}
           unit={item.unit}
