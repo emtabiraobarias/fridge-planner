@@ -82,6 +82,7 @@ jobs:
             NEXT_PUBLIC_OIDC_ISSUER=https://auth.fridgeplanner.lan:8443/realms/fridge-planner
             NEXT_PUBLIC_OIDC_CLIENT_ID=fridge-planner-app
             NEXT_PUBLIC_OIDC_REDIRECT_URI=https://fridgeplanner.lan:8443/auth/callback
+            APP_VERSION=${{ steps.meta.outputs.version }}
           # A human-readable version tag, an immutable sha tag, and :latest (the prod
           # compose's APP_IMAGE default — lets Portainer "Pull and redeploy" pick up the
           # release; pinning APP_IMAGE to :<version> in the stack env is still preferred).
@@ -101,13 +102,20 @@ jobs:
             echo "${{ env.IMAGE }}:${{ steps.meta.outputs.version }}"
             echo "${{ env.IMAGE }}@${{ steps.build.outputs.digest }}"
             echo '```'
-            echo "## Rollout (automatic, no action needed)"
-            echo "Portainer's GitOps polling will re-pull \`${{ env.IMAGE }}:latest\` and redeploy the"
-            echo "whole stack on its own interval (deploy/checklist.yaml → s7b-gitops-poll). GitHub"
-            echo "Actions cannot reach the internal-LAN Portainer instance to verify this itself —"
-            echo "**after the poll interval elapses**, confirm from the LAN:"
+            echo "## Rollout — VERIFY IT, do not assume it"
+            echo "Portainer's GitOps polling should re-pull \`${{ env.IMAGE }}:latest\` and redeploy the"
+            echo "whole stack on its own interval (deploy/checklist.yaml → s7b-gitops-poll). It has"
+            echo "**silently failed before** (2026-07-27: a release sat unrolled for a day while"
+            echo "\`/api/health\` cheerfully returned 200 — from the old container). GitHub Actions"
+            echo "cannot reach the internal-LAN Portainer instance, so run this **from the LAN**:"
             echo '```'
-            echo "curl -fsS https://fridgeplanner.lan:8443/api/health   # expect 200"
+            echo "scripts/verify-rollout.sh ${{ steps.meta.outputs.version }}"
+            echo '```'
+            echo "It polls \`/api/health\` until the served \`version\` matches this release, and on"
+            echo "timeout prints the causes worth checking first (ROADMAP_PROGRESS.md backlog #14 —"
+            echo "chiefly: the GHCR packages are private, so a lapsed Portainer credential fails every"
+            echo "re-pull silently). Optional extra check:"
+            echo '```'
             echo "curl -s -o /dev/null -w '%{http_code}\n' https://fridgeplanner.lan:8443/api/v1/inventory  # expect 401 (unauthenticated)"
             echo '```'
             echo "## Manual override (off-cycle rollout, or rollback)"

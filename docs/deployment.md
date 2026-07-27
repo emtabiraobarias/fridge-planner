@@ -274,10 +274,30 @@ interaction**.
    SPOONACULAR_API_KEY=…       # REQUIRED for recommendations (FR-037: 503 without)
    ```
 
-3. **Wait for the poll interval, then verify** (subset of `s8int-smoke`): `https://fridgeplanner.lan:8443`
+3. **Confirm the rollout actually happened — never assume it.** From the LAN:
+   ```sh
+   scripts/verify-rollout.sh 4.10.0        # the version you just tagged, no leading v
+   ```
+   It polls `GET /api/health` until the served `version` matches, and on timeout prints the
+   causes worth checking first. **This step is not optional.** On 2026-07-27 a release sat
+   unrolled for over a day while `/api/health` returned a cheerful `200` — from the *old*
+   container; the stall was caught only by luck, because that release happened to add a route
+   that 404'd. `/api/health` now reports the version baked into the image at build time
+   (`APP_VERSION`, passed by `deploy-nextjs.yml` from the tag), so "did it roll?" has a real
+   answer. A response with **no** `version` field means something older than 4.10.0 is serving.
+
+   ⚠ **The known failure mode (ROADMAP_PROGRESS.md backlog #14):** all three GHCR packages are
+   **private** — making the *repo* public did not change container-package visibility, they are
+   separate settings. So Portainer needs valid GHCR credentials on *every* re-pull, and an
+   expired credential fails the pull **silently** while the old container keeps serving. If
+   `verify-rollout.sh` times out, check the app container's logs/events for `unauthorized` or
+   `denied` before suspecting anything else.
+
+4. **Then verify behaviour** (subset of `s8int-smoke`): `https://fridgeplanner.lan:8443`
    loads; OIDC login still works (Keycloak data intact); a **pre-existing** inventory item / feedback
    record is still present (proves `mongodb_data` survived); recommendations return; `/feedback` gets
-   a reply. If you don't want to wait, "Force an off-cycle rollout" below skips straight to redeploy.
+   a reply. If you don't want to wait for the poll, "Force an off-cycle rollout" below skips straight
+   to redeploy.
 
 ### Force an off-cycle rollout, or pin a specific version
 Sometimes you don't want to wait for the poll interval, or you want a *specific* version live rather
