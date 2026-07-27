@@ -141,22 +141,19 @@ export function InventoryPage(): React.JSX.Element {
             {error}
           </p>
         )}
-        {/* Shelves ask for ~280px each, roughly what a chip's control row needs
-            (stepper ~139px + gap + two 44px buttons = ~241px, plus 24px of chip
-            padding). Treat that as a target, not a guarantee: auto-fit still shrinks
-            tracks a little when the container cannot hold a whole number of them
-            (measured 267px at 1280px wide, which still fits). The `responsive.e2e.ts`
-            chip-rhythm test is what actually enforces the fit, at every viewport —
-            trust it over this arithmetic. The design's fixed 1/2/3 shelf counts
-            (§1.2, FR-RS-005) assumed shelves owned the full content width; they do not
-            — this page is itself two columns (`1fr 400px`), so three shelves inside the
-            left column gave each chip 139px of usable width, narrower than the stepper
-            alone, and the chips collapsed into a 183px stack. `auto-fit` keeps the
-            design's intent (more shelves across as width allows) while guaranteeing
-            chips a width they can actually render in — a refinement driven by
-            FR-RS-009/010/025, which the design's figure predates. */}
+        {/* Shelves STACK, one per row — they are never columns.
+            User-reported (2026-07-27): side-by-side shelves made picking ingredients for
+            recipe search awkward, because the select checkboxes were scattered across two
+            or three columns instead of forming one line the eye and thumb can run down.
+            Stacking also gives every chip the full column width, which is what lets a chip
+            be a single compact row (see ItemChip) rather than a two-row card — so the
+            extra vertical space stacking costs is largely paid back by shorter chips.
+            This supersedes the design's fixed 1/2/3 shelf counts (§1.2, FR-RS-005), which
+            assumed shelves owned the whole content width; they do not — this page is itself
+            two columns (`1fr 400px`). At three across, each chip had 139px of usable
+            width, narrower than its own quantity stepper. */}
         {!loading && (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3.5">
+          <div className="flex flex-col gap-3.5">
             {LOCATIONS.map((loc) => (
               <Shelf
                 key={loc}

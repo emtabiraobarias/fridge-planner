@@ -55,7 +55,7 @@ export function ItemChip({
   return (
     <li
       aria-label={item.name}
-      className={`flex flex-col gap-2 rounded-[14px] px-3 py-2 ${
+      className={`item-chip flex flex-col gap-2 rounded-[14px] px-3 py-2 ${
         expired ? 'bg-accent-100' : 'bg-surface'
       }`}
     >
@@ -67,7 +67,7 @@ export function ItemChip({
           layout rather than `flex-wrap`, which produced 85px and 98px chips side by
           side depending on name length. Nothing in either row may wrap — the name is
           the sole flexible element and truncates. */}
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="chip-identity flex min-w-0 items-center gap-2">
         {selectMode && (
           // A native `<label>` around just the input buys a real 44px tap target
           // without enlarging the compact 20px visual (FR-RS-025, SC-RS-003).
@@ -94,7 +94,7 @@ export function ItemChip({
         </span>
       </div>
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="chip-controls flex items-center justify-between gap-2">
         <QuantityStepper
           quantity={item.quantity}
           unit={item.unit}
