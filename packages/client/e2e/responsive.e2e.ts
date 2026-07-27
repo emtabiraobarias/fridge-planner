@@ -262,6 +262,13 @@ test('inventory chips share one height and fit their shelf (FR-RS-005/010/025)',
     await expect(input).toHaveValue('');
   }
 
+  // Wait for the seeded chips themselves, not just for the input to clear. The input
+  // clears on submit while the POST and refetch are still in flight, so measuring
+  // straight after it found an EMPTY kitchen on CI (chip count 0) while passing
+  // locally — the shelves always render, so waiting on a shelf proves nothing.
+  await expect(page.getByRole('listitem', { name: /rhythmcheck/i })).toBeVisible();
+  await expect(page.getByRole('listitem', { name: /^fig$/i })).toBeVisible();
+
   const shelves = page.locator('section[aria-label$="shelf"]');
   await expect(shelves.first()).toBeVisible();
 
