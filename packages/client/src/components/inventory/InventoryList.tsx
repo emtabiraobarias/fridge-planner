@@ -44,12 +44,18 @@ export function InventoryList({
 }: Props): React.JSX.Element {
   if (items.length === 0) {
     return (
-      <p className="text-muted py-6 text-center text-sm">No ingredients yet. Add your first item above.</p>
+      <p className="text-muted py-6 text-center text-sm">
+        No ingredients yet. Add your first item above.
+      </p>
     );
   }
 
   return (
-    <ul className="flex flex-col gap-2" aria-label="Inventory items">
+    // `chip-list` marks this as the container the chips size themselves against
+    // (src/index.css). A container query is the right tool here rather than a viewport
+    // breakpoint: a chip's width depends on the page's own two-column layout, not just
+    // the viewport, so no clean viewport threshold exists.
+    <ul className="chip-list flex flex-col gap-2" aria-label="Inventory items">
       {sortByExpiry(items).map((item) => (
         <ItemChip
           key={item._id}
