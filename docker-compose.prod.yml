@@ -26,6 +26,24 @@
 #
 # Usage on the host:  APP_IMAGE=ghcr.io/emtabiraobarias/fridge-planner-client:<ver> \
 #                       docker compose -f docker-compose.prod.yml up -d
+#
+# ═══ THE IMAGE TAGS BELOW ARE THE DEPLOYED VERSIONS. Bumping one here IS the release. ═══
+# Changed from floating `:latest` on 2026-07-27, after release 4.9.0 failed to reach prod for
+# a day. Portainer's GitOps polling was configured correctly and the stack *did* redeploy —
+# but `docker compose up -d` reuses a locally cached `:latest`, so the redeploy changed
+# nothing while reporting success. A floating tag makes "the repo changed" and "the image
+# changed" two separate events, and a redeploy can satisfy the first without the second.
+#
+# With a version pinned here, both happen at once and neither can be skipped: polling sees a
+# new commit, and the tag it resolves to is not in the local cache, so the pull is forced by
+# construction. No credentials, no manual click, no re-pull setting to get wrong.
+#
+# Release order matters — publish the image BEFORE bumping the pin, or polling will briefly
+# try to pull a tag that does not exist yet:
+#   1. merge to impl/nextjs   2. tag nextjs-v<ver>, wait for CI green (image is on GHCR)
+#   3. bump the pin below, push   4. scripts/verify-rollout.sh <ver>
+# ROLLBACK = revert the bump commit (auditable in git; no UI env-var pinning to remember to
+# undo). Overriding via the stack env still works for a one-off, but leave it UNSET normally.
 
 services:
   # ── Edge: the only LAN-facing service ─────────────────────────────────────
@@ -33,7 +51,7 @@ services:
     # Caddyfile is BAKED into this image (see deploy/caddy.Dockerfile) — a repo-relative
     # bind mount doesn't resolve on the Portainer/TrueNAS daemon. Rebuild the image
     # (tag caddy-v*) to change the config.
-    image: ${CADDY_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-caddy:latest}
+    image: ${CADDY_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-caddy:1.0.0}
     restart: unless-stopped
     ports:
       # Host 80/443 are taken on this node, so publish on high ports (Option B).
@@ -51,7 +69,7 @@ services:
 
   # ── The app: pulled image (never built on the host) ───────────────────────
   app:
-    image: ${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client:latest}
+    image: ${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client:4.9.0}
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -105,7 +123,7 @@ services:
   # Provider is OpenAI (Semantic Kernel backend) — see agents/meal-recommender.
   # The agent image (…/fridge-planner) reads OPENAI_API_KEY via model.api_key.
   holodeck:
-    image: ${AGENT_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner:latest} # the AGENT image (≠ app image)
+    image: ${AGENT_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner:1.3.0} # the AGENT image (≠ app image)
     restart: unless-stopped
     environment:
       HOLODECK_PORT: 8001
@@ -124,7 +142,10 @@ services:
   # it at FEEDBACK_AGENT_URL; if it's down the /api/v1/feedback chat endpoints 502 and
   # preserve drafts, so the rest of the app is unaffected.
   holodeck-feedback:
-    image: ${FEEDBACK_AGENT_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-feedback:latest}
+    # ⚠ 1.0.1, NOT the higher-semver 1.1.0 — that tag is the BROKEN Claude-era build, so
+    #   semver order lies here. This is what prod runs and is verified working. Pinning is
+    #   what stops a `:latest` rebuild from silently promoting the broken one.
+    image: ${FEEDBACK_AGENT_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-feedback:1.0.1}
     restart: unless-stopped
     environment:
       HOLODECK_PORT: 8002
