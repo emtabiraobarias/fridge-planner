@@ -237,34 +237,41 @@ Only re-tag/rebuild the image(s) that actually changed. A code change under `pac
 → `nextjs-v*`; a change under `agents/meal-recommender/` → `agent-v*`; under
 `agents/feedback-collector/` → `agent-feedback-v*`.
 
-### Standard update procedure (explicit API rollout — decided 2026-07-27)
+### Standard update procedure (version pinned in git — decided 2026-07-27)
 
-**Why this replaced "just wait for the poll".** GitOps polling *is* configured correctly and the
-stack does redeploy — but on 2026-07-26 release 4.9.0 still did not reach prod. The container was
-being recreated while `docker compose up -d` reused the **locally cached `:latest`**, so the stack
-redeployed "successfully" and kept serving 4.8.0. A floating tag makes "the repo changed" and "the
-image changed" two different events, and a redeploy can satisfy the first without the second.
+**Why the floating `:latest` had to go.** GitOps polling *is* configured correctly and the stack
+does redeploy — the container's created timestamp advances — yet release 4.9.0 still did not reach
+prod for a day. `docker compose up -d` reuses a **locally cached `:latest`**, so the redeploy
+changed nothing while reporting success. A floating tag makes "the repo changed" and "the image
+changed" two separate events, and a redeploy can satisfy the first without the second.
 
-The rollout is therefore **driven explicitly**, with the pull made non-optional:
+**The fix needs no credentials and no manual click:** `docker-compose.prod.yml` now pins each
+image to an explicit version. Bumping one **is** the release. Polling sees a new commit, and the
+tag it resolves to is not in the local cache, so the pull is forced by construction — there is no
+re-pull setting left to get wrong.
 
-```sh
-scripts/deploy-release.sh --check     # read-only: prove auth, show the resolved stack + git ref
-scripts/deploy-release.sh 4.10.0      # redeploy with pullImage=true, then verify the served version
-```
+**Order matters.** Publish the image *before* bumping the pin, or polling will briefly try to pull
+a tag that does not exist yet:
 
-It calls Portainer's git-redeploy API with `pullImage: true` and `prune: false` (named volumes are
-never touched), then chains `verify-rollout.sh` and **fails if the released version is not actually
-being served**. Credentials live outside the repo — `~/.config/fridge-planner/portainer.env`:
+1. Merge to `impl/nextjs`.
+2. `git tag nextjs-v4.10.0 && git push origin nextjs-v4.10.0` — wait for CI green, so the image is
+   on GHCR.
+3. Bump the pin in `docker-compose.prod.yml` and push. This is the deploy.
+4. `scripts/verify-rollout.sh 4.10.0` — confirms the version is actually being served, and on
+   timeout prints what to check. **Do not skip this**; a 200 from `/api/health` is not proof, a
+   stale container returns that too.
 
-```
-PORTAINER_URL=https://192.168.1.215:9443
-PORTAINER_API_KEY=ptr_…          # Portainer → My account → API tokens
-```
+**Rollback** = revert the bump commit. Auditable in git, and there is no UI env-var pin to remember
+to undo afterwards. Stack env vars (`APP_IMAGE` etc.) still override for a one-off, but leave them
+**unset** normally — the committed pin is the source of truth.
 
-GitHub Actions cannot do this (Portainer is LAN-only), which is why it is a local script rather than
-a CI step. Polling stays enabled as a safety net; it is no longer the thing releases depend on.
+#### Optional: force an immediate rollout instead of waiting for the poll
+`scripts/deploy-release.sh <version>` calls Portainer's git-redeploy API with `pullImage: true` and
+verifies afterwards. It needs an API token in `~/.config/fridge-planner/portainer.env`
+(`PORTAINER_URL`, `PORTAINER_API_KEY`) and is **not required** for a normal release — the pinned
+version above is sufficient. Useful when you don't want to wait for the poll interval.
 
-### Legacy: relying on the poll alone (kept for context)
+### Legacy: relying on the poll with a floating tag (kept for context — this is what failed)
 
 **One-time setup (already done if `s7b-gitops-poll` is checked off in `deploy/state.json`):**
 Portainer → Stacks → fridge-planner → GitOps/Automatic updates → enable **polling** (not webhook —

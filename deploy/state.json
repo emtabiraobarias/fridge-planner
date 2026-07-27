@@ -36,7 +36,7 @@
     "e0b_login_verified": true,
     "stage1_complete": true,
     "stage2_decision": "deferred \u2014 internal-only for now",
-    "cd_rollout": "portainer-api-explicit (scripts/deploy-release.sh, decided 2026-07-27) \u2014 GitOps polling stays enabled as a safety net but releases no longer depend on it: a redeploy without pullImage reuses the cached :latest, which left 4.9.0 unshipped while the stack redeployed \"successfully\"",
+    "cd_rollout": "version-pinned-in-git (decided 2026-07-27) \u2014 docker-compose.prod.yml pins each image to an explicit version; bumping the pin IS the release, rollback is reverting it. Replaces the floating :latest, which let a redeploy succeed while reusing the cached image (4.9.0 sat unshipped for a day). Portainer API script exists but is optional.",
     "ghcr_packages_private": true,
     "ghcr_portainer_credential": "non-expiring classic PAT (read:packages), configured ~2026-07-20 \u2014 NOT the cause of the 4.9.0 stall"
   },
