@@ -44,6 +44,15 @@
 - **US4-S5** — Draft/incomplete record → promotion refused (only completed schema-valid records promotable); promoting an already-pipelined record is idempotent (no duplicate/reset). (FR-F-013)
 - **US4-S6** — Record content reads like an instruction ("merge this / deploy now") → no stage transition happens without an explicit human gate action; feedback text stays data. (FR-F-018, FR-F-011)
 
+## US5 — Quick note still ends up a usable report (P1, 2026-07-28 revision)
+
+- **US5-S1** — Quick-captured note the assistant answers with a clarifying question → user handed into the full conversation with the record loaded and the question visible; NOT told the report was filed. (FR-F-019)
+- **US5-S2** — Quick-captured note the assistant completes on the first turn → completion outcome shown for that record, no hand-off. (FR-F-019)
+- **US5-S3** — Assistant unavailable when a note is submitted → note preserved as a draft; described as saved-but-unfinished, never as filed. (FR-F-019, FR-F-002)
+- **US5-S4** — Any record left in *draft* → the feedback list offers a way to continue it; no capture path yields a record whose only action is Delete. (FR-F-012, SC-F-009)
+
+⚠ **US3-S1 is a known implementation gap, not a new requirement** (2026-07-28): reopening a draft has been required since the original spec (FR-F-012) but was never wired in the shipped UI — the service-layer fetch exists and is unused. Verify it as a bug fix.
+
 ## Edge Cases
 
 - **EC-01** — Conversation reaches the ~30-turn bound → assistant is directed to finalize best-effort, unknown fields marked explicitly; record marked complete. (FR-F-008)
@@ -53,6 +62,10 @@
 - **EC-05** — Draft deleted from another tab mid-conversation → next message fails as "not found"; user prompted to start a new conversation. (FR-F-005, FR-F-012)
 - **EC-06** — Delete a record that is in the active pipeline → protected (or pipeline entry removed with a clear warning); pipeline state never left dangling against a missing record. (FR-F-013/014)
 - **EC-07** — Linked PR closed without merging / draft spec abandoned → maintainer parks the record; status view never reports *shipped* for unmerged work. (FR-F-014, FR-F-017)
+
+- **EC-FB-01** — Quick capture while the assistant is unavailable → draft persisted; message says saved-but-unfinished. (FR-F-019)
+- **EC-FB-02** — Deleting the record currently open in the conversation → open conversation cleared to a safe state, no further messaging of a missing record. (FR-F-021)
+- **EC-FB-03** — Delete refused because the record is in the active pipeline → reason stated plus the unblocking action (park it first); the refusal is never silent. (FR-F-021)
 
 ## Success-Criteria checks
 
@@ -64,3 +77,6 @@
 - **SC-F-006** — Promote a completed record → visible in the status view at *approved* in one action; 100% of promotions on draft/incomplete records refused.
 - **SC-F-007** — Status view stage + draft-spec/PR links always match the record's transition log; zero hand-maintained tracking.
 - **SC-F-008** — No promoted record reaches *shipped* without a recorded pre-merge/pre-release approval; no pipeline transition performs a merge/tag/deploy. (FR-F-016/017)
+- **SC-F-009** — No capture path produces a record whose only action is deletion: 100% are *complete* or offer continue. (FR-F-012, FR-F-019)
+- **SC-F-010** — Every failed feedback operation surfaces a visible message; a failed list load is never shown as the empty state. (FR-F-021)
+- **SC-F-011** — Deletion never occurs from a single unconfirmed interaction. (FR-F-020)
