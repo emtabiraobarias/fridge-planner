@@ -173,12 +173,16 @@ describe('HomePage (FR-RS-020/021/022)', () => {
 
   it('renders the four stat figures from the existing contexts (FR-RS-020)', async () => {
     renderHome();
-    await waitFor(() => expect(screen.getByText('Your kitchen at a glance')).toBeInTheDocument());
+    // "Your kitchen at a glance" is a STATIC heading, so waiting on it proves nothing about
+    // the fetched stats — it is satisfied on the first render, before the inventory/meal-plan
+    // /grocery contexts resolve. That made this assertion a race that passed on a fast
+    // machine and failed on a slower CI runner, reading the pre-load '0'. Wait on a
+    // data-derived value instead.
+    await waitFor(() => expect(statValue('items tracked')).toBe('2'));
 
     expect(statValue('expiring soon')).toBe('1');
     expect(statValue('meals planned')).toBe('1');
     expect(statValue('groceries in')).toBe('1/2');
-    expect(statValue('items tracked')).toBe('2');
   });
 
   it('names the correct soonest-expiring item in the banner', async () => {
