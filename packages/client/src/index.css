@@ -120,7 +120,6 @@
   .progress-ring {
     background: conic-gradient(var(--color-accent2-500) var(--pct, 0%), var(--color-neutral-300) 0);
   }
-
 }
 
 /*
@@ -154,5 +153,44 @@
   textarea,
   select {
     font-size: 16px !important;
+  }
+}
+
+/**
+ * Item chips: one compact row when the shelf is wide, two rows when it is narrow.
+ *
+ * A CONTAINER query, not a viewport breakpoint — deliberately. A chip's width depends on
+ * the Kitchen page's own two-column layout (shelves + a 400px recommendations panel), so
+ * there is no viewport value that reliably means "the chip has room": at 900px the second
+ * column engages and the chip gets NARROWER than it was at 880px. Querying the shelf list
+ * asks the only question that matters, "how much width does this chip actually have".
+ *
+ * Below the threshold the chip keeps its two-row layout (identity above, controls below),
+ * which is the only way to fit a stepper plus two 44px touch targets (FR-RS-025) into a
+ * phone-width shelf. Above it, everything sits on one line — the design's compact pill
+ * (§4.2) — which cuts chip height from 91px to ~60px and roughly doubles how many items
+ * are visible before scrolling.
+ *
+ * Every chip in a shelf has the SAME width, so they all switch together and heights stay
+ * uniform within a shelf — the property `responsive.e2e.ts` asserts. 520px (not the ~460px
+ * where it merely stops overflowing) leaves the name a usable ~100px before truncating.
+ */
+.chip-list {
+  container-type: inline-size;
+}
+
+@container (min-width: 520px) {
+  .item-chip {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  /* Identity block takes the slack and truncates; controls keep their natural width. */
+  .item-chip > .chip-identity {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .item-chip > .chip-controls {
+    flex: 0 0 auto;
   }
 }
