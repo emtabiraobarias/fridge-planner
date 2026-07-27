@@ -87,8 +87,23 @@ export async function fetchFeedbackRecord(id: string): Promise<FeedbackRecord> {
   return data.feedback;
 }
 
+/**
+ * Thrown when deletion is refused because the record is referenced by an active
+ * (non-parked) pipeline item — the dev-loop EC-06 protection. A distinct type because
+ * `ensureOk` flattens every non-2xx into one generic message, and this case needs to
+ * tell the user the ONE thing that unblocks it: park the pipeline item first.
+ */
+export class FeedbackPipelineActiveError extends Error {
+  constructor() {
+    super('This feedback is already in development. Park it in the pipeline first, then delete.');
+    this.name = 'FeedbackPipelineActiveError';
+  }
+}
+
 export async function deleteFeedbackRecord(id: string): Promise<void> {
   const res = await apiFetch(`${BASE}/${id}`, { method: 'DELETE' });
+  // Checked before ensureOk, which would otherwise collapse it to "Failed to …: 409".
+  if (res.status === 409) throw new FeedbackPipelineActiveError();
   ensureOk(res, 'delete feedback');
 }
 

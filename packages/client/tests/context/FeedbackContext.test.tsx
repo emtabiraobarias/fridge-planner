@@ -8,6 +8,7 @@ vi.mock('../../src/services/feedback', () => ({
   sendFeedbackMessage: vi.fn(),
   fetchFeedbackList: vi.fn(),
   deleteFeedbackRecord: vi.fn(),
+  fetchFeedbackRecord: vi.fn(),
 }));
 
 import {
@@ -15,12 +16,14 @@ import {
   sendFeedbackMessage,
   fetchFeedbackList,
   deleteFeedbackRecord,
+  fetchFeedbackRecord,
 } from '../../src/services/feedback';
 
 const mockStart = vi.mocked(startFeedback);
 const mockSend = vi.mocked(sendFeedbackMessage);
 const mockList = vi.mocked(fetchFeedbackList);
 const mockDelete = vi.mocked(deleteFeedbackRecord);
+const mockGet = vi.mocked(fetchFeedbackRecord);
 
 const collectingTurn: FeedbackTurn = {
   status: 'draft',
@@ -52,7 +55,18 @@ const completeTurn: FeedbackTurn = {
 };
 
 function Harness(): React.JSX.Element {
-  const { chatState, messages, completedRecord, error, send, records, refreshList, remove } = useFeedback();
+  const {
+    chatState,
+    messages,
+    completedRecord,
+    error,
+    send,
+    records,
+    refreshList,
+    remove,
+    resume,
+    listError,
+  } = useFeedback();
   return (
     <div>
       <span data-testid="state">{chatState}</span>
@@ -62,7 +76,9 @@ function Harness(): React.JSX.Element {
       <span data-testid="records">{records.length}</span>
       <button onClick={() => void send('grocery broken')}>send</button>
       <button onClick={() => void refreshList()}>list</button>
+      <span data-testid="listerror">{listError}</span>
       <button onClick={() => void remove('f1')}>remove</button>
+      <button onClick={() => void resume('f1')}>resume</button>
     </div>
   );
 }
@@ -131,5 +147,81 @@ describe('FeedbackContext', () => {
     act(() => screen.getByText('remove').click());
     await waitFor(() => expect(screen.getByTestId('records').textContent).toBe('0'));
     expect(mockDelete).toHaveBeenCalledWith('f1');
+  });
+});
+
+/**
+ * Resuming a draft has been required since FR-F-012 / US3-S1, but the shipped UI never
+ * wired it — `fetchFeedbackRecord` sat unused in the service layer, leaving Delete as a
+ * draft's only action. These lock the behaviour in.
+ */
+describe('resuming a stored record (FR-F-012, US3-S1)', () => {
+  it('reopens a draft with its transcript and accepts further messages', async () => {
+    mockGet.mockResolvedValue(collectingTurn.feedback);
+    setup();
+    await act(async () => {
+      screen.getByText('resume').click();
+    });
+    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('awaiting-user'));
+    // The stored transcript is the context the backend replays to the assistant.
+    expect(screen.getByTestId('msgcount').textContent).toBe('2');
+  });
+
+  it('reopens a completed record read-only rather than as a live conversation (US3-S3)', async () => {
+    mockGet.mockResolvedValue(completeTurn.feedback);
+    setup();
+    await act(async () => {
+      screen.getByText('resume').click();
+    });
+    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('complete'));
+    expect(screen.getByTestId('title').textContent).toBe('Grocery count wrong');
+  });
+
+  it('surfaces a failure to reopen instead of failing silently', async () => {
+    mockGet.mockRejectedValue(new Error('boom'));
+    setup();
+    await act(async () => {
+      screen.getByText('resume').click();
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('listerror').textContent).toMatch(/could not reopen/i),
+    );
+  });
+});
+
+/** FR-F-021: failures must be visible, and never mistaken for emptiness. */
+describe('failures are surfaced, not swallowed', () => {
+  it('reports a refused delete and keeps the record in the list', async () => {
+    mockList.mockResolvedValue([completeTurn.feedback]);
+    mockDelete.mockRejectedValue(
+      new Error(
+        'This feedback is already in development. Park it in the pipeline first, then delete.',
+      ),
+    );
+    setup();
+    await act(async () => {
+      screen.getByText('list').click();
+    });
+    await waitFor(() => expect(screen.getByTestId('records').textContent).toBe('1'));
+
+    await act(async () => {
+      screen.getByText('remove').click();
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('listerror').textContent).toMatch(/already in development/i),
+    );
+    // The row must NOT disappear when the server refused to delete it.
+    expect(screen.getByTestId('records').textContent).toBe('1');
+  });
+
+  it('reports a failed list load rather than leaving the list looking empty', async () => {
+    mockList.mockRejectedValue(new Error('offline'));
+    setup();
+    await act(async () => {
+      screen.getByText('list').click();
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('listerror').textContent).toMatch(/could not load/i),
+    );
   });
 });
