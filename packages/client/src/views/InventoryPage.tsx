@@ -141,9 +141,13 @@ export function InventoryPage(): React.JSX.Element {
             {error}
           </p>
         )}
-        {/* Shelves fill the available width but never squeeze below 280px, which is
-            what a chip's control row needs (stepper ~139px + gap + two 44px buttons =
-            ~241px, plus 24px of chip padding). The design's fixed 1/2/3 shelf counts
+        {/* Shelves ask for ~280px each, roughly what a chip's control row needs
+            (stepper ~139px + gap + two 44px buttons = ~241px, plus 24px of chip
+            padding). Treat that as a target, not a guarantee: auto-fit still shrinks
+            tracks a little when the container cannot hold a whole number of them
+            (measured 267px at 1280px wide, which still fits). The `responsive.e2e.ts`
+            chip-rhythm test is what actually enforces the fit, at every viewport —
+            trust it over this arithmetic. The design's fixed 1/2/3 shelf counts
             (§1.2, FR-RS-005) assumed shelves owned the full content width; they do not
             — this page is itself two columns (`1fr 400px`), so three shelves inside the
             left column gave each chip 139px of usable width, narrower than the stepper
