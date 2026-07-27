@@ -237,7 +237,34 @@ Only re-tag/rebuild the image(s) that actually changed. A code change under `pac
 → `nextjs-v*`; a change under `agents/meal-recommender/` → `agent-v*`; under
 `agents/feedback-collector/` → `agent-feedback-v*`.
 
-### Standard update procedure (automatic — decided 2026-07-21)
+### Standard update procedure (explicit API rollout — decided 2026-07-27)
+
+**Why this replaced "just wait for the poll".** GitOps polling *is* configured correctly and the
+stack does redeploy — but on 2026-07-26 release 4.9.0 still did not reach prod. The container was
+being recreated while `docker compose up -d` reused the **locally cached `:latest`**, so the stack
+redeployed "successfully" and kept serving 4.8.0. A floating tag makes "the repo changed" and "the
+image changed" two different events, and a redeploy can satisfy the first without the second.
+
+The rollout is therefore **driven explicitly**, with the pull made non-optional:
+
+```sh
+scripts/deploy-release.sh --check     # read-only: prove auth, show the resolved stack + git ref
+scripts/deploy-release.sh 4.10.0      # redeploy with pullImage=true, then verify the served version
+```
+
+It calls Portainer's git-redeploy API with `pullImage: true` and `prune: false` (named volumes are
+never touched), then chains `verify-rollout.sh` and **fails if the released version is not actually
+being served**. Credentials live outside the repo — `~/.config/fridge-planner/portainer.env`:
+
+```
+PORTAINER_URL=https://192.168.1.215:9443
+PORTAINER_API_KEY=ptr_…          # Portainer → My account → API tokens
+```
+
+GitHub Actions cannot do this (Portainer is LAN-only), which is why it is a local script rather than
+a CI step. Polling stays enabled as a safety net; it is no longer the thing releases depend on.
+
+### Legacy: relying on the poll alone (kept for context)
 
 **One-time setup (already done if `s7b-gitops-poll` is checked off in `deploy/state.json`):**
 Portainer → Stacks → fridge-planner → GitOps/Automatic updates → enable **polling** (not webhook —
