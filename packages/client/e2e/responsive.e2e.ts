@@ -159,7 +159,8 @@ test('form controls are >=16px on touch, so iOS never auto-zooms (SC-RS-003)', a
         })
         .slice(0, 5)
         .map((el) => {
-          const name = el.getAttribute('aria-label') ?? el.getAttribute('placeholder') ?? el.tagName;
+          const name =
+            el.getAttribute('aria-label') ?? el.getAttribute('placeholder') ?? el.tagName;
           return `${name}: ${getComputedStyle(el).fontSize}`;
         }),
     );
@@ -223,9 +224,7 @@ test('desktop sidebar collapses and remembers it across a reload (FR-RS-003, SC-
   expect(expanded).toBeGreaterThan(200); // 250px expanded
 
   await page.getByRole('button', { name: 'Toggle navigation' }).click();
-  await expect
-    .poll(async () => Math.round((await nav.boundingBox())!.width))
-    .toBeLessThan(120); // 76px collapsed
+  await expect.poll(async () => Math.round((await nav.boundingBox())!.width)).toBeLessThan(120); // 76px collapsed
   await page.screenshot({ path: `${SHOTS}/16-shell-desktop-collapsed.png`, fullPage: false });
 
   // The preference must survive a reload (localStorage, applied on mount).
@@ -235,5 +234,56 @@ test('desktop sidebar collapses and remembers it across a reload (FR-RS-003, SC-
 
   // Restore so the shared server state doesn't leak into other specs.
   await page.getByRole('button', { name: 'Toggle navigation' }).click();
-  await expect.poll(async () => Math.round((await navAfter.boundingBox())!.width)).toBeGreaterThan(200);
+  await expect
+    .poll(async () => Math.round((await navAfter.boundingBox())!.width))
+    .toBeGreaterThan(200);
+});
+
+/**
+ * The Kitchen shelf/chip rhythm (FR-RS-005/009/010/025).
+ *
+ * A chip has to hold a name, an expiry line, a quantity stepper and two 44px icon
+ * buttons in whatever width the shelf grid gives it. Two ways that goes wrong, both
+ * observed on this spec and neither visible to a scrollWidth or clipping check:
+ * chips overflowing their own shelf, and chips of DIFFERENT heights sitting side by
+ * side (a `flex-wrap` layout produced 85px and 98px chips depending on name length,
+ * which reads as a broken rhythm). Assert both directly.
+ */
+test('inventory chips share one height and fit their shelf (FR-RS-005/010/025)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  // Seed one long-named and one short-named item, since unequal heights only show up
+  // when a name is long enough to consume the whole identity row.
+  const input = page.getByLabel('Quick add item');
+  for (const text of ['2 kg rhythmcheck aubergine and courgette medley', '1 count fig']) {
+    await input.fill(text);
+    await input.press('Enter');
+    await expect(input).toHaveValue('');
+  }
+
+  const shelves = page.locator('section[aria-label$="shelf"]');
+  await expect(shelves.first()).toBeVisible();
+
+  const result = await page.evaluate(() => {
+    const chips = Array.from(document.querySelectorAll('section[aria-label$="shelf"] li'));
+    const heights = new Set<number>();
+    let overflowing = 0;
+    for (const chip of chips) {
+      const box = chip.getBoundingClientRect();
+      heights.add(Math.round(box.height));
+      const shelf = chip.closest('section')!.getBoundingClientRect();
+      if (box.right > shelf.right + 1 || box.left < shelf.left - 1) overflowing++;
+      // A control row wider than the chip means the stepper and buttons could not
+      // share a line — the shelf grid's minimum column width is too small.
+      for (const row of Array.from(chip.children)) {
+        if (row.scrollWidth > row.clientWidth + 1) overflowing++;
+      }
+    }
+    return { count: chips.length, heights: [...heights], overflowing };
+  });
+
+  expect(result.count).toBeGreaterThan(1);
+  expect(result.overflowing).toBe(0);
+  expect(result.heights).toHaveLength(1);
 });

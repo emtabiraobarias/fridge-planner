@@ -112,7 +112,9 @@ export function InventoryPage(): React.JSX.Element {
       <div className="flex flex-col gap-5">
         <UseSoonStrip
           items={urgent}
-          onCookThese={() => recsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          onCookThese={() =>
+            recsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
         />
 
         <QuickAdd onAdd={handleAdd} />
@@ -123,7 +125,9 @@ export function InventoryPage(): React.JSX.Element {
               type="button"
               onClick={toggleSelectMode}
               aria-pressed={selectMode}
-              aria-label={selectMode ? 'Cancel ingredient selection' : 'Select items for recipe search'}
+              aria-label={
+                selectMode ? 'Cancel ingredient selection' : 'Select items for recipe search'
+              }
               className="shrink-0 rounded-full border border-divider px-3 py-1.5 text-[13px] font-semibold hover:bg-ink/[0.07]"
             >
               {selectMode ? 'Cancel' : 'Select items'}
@@ -137,8 +141,18 @@ export function InventoryPage(): React.JSX.Element {
             {error}
           </p>
         )}
+        {/* Shelves fill the available width but never squeeze below 280px, which is
+            what a chip's control row needs (stepper ~139px + gap + two 44px buttons =
+            ~241px, plus 24px of chip padding). The design's fixed 1/2/3 shelf counts
+            (§1.2, FR-RS-005) assumed shelves owned the full content width; they do not
+            — this page is itself two columns (`1fr 400px`), so three shelves inside the
+            left column gave each chip 139px of usable width, narrower than the stepper
+            alone, and the chips collapsed into a 183px stack. `auto-fit` keeps the
+            design's intent (more shelves across as width allows) while guaranteeing
+            chips a width they can actually render in — a refinement driven by
+            FR-RS-009/010/025, which the design's figure predates. */}
         {!loading && (
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3.5">
             {LOCATIONS.map((loc) => (
               <Shelf
                 key={loc}
