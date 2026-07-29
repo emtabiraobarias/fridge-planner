@@ -52,12 +52,25 @@ export interface FeedbackTurn {
 
 const BASE = '/api/v1/feedback';
 
+/**
+ * Thrown when the collector agent is unreachable (502). The draft IS still persisted
+ * server-side (FR-F-002), so callers must say "saved but unfinished" rather than "failed"
+ * — a distinct type because `ensureOk` flattens it to "Failed to start feedback: 502".
+ */
+export class FeedbackAgentUnavailableError extends Error {
+  constructor() {
+    super('Saved as a draft, but the assistant is unavailable — open Feedback to finish it.');
+    this.name = 'FeedbackAgentUnavailableError';
+  }
+}
+
 export async function startFeedback(message: string): Promise<FeedbackTurn> {
   const res = await apiFetch(BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
   });
+  if (res.status === 502) throw new FeedbackAgentUnavailableError();
   ensureOk(res, 'start feedback');
   return res.json() as Promise<FeedbackTurn>;
 }
@@ -87,8 +100,23 @@ export async function fetchFeedbackRecord(id: string): Promise<FeedbackRecord> {
   return data.feedback;
 }
 
+/**
+ * Thrown when deletion is refused because the record is referenced by an active
+ * (non-parked) pipeline item — the dev-loop EC-06 protection. A distinct type because
+ * `ensureOk` flattens every non-2xx into one generic message, and this case needs to
+ * tell the user the ONE thing that unblocks it: park the pipeline item first.
+ */
+export class FeedbackPipelineActiveError extends Error {
+  constructor() {
+    super('This feedback is already in development. Park it in the pipeline first, then delete.');
+    this.name = 'FeedbackPipelineActiveError';
+  }
+}
+
 export async function deleteFeedbackRecord(id: string): Promise<void> {
   const res = await apiFetch(`${BASE}/${id}`, { method: 'DELETE' });
+  // Checked before ensureOk, which would otherwise collapse it to "Failed to …: 409".
+  if (res.status === 409) throw new FeedbackPipelineActiveError();
   ensureOk(res, 'delete feedback');
 }
 

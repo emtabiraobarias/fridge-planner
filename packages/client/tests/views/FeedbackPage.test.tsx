@@ -11,6 +11,7 @@ vi.mock('../../src/services/feedback', () => ({
   fetchFeedbackList: vi.fn(),
   deleteFeedbackRecord: vi.fn(),
   fetchFeedbackExport: vi.fn(),
+  fetchFeedbackRecord: vi.fn(),
 }));
 
 vi.mock('../../src/services/pipeline', () => ({
@@ -19,10 +20,7 @@ vi.mock('../../src/services/pipeline', () => ({
   transitionPipelineItem: vi.fn(),
 }));
 
-import {
-  startFeedback,
-  fetchFeedbackList,
-} from '../../src/services/feedback';
+import { startFeedback, fetchFeedbackList } from '../../src/services/feedback';
 import { fetchPipeline } from '../../src/services/pipeline';
 
 const mockStart = vi.mocked(startFeedback);
@@ -91,15 +89,21 @@ describe('FeedbackPage', () => {
   it('shows the assistant question after sending a message', async () => {
     mockStart.mockResolvedValueOnce(collectingTurn);
     setup();
-    await act(async () => { await type('grocery broken'); });
-    await waitFor(() => expect(screen.getByText('What did you expect to happen?')).toBeInTheDocument());
+    await act(async () => {
+      await type('grocery broken');
+    });
+    await waitFor(() =>
+      expect(screen.getByText('What did you expect to happen?')).toBeInTheDocument(),
+    );
     expect(mockStart).toHaveBeenCalledWith('grocery broken');
   });
 
   it('renders the completion card (and hides the input) when the record completes', async () => {
     mockStart.mockResolvedValueOnce(completeTurn);
     setup();
-    await act(async () => { await type('everything is broken'); });
+    await act(async () => {
+      await type('everything is broken');
+    });
     await waitFor(() => expect(screen.getByText(/your feedback is saved/i)).toBeInTheDocument());
     expect(screen.getByText('Grocery count wrong')).toBeInTheDocument();
     expect(screen.queryByLabelText('Your message')).not.toBeInTheDocument();
@@ -108,7 +112,9 @@ describe('FeedbackPage', () => {
   it('shows a retryable error and keeps the composer on agent failure', async () => {
     mockStart.mockRejectedValueOnce(new Error('agent down'));
     setup();
-    await act(async () => { await type('broken'); });
+    await act(async () => {
+      await type('broken');
+    });
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/try again/i));
     expect(screen.getByLabelText('Your message')).toBeInTheDocument();
   });
