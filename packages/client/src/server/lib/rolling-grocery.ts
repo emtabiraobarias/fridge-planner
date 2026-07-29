@@ -50,40 +50,74 @@ function reconcileSticky(item: IGroceryListItem, asOf: Date): IGroceryListItem |
  * fresh need with no stored row is inserted. Sticky rows (manual / purchased /
  * receipted) are day-anchor reconciled per `reconcileSticky` (FR-RG-004/005).
  *
+ * A fresh need whose name is already represented by a *preserved same-day purchased*
+ * row is suppressed (FR-RG-005 + FR-RG-011: "nothing is asked to be bought twice").
+ * The servings-model generator re-emits such a need every recompute because a
+ * `servings` line can't net against the real-unit stock the check-off just added
+ * (unit-incompatible), so without this the purchased row and a fresh duplicate would
+ * both show. It keys on the purchased row, not on netting — matching FR-RG-011's
+ * same-day preservation semantics; the row (and its coverage) sheds at rollover.
+ *
  * @param existing plain (`.toObject()`-ed) stored items — never hydrated subdocs
  * @param freshGenerated fresh generated needs (no `_id`) from `generateGroceryList`
  * @param asOf the rolling cutoff (`startOfTodayCutoff()`)
  */
+/** The disposition of one stored row after reconciliation against the fresh needs. */
+interface ReconciledRow {
+  keep?: IGroceryListItem; // the row to retain, or undefined if shed/dropped
+  matchedName?: string; // a replaceable generated name that consumed its fresh need
+  purchasedName?: string; // a preserved purchased name that suppresses a fresh duplicate
+}
+
+/** Reconcile a single stored row: sticky rows are day-anchor reconciled; replaceable
+ *  generated rows are requantified from their fresh need or dropped (FR-RG-006/007). */
+function reconcileExistingRow(
+  item: IGroceryListItem,
+  freshByName: Map<string, IGroceryListItem>,
+  asOf: Date,
+): ReconciledRow {
+  if (!isReplaceableGenerated(item)) {
+    const sticky = reconcileSticky(item, asOf);
+    if (!sticky) return {};
+    const purchasedLike = sticky.isPurchased || !!sticky.purchaseReceipt;
+    return { keep: sticky, ...(purchasedLike ? { purchasedName: sticky.ingredientName } : {}) };
+  }
+  const fresh = freshByName.get(item.ingredientName);
+  if (!fresh || fresh.quantity <= 0) return {}; // FR-RG-006: need gone → drop row
+  return {
+    keep: {
+      ...item,
+      quantity: fresh.quantity,
+      unit: fresh.unit,
+      sourceMealNames: fresh.sourceMealNames,
+    },
+    matchedName: item.ingredientName,
+  };
+}
+
 export function reconcileRollingList(
   existing: IGroceryListItem[],
   freshGenerated: IGroceryListItem[],
   asOf: Date,
 ): IGroceryListItem[] {
   const freshByName = new Map(freshGenerated.map((f) => [f.ingredientName, f]));
-  const matchedNames = new Set<string>();
+  const matchedNames = new Set<string>(); // fresh needs already consumed by a stored generated row
+  const purchasedNames = new Set<string>(); // covered by a preserved same-day purchased row (FR-RG-011)
   const result: IGroceryListItem[] = [];
 
   for (const item of existing) {
-    if (!isReplaceableGenerated(item)) {
-      const sticky = reconcileSticky(item, asOf);
-      if (sticky) result.push(sticky);
-      continue;
-    }
-    const fresh = freshByName.get(item.ingredientName);
-    if (!fresh || fresh.quantity <= 0) continue; // FR-RG-006: need gone → drop row
-    matchedNames.add(item.ingredientName);
-    result.push({
-      ...item,
-      quantity: fresh.quantity,
-      unit: fresh.unit,
-      sourceMealNames: fresh.sourceMealNames,
-    });
+    const { keep, matchedName, purchasedName } = reconcileExistingRow(item, freshByName, asOf);
+    if (keep) result.push(keep);
+    if (matchedName) matchedNames.add(matchedName);
+    if (purchasedName) purchasedNames.add(purchasedName);
   }
 
   for (const fresh of freshGenerated) {
-    if (!matchedNames.has(fresh.ingredientName) && fresh.quantity > 0) {
-      result.push(fresh); // brand-new in-scope need
-    }
+    // Skip a name already represented by a stored generated row (handled above) or by a
+    // same-day purchased row — the latter is stock already bought today (FR-RG-011).
+    const covered =
+      matchedNames.has(fresh.ingredientName) || purchasedNames.has(fresh.ingredientName);
+    if (!covered && fresh.quantity > 0) result.push(fresh); // brand-new in-scope need
   }
 
   return result;

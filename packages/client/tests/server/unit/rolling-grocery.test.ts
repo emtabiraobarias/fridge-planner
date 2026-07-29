@@ -113,7 +113,9 @@ describe('generateGroceryList date scope at the local 23:59/00:01 boundary (T028
 
 // ——— T008: reconcileRollingList generated-row diff (FR-RG-006/007) ———
 
-function genRow(overrides: Partial<IGroceryListItem> & { ingredientName: string }): IGroceryListItem {
+function genRow(
+  overrides: Partial<IGroceryListItem> & { ingredientName: string },
+): IGroceryListItem {
   return {
     ingredientName: overrides.ingredientName,
     displayName: overrides.displayName ?? overrides.ingredientName,
@@ -136,10 +138,21 @@ describe('reconcileRollingList — generated rows (US1)', () => {
 
   it('keeps a surviving generated row _id and requantifies/re-sources it (FR-RG-007)', () => {
     const existing = [
-      genRow({ _id: 'gen1', ingredientName: 'mince', quantity: 100, unit: 'g', sourceMealNames: ['Tacos'] }),
+      genRow({
+        _id: 'gen1',
+        ingredientName: 'mince',
+        quantity: 100,
+        unit: 'g',
+        sourceMealNames: ['Tacos'],
+      }),
     ];
     const fresh = [
-      genRow({ ingredientName: 'mince', quantity: 250, unit: 'g', sourceMealNames: ['Tacos', 'Bolognese'] }),
+      genRow({
+        ingredientName: 'mince',
+        quantity: 250,
+        unit: 'g',
+        sourceMealNames: ['Tacos', 'Bolognese'],
+      }),
     ];
     const result = reconcileRollingList(existing, fresh, asOf);
     const mince = result.find((r) => r.ingredientName === 'mince')!;
@@ -158,9 +171,17 @@ describe('reconcileRollingList — generated rows (US1)', () => {
   it('shrinks a mixed-source line to only the in-scope shortfall and sources (FR-RG-003)', () => {
     // existing line sourced yesterday+tomorrow; fresh (today-scoped) keeps only tomorrow.
     const existing = [
-      genRow({ _id: 'gen1', ingredientName: 'onion', quantity: 2, unit: 'servings', sourceMealNames: ['Yest', 'Tom'] }),
+      genRow({
+        _id: 'gen1',
+        ingredientName: 'onion',
+        quantity: 2,
+        unit: 'servings',
+        sourceMealNames: ['Yest', 'Tom'],
+      }),
     ];
-    const fresh = [genRow({ ingredientName: 'onion', quantity: 1, unit: 'servings', sourceMealNames: ['Tom'] })];
+    const fresh = [
+      genRow({ ingredientName: 'onion', quantity: 1, unit: 'servings', sourceMealNames: ['Tom'] }),
+    ];
     const result = reconcileRollingList(existing, fresh, asOf);
     const onion = result.find((r) => r.ingredientName === 'onion')!;
     expect(onion._id).toBe('gen1');
@@ -169,7 +190,14 @@ describe('reconcileRollingList — generated rows (US1)', () => {
   });
 
   it('inserts a brand-new in-scope need not present in the stored list', () => {
-    const fresh = [genRow({ ingredientName: 'garlic', quantity: 2, unit: 'servings', sourceMealNames: ['Soup'] })];
+    const fresh = [
+      genRow({
+        ingredientName: 'garlic',
+        quantity: 2,
+        unit: 'servings',
+        sourceMealNames: ['Soup'],
+      }),
+    ];
     const result = reconcileRollingList([], fresh, asOf);
     const garlic = result.find((r) => r.ingredientName === 'garlic')!;
     expect(garlic).toBeDefined();
@@ -204,7 +232,9 @@ describe('reconcileRollingList — sticky rows: day-anchored shed + legacy backf
   const yesterday = new Date('2026-07-14T00:00:00.000Z');
 
   it('preserves a manual row anchored today verbatim (FR-RG-004)', () => {
-    const existing = [genRow({ _id: 'man1', ingredientName: 'bread', isManuallyAdded: true, addedOn: today })];
+    const existing = [
+      genRow({ _id: 'man1', ingredientName: 'bread', isManuallyAdded: true, addedOn: today }),
+    ];
     const result = reconcileRollingList(existing, [], asOf);
     const bread = result.find((r) => r._id === 'man1');
     expect(bread).toBeDefined();
@@ -213,7 +243,9 @@ describe('reconcileRollingList — sticky rows: day-anchored shed + legacy backf
   });
 
   it('sheds a manual row anchored before today (FR-RG-004)', () => {
-    const existing = [genRow({ _id: 'man1', ingredientName: 'bread', isManuallyAdded: true, addedOn: yesterday })];
+    const existing = [
+      genRow({ _id: 'man1', ingredientName: 'bread', isManuallyAdded: true, addedOn: yesterday }),
+    ];
     const result = reconcileRollingList(existing, [], asOf);
     expect(result.find((r) => r._id === 'man1')).toBeUndefined();
   });
@@ -251,7 +283,9 @@ describe('reconcileRollingList — sticky rows: day-anchored shed + legacy backf
   });
 
   it('lazily backfills a legacy manual row with no anchor to addedOn=asOf and preserves it this call (research D5)', () => {
-    const existing = [genRow({ _id: 'legacyManual', ingredientName: 'bread', isManuallyAdded: true })];
+    const existing = [
+      genRow({ _id: 'legacyManual', ingredientName: 'bread', isManuallyAdded: true }),
+    ];
     const result = reconcileRollingList(existing, [], asOf);
     const bread = result.find((r) => r._id === 'legacyManual');
     expect(bread).toBeDefined();
@@ -273,5 +307,71 @@ describe('reconcileRollingList — sticky rows: day-anchored shed + legacy backf
     expect(milk).toBeDefined();
     expect(milk?.purchasedOn).toEqual(asOf);
     expect(milk?.addedOn).toBeUndefined();
+  });
+});
+
+// ——— reconcileRollingList must not re-list a need already covered by a same-day
+// purchased row (FR-RG-005 + FR-RG-011: "nothing is asked to be bought twice") ———
+
+describe('reconcileRollingList — a same-day purchased row suppresses a regenerated duplicate need (FR-RG-011)', () => {
+  const asOf = new Date('2026-07-15T00:00:00.000Z');
+
+  function purchasedMilk(): IGroceryListItem {
+    return genRow({
+      _id: 'buy1',
+      ingredientName: 'milk',
+      displayName: 'Milk',
+      isPurchased: true,
+      purchasedOn: asOf,
+      purchaseReceipt: { inventoryItemId: 'inv1', quantityAdded: 2, unit: 'pieces', merged: false },
+    });
+  }
+
+  it('does not emit a second unpurchased row when the fresh need matches a purchased row by ingredientName', () => {
+    // The servings-model generator re-emits "milk" because a 'servings' need cannot
+    // net against the 'pieces' stock just added by the check-off (unit-incompatible),
+    // so the fresh set still carries a milk line the reconcile layer must suppress.
+    const existing = [purchasedMilk()];
+    const fresh = [
+      genRow({
+        ingredientName: 'milk',
+        quantity: 1,
+        unit: 'servings',
+        sourceMealNames: ['Cereal'],
+      }),
+    ];
+
+    const result = reconcileRollingList(existing, fresh, asOf);
+
+    const milkRows = result.filter((r) => r.ingredientName === 'milk');
+    expect(milkRows).toHaveLength(1);
+    expect(milkRows[0]?.isPurchased).toBe(true);
+    expect(milkRows[0]?._id).toBe('buy1');
+    expect(milkRows[0]?.purchaseReceipt?.inventoryItemId).toBe('inv1');
+  });
+
+  it('still inserts unrelated fresh needs alongside the preserved purchased row', () => {
+    const existing = [purchasedMilk()];
+    const fresh = [
+      genRow({
+        ingredientName: 'milk',
+        quantity: 1,
+        unit: 'servings',
+        sourceMealNames: ['Cereal'],
+      }),
+      genRow({
+        ingredientName: 'garlic',
+        quantity: 2,
+        unit: 'servings',
+        sourceMealNames: ['Soup'],
+      }),
+    ];
+
+    const result = reconcileRollingList(existing, fresh, asOf);
+
+    expect(result.filter((r) => r.ingredientName === 'milk')).toHaveLength(1);
+    const garlic = result.find((r) => r.ingredientName === 'garlic');
+    expect(garlic).toBeDefined();
+    expect(garlic?.isPurchased).toBe(false);
   });
 });
