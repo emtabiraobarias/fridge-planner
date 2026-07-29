@@ -76,9 +76,8 @@ beforeAll(async () => {
   ({ GET } = await import('../../app/api/v1/grocery-lists/[weekStart]/route'));
   ({ POST: GENERATE } = await import('../../app/api/v1/grocery-lists/[weekStart]/generate/route'));
   ({ POST: ADD_ITEM } = await import('../../app/api/v1/grocery-lists/[weekStart]/items/route'));
-  ({ PATCH: PATCH_ITEM, DELETE: DELETE_ITEM } = await import(
-    '../../app/api/v1/grocery-lists/[weekStart]/items/[itemId]/route'
-  ));
+  ({ PATCH: PATCH_ITEM, DELETE: DELETE_ITEM } =
+    await import('../../app/api/v1/grocery-lists/[weekStart]/items/[itemId]/route'));
   ({ POST: COMPLETE } = await import('../../app/api/v1/grocery-lists/[weekStart]/complete/route'));
 });
 
@@ -105,7 +104,10 @@ function wk(weekStart = WEEK_START): { params: Promise<{ weekStart: string }> } 
   return { params: Promise.resolve({ weekStart }) };
 }
 
-function wkItem(itemId: string, weekStart = WEEK_START): { params: Promise<{ weekStart: string; itemId: string }> } {
+function wkItem(
+  itemId: string,
+  weekStart = WEEK_START,
+): { params: Promise<{ weekStart: string; itemId: string }> } {
   return { params: Promise.resolve({ weekStart, itemId }) };
 }
 
@@ -158,7 +160,9 @@ describe('GET grocery-lists/[weekStart]', () => {
     await seedMealPlan(USER_A, [{ ...validMealEntry, date: utcMidnightOffset(0).toISOString() }]);
     const res = await GET(req(), wk());
     expect(res.status).toBe(200);
-    const { groceryList } = (await res.json()) as { groceryList: { items: GLItem[]; generatedAt: string } };
+    const { groceryList } = (await res.json()) as {
+      groceryList: { items: GLItem[]; generatedAt: string };
+    };
     expect(groceryList.items.length).toBeGreaterThan(0);
     expect(groceryList.generatedAt).toBeTruthy();
   });
@@ -486,7 +490,10 @@ describe('GET grocery-lists/[weekStart] — rolling recompute-on-view (spec 008 
 describe('POST grocery-lists/[weekStart]/items', () => {
   it('adds a manual item and returns 201', async () => {
     const res = await ADD_ITEM(
-      req({ method: 'POST', body: { displayName: 'Butter', quantity: 2, unit: 'tbsp', category: 'Dairy' } }),
+      req({
+        method: 'POST',
+        body: { displayName: 'Butter', quantity: 2, unit: 'tbsp', category: 'Dairy' },
+      }),
       wk(),
     );
     expect(res.status).toBe(201);
@@ -504,14 +511,24 @@ describe('POST grocery-lists/[weekStart]/items', () => {
 
 describe('POST grocery-lists/[weekStart]/items — day-anchor stamp (spec 008 US2)', () => {
   it('stamps addedOn on a newly added manual item, on the projected day-cutoff axis (FR-RG-004)', async () => {
-    const items = await addItem({ displayName: 'Vinegar', quantity: 1, unit: 'bottle', category: 'Pantry' });
+    const items = await addItem({
+      displayName: 'Vinegar',
+      quantity: 1,
+      unit: 'bottle',
+      category: 'Pantry',
+    });
     const vinegar = items.find((i) => i.displayName === 'Vinegar');
     expect(vinegar?.addedOn).toBe(startOfTodayCutoff().toISOString());
   });
 
   it('leaves a same-day manual item unchanged (present, still manual) across regenerate (FR-RG-004)', async () => {
     await MealPlan.create({ userId: USER_A, weekStart: new Date(WEEK_START), entries: [] });
-    const items = await addItem({ displayName: 'Vinegar', quantity: 1, unit: 'bottle', category: 'Pantry' });
+    const items = await addItem({
+      displayName: 'Vinegar',
+      quantity: 1,
+      unit: 'bottle',
+      category: 'Pantry',
+    });
     const vinegarId = items.find((i) => i.displayName === 'Vinegar')!._id;
 
     const res = await GENERATE(req({ method: 'POST' }), wk());
@@ -541,18 +558,29 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId]', () => {
   });
 
   it('returns 400 for an invalid ObjectId', async () => {
-    const res = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem('not-an-id'));
+    const res = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: true } }),
+      wkItem('not-an-id'),
+    );
     expect(res.status).toBe(400);
   });
 
   it('returns 404 for a non-existent item', async () => {
     const fakeId = new mongoose.Types.ObjectId().toHexString();
-    const res = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(fakeId));
+    const res = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: true } }),
+      wkItem(fakeId),
+    );
     expect(res.status).toBe(404);
   });
 
   it('adds inventory immediately and stores a purchase receipt when ticking bought (FR-GC-001/003)', async () => {
-    const items = await addItem({ displayName: 'Olive Oil', quantity: 1, unit: 'bottle', category: 'Pantry' });
+    const items = await addItem({
+      displayName: 'Olive Oil',
+      quantity: 1,
+      unit: 'bottle',
+      category: 'Pantry',
+    });
     const id = items.find((i) => i.displayName === 'Olive Oil')!._id;
 
     const res = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(id));
@@ -583,7 +611,12 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId]', () => {
       category: 'Dairy',
       location: 'fridge',
     });
-    const items = await addItem({ displayName: 'Milk', quantity: 3, unit: 'servings', category: 'Dairy' });
+    const items = await addItem({
+      displayName: 'Milk',
+      quantity: 3,
+      unit: 'servings',
+      category: 'Dairy',
+    });
     const id = items.find((i) => i.displayName === 'Milk')!._id;
 
     const res = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(id));
@@ -601,7 +634,12 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId]', () => {
   });
 
   it('treats manual lines the same as generated lines (FR-GC-001)', async () => {
-    const items = await addItem({ displayName: 'Butter', quantity: 2, unit: 'count', category: 'Dairy' });
+    const items = await addItem({
+      displayName: 'Butter',
+      quantity: 2,
+      unit: 'count',
+      category: 'Dairy',
+    });
     const id = items.find((i) => i.displayName === 'Butter')!._id;
 
     const res = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(id));
@@ -643,11 +681,19 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId]', () => {
   });
 
   it('un-ticks by reversing the stored purchase receipt and clearing state (FR-GC-007/008)', async () => {
-    const items = await addItem({ displayName: 'Olive Oil', quantity: 1, unit: 'bottle', category: 'Pantry' });
+    const items = await addItem({
+      displayName: 'Olive Oil',
+      quantity: 1,
+      unit: 'bottle',
+      category: 'Pantry',
+    });
     const id = items.find((i) => i.displayName === 'Olive Oil')!._id;
     await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(id));
 
-    const res = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: false } }), wkItem(id));
+    const res = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: false } }),
+      wkItem(id),
+    );
 
     expect(res.status).toBe(200);
     expect(await InventoryItem.findOne({ userId: USER_A, name: 'Olive Oil' })).toBeNull();
@@ -693,7 +739,10 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId]', () => {
     });
     const id = String(list.items[0]!._id);
 
-    const res = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: false } }), wkItem(id));
+    const res = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: false } }),
+      wkItem(id),
+    );
 
     expect(res.status).toBe(409);
     expect(await InventoryItem.findOne({ userId: USER_A, name: 'Milk' })).toBeNull();
@@ -704,7 +753,12 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId]', () => {
 
 describe('PATCH grocery-lists/[weekStart]/items/[itemId] — day-anchor stamps + shed (spec 008 US2)', () => {
   it('stamps purchasedOn on tick, on the projected day-cutoff axis (FR-RG-005)', async () => {
-    const items = await addItem({ displayName: 'Eggs', quantity: 12, unit: 'count', category: 'Dairy' });
+    const items = await addItem({
+      displayName: 'Eggs',
+      quantity: 12,
+      unit: 'count',
+      category: 'Dairy',
+    });
     const id = items.find((i) => i.displayName === 'Eggs')!._id;
 
     const res = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(id));
@@ -732,16 +786,63 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId] — day-anchor stamps +
     const { groceryList: genList } = (await genRes.json()) as { groceryList: { items: GLItem[] } };
     const flourId = genList.items.find((i) => i.ingredientName === 'flour')!._id;
 
-    const tickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(flourId));
+    const tickRes = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: true } }),
+      wkItem(flourId),
+    );
     expect(tickRes.status).toBe(200);
 
     const regenRes = await GENERATE(req({ method: 'POST' }), wk());
     expect(regenRes.status).toBe(200);
-    const { groceryList: regenList } = (await regenRes.json()) as { groceryList: { items: GLItem[] } };
+    const { groceryList: regenList } = (await regenRes.json()) as {
+      groceryList: { items: GLItem[] };
+    };
     const flour = regenList.items.find((i) => i._id === flourId);
     expect(flour).toBeDefined();
     expect(flour?.isPurchased).toBe(true);
     expect(flour?.purchaseReceipt).toBeDefined();
+  });
+
+  it('does not re-list a checked-off need as an unpurchased duplicate on GET revisit or regenerate (FR-RG-011)', async () => {
+    // Reproduces the reported bug: after ticking a generated need bought (stock now in
+    // Kitchen), revisiting the grocery list showed TWO rows — the purchased one plus a
+    // freshly regenerated unpurchased duplicate, because the servings-model need can't
+    // net against the newly added real-unit stock. FR-RG-011: never re-ask to buy it.
+    await MealPlan.create({
+      userId: USER_A,
+      weekStart: new Date(WEEK_START),
+      entries: [
+        datedEntry({
+          date: utcMidnightOffset(0),
+          missing: ['soy sauce'],
+          mealName: 'Today Stirfry',
+          slotId: '77777777-7777-4777-8777-777777777777',
+        }),
+      ],
+    });
+
+    // Generate → tick the generated 'soy sauce' row bought (adds Kitchen stock).
+    const genRes = await GENERATE(req({ method: 'POST' }), wk());
+    const { groceryList: genList } = (await genRes.json()) as { groceryList: { items: GLItem[] } };
+    const soyId = genList.items.find((i) => i.ingredientName === 'soy sauce')!._id;
+    const tickRes = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: true } }),
+      wkItem(soyId),
+    );
+    expect(tickRes.status).toBe(200);
+
+    // Revisit the list (the exact user-reported flow: open the Grocery page again → GET).
+    const getRes = await GET(req(), wk());
+    const { groceryList: viewed } = (await getRes.json()) as { groceryList: { items: GLItem[] } };
+    const soyRows = viewed.items.filter((i) => i.ingredientName === 'soy sauce');
+    expect(soyRows).toHaveLength(1);
+    expect(soyRows[0]?._id).toBe(soyId);
+    expect(soyRows[0]?.isPurchased).toBe(true);
+
+    // Force-regenerate must be equally duplicate-free.
+    const regenRes = await GENERATE(req({ method: 'POST' }), wk());
+    const { groceryList: regen } = (await regenRes.json()) as { groceryList: { items: GLItem[] } };
+    expect(regen.items.filter((i) => i.ingredientName === 'soy sauce')).toHaveLength(1);
   });
 
   it('a recompute fired between a tick and its un-tick does not detach the receipt (mid-shop race, FR-RG-011)', async () => {
@@ -761,14 +862,20 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId] — day-anchor stamps +
     const { groceryList: genList } = (await genRes.json()) as { groceryList: { items: GLItem[] } };
     const sugarId = genList.items.find((i) => i.ingredientName === 'sugar')!._id;
 
-    const tickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(sugarId));
+    const tickRes = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: true } }),
+      wkItem(sugarId),
+    );
     expect(tickRes.status).toBe(200);
 
     // Mid-shop recompute race: a regenerate fires between the tick and the un-tick.
     const midRegen = await GENERATE(req({ method: 'POST' }), wk());
     expect(midRegen.status).toBe(200);
 
-    const untickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: false } }), wkItem(sugarId));
+    const untickRes = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: false } }),
+      wkItem(sugarId),
+    );
     expect(untickRes.status).toBe(200);
     expect(await InventoryItem.findOne({ userId: USER_A, name: 'Sugar' })).toBeNull();
   });
@@ -807,14 +914,22 @@ describe('PATCH grocery-lists/[weekStart]/items/[itemId] — day-anchor stamps +
     const { groceryList: regenList } = (await regen.json()) as { groceryList: { items: GLItem[] } };
     expect(regenList.items.find((i) => i._id === id)).toBeUndefined(); // shed
 
-    const untick = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: false } }), wkItem(id));
+    const untick = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: false } }),
+      wkItem(id),
+    );
     expect(untick.status).toBe(404);
   });
 });
 
 describe('DELETE grocery-lists/[weekStart]/items/[itemId]', () => {
   it('removes an item', async () => {
-    const items = await addItem({ displayName: 'Garlic', quantity: 3, unit: 'count', category: 'Produce' });
+    const items = await addItem({
+      displayName: 'Garlic',
+      quantity: 3,
+      unit: 'count',
+      category: 'Produce',
+    });
     const id = items.find((i) => i.displayName === 'Garlic')!._id;
     const res = await DELETE_ITEM(req({ method: 'DELETE' }), wkItem(id));
     expect(res.status).toBe(200);
@@ -944,7 +1059,10 @@ describe('POST grocery-lists/[weekStart]/complete', () => {
   });
 
   it('returns 400 for an invalid body', async () => {
-    const res = await COMPLETE(req({ method: 'POST', body: { items: [{ name: 'Something' }] } }), wk());
+    const res = await COMPLETE(
+      req({ method: 'POST', body: { items: [{ name: 'Something' }] } }),
+      wk(),
+    );
     expect(res.status).toBe(400);
   });
 
@@ -1007,7 +1125,10 @@ describe('Rolling recompute + tick concurrency (spec 008 US2, T017)', () => {
     const { groceryList } = (await genRes.json()) as { groceryList: { items: GLItem[] } };
     const basilId = groceryList.items.find((i) => i.ingredientName === 'basil')!._id;
 
-    const tickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(basilId));
+    const tickRes = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: true } }),
+      wkItem(basilId),
+    );
     expect(tickRes.status).toBe(200); // not 404 — the recomputed row's _id stayed live
     const { groceryList: ticked } = (await tickRes.json()) as { groceryList: { items: GLItem[] } };
     expect(ticked.items.find((i) => i._id === basilId)?.purchasedOn).toBeTruthy();
@@ -1042,7 +1163,10 @@ describe('GET-recompute + tick concurrency (spec 008 Phase 6, T029)', () => {
     const { groceryList } = (await getRes.json()) as { groceryList: { items: GLItem[] } };
     const cilantroId = groceryList.items.find((i) => i.ingredientName === 'cilantro')!._id;
 
-    const tickRes = await PATCH_ITEM(req({ method: 'PATCH', body: { isPurchased: true } }), wkItem(cilantroId));
+    const tickRes = await PATCH_ITEM(
+      req({ method: 'PATCH', body: { isPurchased: true } }),
+      wkItem(cilantroId),
+    );
     expect(tickRes.status).toBe(200); // not 404 — GET's persisted recompute kept a live _id
     const { groceryList: ticked } = (await tickRes.json()) as { groceryList: { items: GLItem[] } };
     expect(ticked.items.find((i) => i._id === cilantroId)?.purchasedOn).toBeTruthy();
