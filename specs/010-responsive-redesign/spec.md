@@ -178,7 +178,7 @@ Every overlay behaves the same way: on touch it rises from the bottom as a sheet
 - **A shelf with no items**: the shelf card shows a zero count and an empty hint rather than disappearing (locations are known ahead of data).
 - **A location value outside the known set**: items still render, grouped under a fallback shelf, never dropped.
 - **Home with no expiring item**: the banner is replaced by a calm alternative rather than showing an empty highlight.
-- **Quantity stepped to zero**: the item remains visible and distinguishable, consistent with shipped behaviour (expired/zero items are never silently removed).
+- **Quantity stepped to zero**: the item **remains visible** with a distinct zero state rather than disappearing. ⚠ This is an **intentional change** from shipped behaviour, where stepping to zero deletes the item and toasts "removed" — correcting an inaccurate claim in an earlier draft of this spec. The design requires a zero-quantity indicator state, so the row must survive; deletion remains available as its own explicit action (FR-RS-009/010).
 - **Desktop narrower than the content maximum**: content fills available width and stays centred without horizontal overflow.
 - **A day rollover while the grocery list is open**: the next recompute may drop rows; the week context makes this legible.
 
@@ -199,7 +199,7 @@ Every overlay behaves the same way: on touch it rises from the bottom as a sheet
 **The Fridge — spatial inventory (US2)**
 
 - **FR-RS-008**: Inventory MUST be presented as one shelf card per storage location, each showing the location name, an item count, and that location's items, laid out at the viewport's column count.
-- **FR-RS-009**: Each item MUST render as a chip carrying its name, a status indicator distinguishable by more than colour alone, and a quantity stepper that adjusts by that item's step, floors at zero, and persists.
+- **FR-RS-009**: Each item MUST render as a chip carrying its name, a status indicator distinguishable by more than colour alone, and a quantity stepper that adjusts by that item's step, **floors at zero without deleting the item**, and persists. *(Deliberate change from shipped behaviour, which deletes at zero — see Edge Cases. Deletion stays available as an explicit action per FR-RS-010.)*
 - **FR-RS-010**: The redesigned Kitchen MUST retain all shipped inventory capabilities: expiry visibility, item edit (including expiry and location), delete, and ingredient selection for scoped recipe search.
 - **FR-RS-011**: The natural-language add field MUST retain the shipped parse behaviour and its correctable preview, adopting only the field's visual treatment.
 
