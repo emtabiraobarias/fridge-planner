@@ -40,9 +40,12 @@ Defect 2 is the more damaging of the two: it makes the feedback feature's core p
 - Q: Does an administrator lose their own end-user experience? → A: **No.** An administrator is an ordinary user who additionally holds the role; their own kitchen, feedback, and plan behave exactly as before. Admin capability is **additive**, never a separate account.
 - Q: What happens to the dev seam in production? → A: **Unchanged posture.** `002` already refuses the dev seam in production (`AUTH_MODE=oidc`, `AUTH_ALLOW_DEV` never set); admin status through the dev seam MUST be equally refused there, so a header can never confer privilege in production.
 - Q: Are backup automation, Redis-backed rate limiting, and telemetry export in scope? → A: **No — those are deployment/infrastructure**, tracked under Phase E (E5/E6) and the roadmap, not application behaviour. This spec covers only what the *application* must expose or enforce. Backup remains the highest-risk operational gap and is called out in the roadmap, deliberately not restated as an FR here.
-- Q: How much history must the audit log retain? → **[NEEDS CLARIFICATION: retention period for admin audit entries not decided — 90 days, 1 year, or indefinite?]**
-- Q: Should an administrator be able to act on a user's behalf (impersonation) to reproduce a bug? → **[NEEDS CLARIFICATION: impersonation not decided. It would make support far easier but is a significant privilege and audit surface; the read-only view in US3 is the conservative alternative already specified.]**
-- Q: When an account is deleted, is erasure immediate and irreversible, or is there a grace period? → **[NEEDS CLARIFICATION: deletion semantics not decided — hard delete vs soft-delete with a recovery window.]**
+
+### Session 2026-08-01 (policy decisions — user session; all FIXED)
+
+- Q: How much history must the audit log retain? → A: **90 days**, then entries may be pruned. Leanest option that still supports recent-incident review. Note the deliberate alignment: 90 days **outlives the 30-day erasure recovery window below by 60 days**, so the entry evidencing an erasure always survives past the point at which that erasure became irreversible.
+- Q: Should an administrator be able to act on a user's behalf (impersonation) to reproduce a bug? → A: **No.** The read-only support view (US3) is the support mechanism. This deliberately keeps the privilege and audit surface small; impersonation is now **out of scope** rather than open.
+- Q: When an account is deleted, is erasure immediate and irreversible, or is there a grace period? → A: **Soft delete with a 30-day recovery window.** On request the account and its data become immediately inaccessible to everyone — including the user and every administrator support surface — and after 30 days are permanently purged. Protects against mistaken or malicious deletion while still discharging the erasure duty, at the cost of a two-phase implementation.
 
 ---
 
@@ -148,9 +151,11 @@ As the operator, I need to export everything held about a user and to erase it c
 **Acceptance Scenarios**:
 
 1. **Given** a user with inventory, plans, grocery lists, learned aliases, feedback, and pipeline items, **When** the administrator exports that account, **Then** the export contains all of it in a portable, machine-readable form.
-2. **Given** the same user, **When** the administrator erases the account, **Then** every record keyed to that user is removed across **all** stores — no orphans in any collection.
-3. **Given** an erasure, **When** it completes, **Then** an audit entry records it (US5), retaining only what is needed to evidence the erasure itself.
-4. **Given** an erasure request for a user with promoted pipeline items, **When** it is performed, **Then** the defined handling for shared development artifacts is applied rather than silently orphaning them.
+2. **Given** the same user, **When** the administrator erases the account, **Then** the account and all its data become immediately inaccessible to the user and to every administrator surface — including the US3 support view — while the 30-day recovery window runs.
+3. **Given** an erased account still inside its recovery window, **When** the administrator restores it, **Then** the account and all its data return to their pre-erasure state.
+4. **Given** an erased account whose 30-day window has elapsed, **When** the purge runs, **Then** every record keyed to that user is removed across **all** stores — no orphans in any collection — and restoration is no longer possible and is reported as such.
+5. **Given** an erasure, **When** it completes, **Then** an audit entry records it (US5), retaining only what is needed to evidence the erasure itself, and that entry outlives the recovery window (FR-AD-023).
+6. **Given** an erasure request for a user with promoted pipeline items, **When** it is performed, **Then** the defined handling for shared development artifacts is applied rather than silently orphaning them.
 
 ---
 
@@ -179,7 +184,10 @@ As the operator, I need to adjust operational content and limits without changin
 - **Kill switch engaged mid-request**: an in-flight model call is allowed to finish; no *new* calls start.
 - **Health check while a dependency is slow rather than down**: readiness must not hang — a bounded check that reports degraded is required.
 - **Cross-user feedback containing personal data**: appears in the admin triage view by design; the audit trail (US5) is what makes that access accountable.
-- **Erasure racing an in-flight write** from the same user: must not resurrect erased data.
+- **Erasure racing an in-flight write** from the same user: must not resurrect erased data, and must not leave the write visible after the account became inaccessible.
+- **The erased user signs in during the recovery window**: must not regain access to the erased account — the window is an administrator recovery affordance, not a user-visible limbo state.
+- **Restore attempted after the window has elapsed**: must fail explicitly; it must never appear to succeed against already-purged data.
+- **Audit pruning vs erasure evidence**: pruning at 90 days must never remove an erasure entry while that erasure is still within its 30-day recovery window — the retention margin (FR-AD-023) is what guarantees this.
 
 ---
 
@@ -212,20 +220,22 @@ As the operator, I need to adjust operational content and limits without changin
 - **FR-AD-015**: An administrator MUST be able to view a specified user's inventory, meal plans, and grocery lists **read-only**; this surface MUST NOT permit modification of another user's data.
 - **FR-AD-016**: `001` `FR-036` per-user isolation MUST remain unchanged for non-administrators; cross-user access is available **solely** through administrator capabilities.
 - **FR-AD-017**: An administrator MUST be able to **export** all data held about a specified user, covering every store that keys records to that user, in a portable machine-readable form.
-- **FR-AD-018**: An administrator MUST be able to **erase** a user account such that no record keyed to that user remains in any store; erasure MUST NOT leave orphaned records.
-- **FR-AD-019**: Erasure MUST NOT be able to remove the last remaining administrator's ability to administer the system.
-- **FR-AD-020**: Every administrative action that reads another user's data or changes system/user state MUST be recorded in an **append-only audit trail** capturing the acting administrator, the action, the affected subject, and the time.
-- **FR-AD-021**: Audit entries MUST NOT be editable or deletable through the application.
+- **FR-AD-018**: An administrator MUST be able to **erase** a user account. Erasure is **two-phase**: on request the account and all its data become **immediately inaccessible** to everyone — the user themselves and every administrator surface, including the US3 support view — and after a **30-day recovery window** the data MUST be **permanently purged** such that no record keyed to that user remains in any store. Purge MUST NOT leave orphaned records in any collection.
+- **FR-AD-019**: During the recovery window an administrator MUST be able to **restore** an erased account to its pre-erasure state. After the window has elapsed, restoration MUST NOT be possible and MUST be reported as such rather than appearing to succeed.
+- **FR-AD-020**: Erasure MUST NOT be able to remove the last remaining administrator's ability to administer the system.
+- **FR-AD-021**: Every administrative action that reads another user's data or changes system/user state MUST be recorded in an **append-only audit trail** capturing the acting administrator, the action, the affected subject, and the time.
+- **FR-AD-022**: Audit entries MUST NOT be editable or deletable through the application.
+- **FR-AD-023**: Audit entries MUST be retained for **at least 90 days**, after which they MAY be pruned. Retention MUST exceed the erasure recovery window (FR-AD-018), so the entry evidencing an erasure outlives the point at which that erasure became irreversible.
 
 **Operational visibility and control**
 
-- **FR-AD-022**: The health surface MUST distinguish **liveness** from **readiness**, and readiness MUST report the status of each external dependency (database, meal-recommendation agent, feedback agent, recipe-verification providers) alongside the served version.
-- **FR-AD-023**: Dependency checks MUST be **bounded in time** and MUST report a degraded dependency rather than hanging or failing the whole application.
-- **FR-AD-024**: An administrator MUST be able to **disable AI-dependent features** ("kill switch") at runtime; while disabled, no paid model call is made and affected features MUST degrade to their existing graceful fallbacks rather than erroring.
-- **FR-AD-025**: The system MUST record **AI usage** (model call counts attributed to the feature that caused them) sufficiently for an administrator to detect an anomalous change in spend.
-- **FR-AD-026**: An administrator MUST be able to **invalidate cached AI results** for a specified user or globally, so bad cached output can be cleared without waiting for expiry or redeploying.
-- **FR-AD-027**: An administrator MUST be able to inspect current **request-limit state** and reset it for a user throttled in error.
-- **FR-AD-028**: An administrator MUST be able to adjust **operational content and limits** currently fixed in code (fallback recipe set, approved recipe domains, request limits) without a redeploy; invalid values MUST be rejected with the prior value remaining in force, and built-in defaults MUST apply when no override is set.
+- **FR-AD-024**: The health surface MUST distinguish **liveness** from **readiness**, and readiness MUST report the status of each external dependency (database, meal-recommendation agent, feedback agent, recipe-verification providers) alongside the served version.
+- **FR-AD-025**: Dependency checks MUST be **bounded in time** and MUST report a degraded dependency rather than hanging or failing the whole application.
+- **FR-AD-026**: An administrator MUST be able to **disable AI-dependent features** ("kill switch") at runtime; while disabled, no paid model call is made and affected features MUST degrade to their existing graceful fallbacks rather than erroring.
+- **FR-AD-027**: The system MUST record **AI usage** (model call counts attributed to the feature that caused them) sufficiently for an administrator to detect an anomalous change in spend.
+- **FR-AD-028**: An administrator MUST be able to **invalidate cached AI results** for a specified user or globally, so bad cached output can be cleared without waiting for expiry or redeploying.
+- **FR-AD-029**: An administrator MUST be able to inspect current **request-limit state** and reset it for a user throttled in error.
+- **FR-AD-030**: An administrator MUST be able to adjust **operational content and limits** currently fixed in code (fallback recipe set, approved recipe domains, request limits) without a redeploy; invalid values MUST be rejected with the prior value remaining in force, and built-in defaults MUST apply when no override is set.
 
 ### Key Entities
 
@@ -243,7 +253,7 @@ As the operator, I need to adjust operational content and limits without changin
 - **SC-AD-001**: 100% of maintainer-only actions (promotion, every gate approval, specification export, all cross-user reads) are refused for a non-administrator when invoked directly against the server, bypassing the UI.
 - **SC-AD-002**: A maintainer can discover a newly submitted end-user report **in the application**, with zero out-of-band relay, in under one minute.
 - **SC-AD-003**: No end user can move any pipeline record to `shipped`; reaching `shipped` requires a recorded approval attributable to a named administrator.
-- **SC-AD-004**: Account erasure leaves zero records keyed to that user across all stores, verified by direct inspection.
+- **SC-AD-004**: Account erasure makes the account inaccessible immediately, and after the 30-day window the purge leaves zero records keyed to that user across all stores, verified by direct inspection.
 - **SC-AD-005**: With any single external dependency stopped, the readiness surface identifies **which** dependency is unhealthy within one check interval, and the application continues serving requests that do not need it.
 - **SC-AD-006**: With the AI kill switch engaged, paid model calls drop to zero while affected user journeys still complete via fallbacks.
 - **SC-AD-007**: 100% of cross-user data accesses appear in the audit trail, attributed to an administrator.
@@ -277,6 +287,6 @@ As the operator, I need to adjust operational content and limits without changin
 - Distributed/persistent request limiting (Phase E5) — this spec requires *visibility and reset*, not a storage change.
 - Telemetry export to an external collector (Phase E6).
 - Graded administrator tiers, and administrator self-service role management.
-- Impersonation / acting-as-user (raised as an open clarification).
+- Impersonation / acting-as-user — **decided out 2026-08-01**; the US3 read-only support view is the support mechanism, deliberately keeping the privilege and audit surface small.
 - The OpenAPI contract document (`CR-013`) — worth doing alongside an admin API, tracked separately.
 - Any change to end-user feature behaviour beyond the removal of maintainer capabilities from end users.
