@@ -11,6 +11,10 @@
 >
 > **Revision 2026-07-23 (backlog #7 — feedback→feature development loop).** This spec is extended so an **approved** feedback record can be *promoted* into a tracked **development pipeline** that the project's existing spec-driven workflow (`/speckit.specify → clarify → plan → tasks → analyze → implement`) advances — **human-gated**. New requirements continue the `FR-F-xxx` sequence (FR-F-013+). The MVP is the **tracking layer** (promote + pipeline states + status view); the chain itself is Claude-orchestrated on top of it. Decisions are recorded under Clarifications.
 
+> **Revision 2026-07-28 (feedback UX completion).** Live use exposed a gap that made the surface feel broken: the spec-`010` quick-capture affordance sends a single note and reports success, but the assistant almost always answers a first message with a **clarifying question**, so the record stays *draft* — and a draft cannot be exported (FR-F-007), cannot be promoted (FR-F-013), and had no reopen path in the shipped UI. Quick-captured notes therefore accumulated as dead ends whose only available action was Delete. Reproduced 2026-07-27 against the live assistant: one message in → `status: draft`, no title, transcript `[user, agent-question]`.
+>
+> This revision closes that with a **hand-off** requirement (FR-F-019), makes destructive deletion **confirmable** (FR-F-020), and requires failed operations to be **visible** rather than silent (FR-F-021). ⚠ **Two of the four reported problems are NOT new requirements** — they are existing requirements the implementation never met, and are therefore bug fixes, not spec changes (per `CLAUDE.md` §11): reopening a draft is already mandated by **FR-F-012** and **US3 scenario 1**, and surfacing a clear refusal when deleting a pipeline-protected record is already mandated by the *"Delete a promoted record"* edge case. They are called out here so the cascade covers them, and deliberately **not** restated as new FRs.
+
 ## Clarifications
 
 ### Session 2026-07-23 (development-loop hash-out, decisions FIXED)
@@ -20,6 +24,13 @@
 - Q: Where does the loop stop for approval? → A: **Critical boundaries only** — at **spec-approved** and at **pre-merge / pre-release**; the intermediate speckit stages (clarify/plan/tasks/analyze) advance without a separate gate.
 - Q: Spec organization? → A: **Revise spec `003` in place** (this document), not a new spec.
 - **Non-negotiables (asserted, uncontested):** the loop MUST NEVER merge, tag a release, or deploy without an explicit human approval (branch + PR only); feedback text stays **untrusted** — it seeds a **draft** the human reviews, never an authority that can drive a merge/tag/deploy (extends FR-F-011 and Assumption 2).
+
+### Session 2026-07-28 (feedback UX completion, decisions FIXED)
+
+- Q: A quick-captured note needs more information — what should happen? → A: **Hand off to the full conversation** (option 1B). On a non-final assistant reply the quick-capture surface closes and the user lands in the feedback conversation with that record already loaded, so the existing chat finishes it. Rejected: answering clarifying questions inside the quick-capture overlay (duplicates the chat in a cramped surface).
+- Q: Should abandoned drafts be reopenable? → A: **Yes — and this is already required** by FR-F-012 / US3-1; the shipped UI simply never wired it. Treated as a bug fix, not a new requirement.
+- Q: How should failures be shown? → A: **Never silently.** Every failed feedback operation surfaces a message; a failed list load MUST NOT render as the "no feedback yet" empty state.
+- Q: Should deleting a record be confirmed? → A: **Yes** — deletion discards a whole transcript and is irreversible; it needs an explicit confirmation (or an undo affordance consistent with the rest of the app).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -90,6 +101,23 @@ A maintainer reviewing their completed feedback records decides one is worth bui
 
 ---
 
+### User Story 5 - Capture a quick note and still end up with a usable report (Priority: P1)
+
+A user notices something mid-task and jots it into the quick-capture affordance from whatever screen they are on. If that one note is enough, they are done. If the assistant needs more detail, the user is taken straight into the conversation with their note already there — so the report gets finished instead of being silently stranded as a draft.
+
+**Why this priority**: Quick capture is the most-used entry point (it is on every screen, FR-RS-006), but as shipped it produced records that could never be exported or promoted, while telling the user their feedback was filed. That combination — an unusable artefact plus a false confirmation — undermines the whole feature.
+
+**Independent Test**: Submit a note through quick capture that is too thin to complete; verify the user lands in the conversation with the transcript intact and can finish it to *complete*. Separately submit a note the assistant can complete outright and verify the completion summary is shown, not a hand-off.
+
+**Acceptance Scenarios**:
+
+1. **Given** a quick-captured note the assistant answers with a clarifying question, **When** the turn returns, **Then** the user is taken into the full conversation with that record loaded and the question visible — and is NOT told the report was filed.
+2. **Given** a quick-captured note the assistant can complete immediately, **When** the turn returns, **Then** the user sees the completion outcome for that record rather than a hand-off.
+3. **Given** the assistant is unavailable when a note is submitted, **Then** the note is preserved as a draft (FR-F-002) and the user is told it was saved but needs finishing — never that it was filed.
+4. **Given** any record left in *draft*, **When** the user opens their feedback list, **Then** that record offers a way to continue it (FR-F-012), so no capture path can produce a record whose only action is Delete.
+
+---
+
 ### Edge Cases
 
 - **Very long conversations**: at a bounded transcript limit (~30 user turns), the system instructs the assistant to finalize with best-effort values for still-unknown fields rather than asking further questions — the record is marked complete with explicit "unknown" placeholders.
@@ -101,6 +129,9 @@ A maintainer reviewing their completed feedback records decides one is worth bui
 - **Delete a promoted record**: a record that is in the active pipeline is protected from deletion (or its deletion also removes it from the pipeline with a clear warning) — pipeline state is never left dangling against a missing record.
 - **Manipulated feedback content in the pipeline**: content that reads like an instruction ("merge this", "deploy now") has no effect on stage transitions — every gate still requires an explicit human approval action; feedback text is data, not a command (FR-F-011 carried into the pipeline).
 - **Stale artifact link**: if a linked PR is closed without merging or a draft spec is abandoned, the maintainer can park the record; the status view never reports *shipped* for unmerged work.
+- **Quick capture while the assistant is unavailable**: the note is still persisted as a draft (FR-F-002); the user is told it was saved but needs finishing, never that it was filed (FR-F-019).
+- **Quick capture that the assistant completes on the first turn**: no hand-off — the completion outcome is shown for that record (FR-F-019).
+- **Deleting the record currently open in the conversation**: the open conversation is cleared to a safe state rather than continuing to message a record that no longer exists (see the existing "draft deleted from another tab" case).
 
 ## Requirements *(mandatory)*
 
@@ -128,6 +159,14 @@ A maintainer reviewing their completed feedback records decides one is worth bui
 - **FR-F-017**: The automated / agent-driven portion of the loop MUST operate **branch- and PR-only**: it MAY create branches, commits, and pull requests, but MUST NEVER merge a pull request, tag a release, or trigger a deployment without an explicit human approval action (FR-F-016). No pipeline stage transition may itself perform a merge, tag, or deploy.
 - **FR-F-018**: The record→specification handoff MUST produce a **draft** for human review, never an authority. Promoted feedback content (its exported spec-shaped text, FR-F-007) seeds a draft specification that the maintainer reviews and approves before the pipeline proceeds; feedback text MUST NOT be able to authorize a merge, tag, or deployment, and instruction-like content in a record MUST NOT alter pipeline behaviour (extends FR-F-011 and Assumption 2 across the whole pipeline). Pipeline operations remain scoped to the authenticated maintainer (FR-F-005).
 
+#### Feedback UX completion (Revision 2026-07-28)
+
+- **FR-F-019**: When a feedback record is created from a **quick-capture** surface and the assistant's reply is not a completed record, the system MUST hand the user off into the full conversation for that record, with the transcript loaded and the assistant's question visible. The user MUST NOT be told the report was filed while the record is still *draft*. If the assistant completes the record on the first turn, the completion outcome MUST be shown instead. If the assistant is unavailable, the draft MUST be preserved (FR-F-002) and described as saved-but-unfinished.
+- **FR-F-020**: Deleting a feedback record MUST require an explicit confirmation step, or be reversible immediately afterwards; a single unconfirmed action MUST NOT irreversibly discard a record and its transcript.
+- **FR-F-021**: Every feedback operation that fails MUST surface that failure to the user distinguishably from success and from emptiness. In particular: a failed list load MUST NOT be presented as "no feedback yet"; a deletion refused because the record is in the active pipeline MUST state that reason and the action that unblocks it (park it first); a failed export MUST report the failure rather than appearing to do nothing.
+
+> **Already required, not yet implemented** (bug fixes under this revision, no new FR): **FR-F-012**'s resume clause and **US3 scenario 1** — a draft MUST be reopenable with full prior context; and the *"Delete a promoted record"* edge case's **clear warning**, which FR-F-021 now states in testable form.
+
 ### Key Entities
 
 - **FeedbackRecord**: one per conversation. Owner (authenticated user), status (*draft* → *complete* → *reviewed*), the conversation transcript, and the structured specification fields of FR-F-003 (absent until completion). *(Revision 2026-07-23: a completed record may additionally be **promoted** into the development pipeline — see PipelineItem. The `reviewed` status remains valid; promotion is the concrete action the earlier "forward-looking triage" hook anticipated.)*
@@ -146,6 +185,10 @@ A maintainer reviewing their completed feedback records decides one is worth bui
 - **SC-F-006**: A maintainer can promote a completed record and see it in the development status view at stage *approved* in a single action; 100% of promotion attempts on draft/incomplete records are refused (verified in tests).
 - **SC-F-007**: The status view reflects each promoted record's current stage and its draft-spec / PR links with zero hand-maintained tracking; a record's stage in the view always matches its recorded transition log.
 - **SC-F-008**: No promoted record ever reaches *shipped* without a recorded human approval at the pre-merge/pre-release gate, and no pipeline transition performs a merge/tag/deploy (verified in tests) — the branch/PR-only and gate invariants (FR-F-016/017) hold in 100% of covered cases.
+
+- **SC-F-009**: No capture path can produce a record whose only available action is deletion — 100% of records are either *complete* or offer a continue action from the list (verified in tests, including the quick-capture path).
+- **SC-F-010**: Every failed feedback operation (list, export, delete, chat turn) surfaces a user-visible message; zero failures are silent, and a failed list load is never rendered as the empty state (verified in tests).
+- **SC-F-011**: Deletion of a record cannot occur from a single unconfirmed interaction (verified in tests).
 
 ## Assumptions & Dependencies
 

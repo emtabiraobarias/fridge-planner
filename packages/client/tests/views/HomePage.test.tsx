@@ -187,9 +187,16 @@ describe('HomePage (FR-RS-020/021/022)', () => {
 
   it('names the correct soonest-expiring item in the banner', async () => {
     renderHome();
-    await waitFor(() => expect(screen.getByText('Use it up first')).toBeInTheDocument());
-    const banner = screen.getByText('Use it up first').parentElement!;
-    expect(within(banner).getByText(/Spinach/)).toBeInTheDocument();
+    // 'Use it up first' is a STATIC label rendered by BOTH banner states — the named-item
+    // banner AND the calm `item === null` alternative (UseItUpBanner.tsx) — so waiting on
+    // it is satisfied on the first render, before the inventory context resolves. That
+    // made this the same race the two tests above document: it passed locally (data in by
+    // then) and failed on a slower CI runner, which asserted against the calm banner and
+    // reported "Unable to find /Spinach/". Wait on the data-derived heading instead; the
+    // banner label is then asserted around it, so this still proves the item is named
+    // inside the use-it-up banner and still fails if the wrong item is chosen.
+    const heading = await screen.findByRole('heading', { name: /Spinach/ });
+    expect(within(heading.parentElement!).getByText('Use it up first')).toBeInTheDocument();
   });
 
   it('shows the calm banner alternative when nothing is expiring', async () => {
@@ -223,7 +230,13 @@ describe('HomePage (FR-RS-020/021/022)', () => {
   it('issues zero recommendation requests on mount, and exactly one scoped request after the Cook this → CTA is tapped (FR-RS-021, SC-RS-005)', async () => {
     mockFetchRecommendations.mockResolvedValue({ recommendations: [] });
     renderHome();
-    await waitFor(() => expect(screen.getByText('Use it up first')).toBeInTheDocument());
+    // Same static-label race as above: 'Use it up first' also renders in the calm
+    // `item === null` state, which has no "Cook this →" button — so on a slow load this
+    // proceeded to the click below and failed to find the button. Wait on the
+    // data-derived heading, which only the named-item banner renders; that is also the
+    // right precondition for the no-request assertion, since a mount-time prefetch would
+    // have fired by the time the banner is up.
+    await screen.findByRole('heading', { name: /Spinach/ });
 
     // Flush any microtask-queued mount effects before asserting nothing fired.
     await new Promise((resolve) => setTimeout(resolve, 0));
