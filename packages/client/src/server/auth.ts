@@ -99,11 +99,21 @@ function principal(userId: string, roles: string[]): Principal {
  */
 export async function authenticatePrincipal(request: Request): Promise<Principal> {
   if (resolveMode() === 'dev') {
-    const roles = (request.headers.get('x-user-roles') ?? '')
+    // The header is the seam tests and scripts use. A BROWSER cannot set it, so local
+    // manual testing would otherwise always be an unprivileged `anonymous` — unable to
+    // reach any admin screen. `AUTH_DEV_ROLES` supplies a default for that case only.
+    // It is read on this branch alone, so it inherits resolveMode()'s two-flag
+    // production refusal exactly as the identity header does (FR-AD-004): it cannot
+    // grant anything in production, where this code path is unreachable.
+    const header = request.headers.get('x-user-roles');
+    const source = header ?? process.env['AUTH_DEV_ROLES'] ?? '';
+    const roles = source
       .split(',')
       .map((r) => r.trim())
       .filter(Boolean);
-    return principal(request.headers.get('x-user-id') ?? 'anonymous', roles);
+    const userId =
+      request.headers.get('x-user-id') ?? process.env['AUTH_DEV_USER_ID'] ?? 'anonymous';
+    return principal(userId, roles);
   }
 
   const token = bearerToken(request);

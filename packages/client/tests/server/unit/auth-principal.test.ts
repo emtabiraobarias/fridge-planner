@@ -12,6 +12,8 @@ beforeEach(() => {
   process.env['AUTH_MODE'] = 'dev';
   delete process.env['NODE_ENV_OVERRIDE'];
   delete process.env['AUTH_ADMIN_ROLE'];
+  delete process.env['AUTH_DEV_ROLES'];
+  delete process.env['AUTH_DEV_USER_ID'];
   delete process.env['AUTH_ROLES_CLAIM'];
 });
 
@@ -54,6 +56,37 @@ describe('authenticatePrincipal — dev seam (FR-AD-001, D2)', () => {
       (await authenticatePrincipal(req({ 'x-user-id': 'u', 'x-user-roles': 'fp-operator' })))
         .isAdmin,
     ).toBe(true);
+  });
+});
+
+describe('AUTH_DEV_ROLES — the browser-testing seam (dev only)', () => {
+  it('supplies default roles when no header is present', async () => {
+    process.env['AUTH_DEV_ROLES'] = 'admin';
+    const { authenticatePrincipal } = await import('@server/auth');
+    expect((await authenticatePrincipal(req({ 'x-user-id': 'me' }))).isAdmin).toBe(true);
+  });
+
+  // An EXPLICIT header always wins, so a test or script can still drive an ordinary
+  // user on a machine whose env defaults to admin — otherwise every refusal test on a
+  // dev box would silently pass as an administrator.
+  it('is overridden by an explicit header, including an empty one', async () => {
+    process.env['AUTH_DEV_ROLES'] = 'admin';
+    const { authenticatePrincipal } = await import('@server/auth');
+    const p = await authenticatePrincipal(req({ 'x-user-id': 'me', 'x-user-roles': '' }));
+    expect(p.roles).toEqual([]);
+    expect(p.isAdmin).toBe(false);
+  });
+
+  it('is unreachable in production, like every other dev-seam input (FR-AD-004)', async () => {
+    process.env['AUTH_DEV_ROLES'] = 'admin';
+    process.env['AUTH_MODE'] = 'dev';
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production', configurable: true });
+    delete process.env['AUTH_ALLOW_DEV'];
+    const { authenticatePrincipal } = await import('@server/auth');
+    await expect(authenticatePrincipal(req({ 'x-user-id': 'me' }))).rejects.toThrow(
+      /AUTH_MODE must be "oidc" in production/,
+    );
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'test', configurable: true });
   });
 });
 
