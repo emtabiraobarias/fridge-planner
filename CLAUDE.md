@@ -149,6 +149,32 @@ Rate limit: **10 req/min** for `/recommendations` (30/min for `verify-links`; 20
 | PUT | `/quick-add/aliases/:nameKey` | Upsert a learned field and/or record an `observedShelfLifeDays` (FIFO-capped at 5) |
 | POST | `/quick-add/parse` | AI-assist for low-confidence parses — `{ text }` (≤200) → `{ interpretation \| null }`; **503 when `OPENAI_API_KEY` unset** (client fails open) |
 
+### Administration (spec 011 — admin-only unless noted)
+Every route below requires the **administrator role** (`requirePrincipalAdmin`); a
+valid-but-unprivileged caller gets **403** (deliberately not 401 — the client treats 401
+as its FR-D-010 refresh-retry trigger). Role comes from a verified token claim
+(`AUTH_ROLES_CLAIM`, default `realm_access.roles`), never from a request header in prod.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/me` | **Not** admin-only — `{userId, isAdmin}` for the caller; the UI uses it to decide what to hide |
+| GET | `/admin/feedback` | Cross-user triage list (FR-AD-009), `?status=&userId=`, pipeline stage joined |
+| GET | `/admin/feedback/:id` | Any user's record + transcript |
+| GET | `/admin/users/:userId/data` | Read-only support view — **GET is the only verb** (FR-AD-015) |
+| GET | `/admin/users/:userId/export` | Everything held about a user, all six collections (FR-AD-017) |
+| POST | `/admin/users/:userId/erase` | Two-phase soft delete — immediately inaccessible, purge after 30d |
+| POST | `/admin/users/:userId/restore` | Undo inside the window; **410** after it |
+| POST | `/admin/users/purge` | Purge expired erasures (no scheduler exists — explicit trigger) |
+| GET | `/admin/audit` | Append-only trail; **no write verb exists** (FR-AD-022) |
+| GET/PATCH | `/admin/settings` | Runtime settings; defaults live in code, invalid values rejected whole |
+| GET | `/admin/usage` | Per-day, per-feature AI call counts |
+| DELETE | `/admin/cache` | Flush AI caches (`?userId=` scopes it) |
+| GET | `/admin/limits` · DELETE `/admin/limits/:key` | Inspect / reset limiter buckets |
+
+Also: **`GET /api/health/ready`** (public, like `/api/health`) — readiness with bounded
+per-dependency probes. **`/api/health` is unchanged and must stay so** — the Docker
+healthcheck, `scripts/verify-rollout.sh` and the smoke gate all depend on its exact shape.
+
 ### Meal Plans
 | Method | Path | Description |
 |--------|------|-------------|
@@ -314,6 +340,23 @@ All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
 
 ---
 
+### Administration collections (spec 011)
+| Collection | Shape | Notes |
+|---|---|---|
+| `admin_audit_logs` | `{adminUserId, action, subjectUserId?, subjectType?, subjectId?, at}` | **TTL index 90d**. Append-only is enforced by there being no update/delete path — `lib/audit.ts` exports only `record`/`list`. |
+| `account_erasures` | `{userId (unique), erasedAt, purgeAfter, erasedBy, restoredAt?}` | Exists because there is **no `User` model** — a user is only a `userId` across six collections. |
+| `runtime_settings` | `{key (unique), value, updatedAt, updatedBy}` | Defaults live in code, so an **empty collection reproduces today's behaviour**. |
+| `ai_usage_counters` | `{day, feature, calls}` | Incremented at the same boundary as the kill switch, so a blocked call is an uncounted call. |
+
+> **Retention margin is load-bearing:** `AUDIT_RETENTION_DAYS` (90) **must** stay greater
+> than `ERASURE_WINDOW_DAYS` (30) so an erasure's audit entry outlives the moment that
+> erasure became irreversible. Both live in `src/server/types/admin.ts` and a test asserts
+> the relationship from the constants.
+
+> **Six user-keyed collections** (`lib/account-purge.ts` `USER_KEYED_MODELS`) — inventory-item,
+> meal-plan, grocery-list, ingredient-alias, feedback-record, pipeline-item. Adding a
+> seventh means adding a line there, or erasure will orphan it.
+
 ## 6. Environment Variables
 
 Copy `.env.example` to `.env` before running locally.
@@ -328,6 +371,9 @@ Copy `.env.example` to `.env` before running locally.
 | `AUTH_ISSUER` | — | No (CR-001, production OIDC) |
 | `AUTH_AUDIENCE` | — | No (CR-001, production OIDC) |
 | `AUTH_JWKS_URI` | — | No (CR-001, production OIDC) |
+| `AUTH_ADMIN_ROLE` | `admin` | No (spec 011 — role name granting administration) |
+| `AUTH_ROLES_CLAIM` | `realm_access.roles` | No (spec 011 — dotted path to the role array in the JWT) |
+| `AUTH_DEV_USER_ID` / `AUTH_DEV_ROLES` | — | **Local dev only** — a browser can't send `x-user-id`/`x-user-roles`. Read only on the dev branch of `resolveMode()`, so unreachable in production. NEVER set in prod. |
 | `NODE_ENV` | `development` | No |
 | `LOG_LEVEL` | `info` | No |
 | `REDIS_URL` | `redis://localhost:6379` | No (P2+, not required for P1 MVP) |

@@ -2,120 +2,193 @@
 
 **Branch**: `011-implement` · **Date**: 2026-08-01 · **Spec**: [`spec.md`](spec.md) · **Plan**: [`plan.md`](plan.md)
 
-Manual verification for spec `011`. Run locally in `dev` auth mode, where `X-User-Id` + `X-User-Roles` stand in for real tokens (Research D2). The verification log at the bottom must be filled before a release tag.
+Manual verification for spec `011`. Everything below runs **without Keycloak** — the dev
+auth seam stands in for real tokens. Keycloak is required only to activate the feature
+in production (see "Before production" at the end).
 
-## Setup
+---
 
-```bash
-docker compose up -d mongodb holodeck holodeck-feedback
-npm run dev                     # :3000
-```
-
-Two personas, via the dev seam:
+## 0. Start it
 
 ```bash
-USER=(-H 'x-user-id: user-a')                              # ordinary end user
-ADMIN=(-H 'x-user-id: admin-1' -H 'x-user-roles: admin')   # administrator
+docker compose up -d mongodb                       # if not already running
+cd packages/client && npx next dev --port 3010     # any free port
 ```
 
-> **The seam is dev-only.** In production `AUTH_MODE=oidc` and `resolveMode()` refuses the seam, so `x-user-roles` cannot confer privilege there (FR-AD-004). Verified by test, not by inspection.
+`packages/client/.env.local` (gitignored) supplies the browser session's identity:
 
-## AD0/AD1 — privilege exists and is enforced (US1)
+```
+MONGODB_URI=mongodb://localhost:27017/fridge-planner-admin-demo
+AUTH_MODE=dev
+AUTH_DEV_USER_ID=demo-admin
+AUTH_DEV_ROLES=admin
+```
+
+> **Why this exists:** a browser cannot send `x-user-id` / `x-user-roles`, so without it
+> every browser request is an unprivileged `anonymous` and the admin screens are
+> unreachable by hand. These vars are read **only** on the dev branch of `resolveMode()`,
+> which already refuses the dev seam in production (FR-AD-004).
+>
+> ⚠️ **Do not run `npm run build` while `next dev` is running** — both use `.next` and the
+> build will break the running server. (`test:e2e` is safe; it uses `.next-e2e`.)
+
+Two personas for the API checks below:
 
 ```bash
-# End user attempts the three maintainer actions → expect 403 (NOT 401) each time
-curl -si -X POST localhost:3000/api/v1/feedback/$FID/promote "${USER[@]}"     | head -1
-curl -si -X PATCH localhost:3000/api/v1/pipeline/$PID -d '{"action":"approve-release"}' \
-     -H 'content-type: application/json' "${USER[@]}"                         | head -1
-curl -si localhost:3000/api/v1/feedback/$FID/export "${USER[@]}"              | head -1
-
-# Same calls as admin → succeed
-curl -si -X POST localhost:3000/api/v1/feedback/$FID/promote "${ADMIN[@]}"    | head -1
+ADMIN=()                                     # no headers → env default = admin
+USER=(-H 'x-user-id: alice')                 # explicit id → NOT an admin
+BASE=http://localhost:3010
 ```
 
-- [ ] All three refuse for the end user with **403** (not 401 — 401 would trigger the client's refresh-retry loop)
-- [ ] All three succeed for the admin
-- [ ] No state changed on any refusal (re-`GET` the record — stage unmoved)
-- [ ] `promotedBy` on the new pipeline item is **`admin-1`**, not the record's author (FR-AD-012)
-- [ ] An end user still sees and manages **their own** feedback exactly as before (FR-AD-007/008)
-- [ ] Ordinary features (kitchen, plan, grocery) behave identically for both personas (FR-AD-005)
-
-## AD2 — cross-user triage + audit (US2, US5)
-
-Submit feedback as `user-a` and `user-b`, then:
+Seed some cross-user reports to look at:
 
 ```bash
-curl -s localhost:3000/api/v1/admin/feedback "${ADMIN[@]}" | jq '.records[].userId' | sort -u
-curl -s localhost:3000/api/v1/feedback "${USER[@]}"        | jq '.records[].userId' | sort -u
+docker exec fridge-planner-mongodb-1 mongosh --quiet \
+  "mongodb://localhost:27017/fridge-planner-admin-demo" --eval '
+const now = new Date();
+db.feedbackrecords.insertMany([
+ {userId:"alice",status:"complete",type:"bug",title:"Grocery list shows duplicates",affectedArea:"grocery",transcript:[{role:"user",content:"dupes",at:now}],createdAt:now,updatedAt:now},
+ {userId:"bob",status:"complete",type:"improvement",title:"Let me reorder meals",affectedArea:"meal-plan",transcript:[{role:"user",content:"reorder",at:now}],createdAt:now,updatedAt:now},
+ {userId:"carol",status:"draft",transcript:[{role:"user",content:"expiry off by one",at:now}],createdAt:now,updatedAt:now}]);'
 ```
 
-- [ ] Admin list contains **both** users' records, each attributed to its author (FR-AD-009)
-- [ ] End-user list contains **only** `user-a` (FR-AD-008 — unchanged)
-- [ ] A record containing instruction-like text renders as inert data and changes nothing (FR-AD-014)
-- [ ] `GET /admin/audit` shows one entry per admin action, with acting admin + subject + time (FR-AD-021)
-- [ ] The audit log offers **no** write or delete verb (FR-AD-022)
+---
 
-## AD3 — support view (US3)
+## AD0 + AD1 — privilege exists and is enforced (US1)
 
-- [ ] `GET /admin/users/user-a/data` returns that user's inventory, plans, grocery lists (FR-AD-015)
-- [ ] No write verb exists on the path (FR-AD-015)
-- [ ] The access appears in the audit log (FR-AD-021)
-- [ ] The same request as an end user → **403** (FR-AD-016)
-
-## AD4 — operational visibility (US4)
+**The point:** before this, *any* signed-in user could promote their own feedback and
+sign it all the way to `shipped`.
 
 ```bash
-curl -s localhost:3000/api/health        | jq .   # unchanged: {status, version}
-curl -s localhost:3000/api/health/ready  | jq .
-docker compose stop holodeck
-curl -s localhost:3000/api/health/ready  | jq '.dependencies'
+# Who am I? (browser-equivalent — no headers)
+curl -s $BASE/api/v1/me                                  # → {"userId":"demo-admin","isAdmin":true}
+curl -s "${USER[@]}" $BASE/api/v1/me                     # → {"userId":"alice","isAdmin":false}
+
+# The three maintainer actions refuse an ordinary user
+curl -s -o /dev/null -w '%{http_code}\n' "${USER[@]}" $BASE/api/v1/admin/feedback   # → 403
 ```
 
-- [ ] `/api/health` is **byte-identical** to before — still `{status, version}`, still fast, still no dependency checks (Research D8; `scripts/verify-rollout.sh` depends on it)
-- [ ] `/api/health/ready` names each dependency and the overall state (FR-AD-024)
-- [ ] With the agent stopped: that dependency reports unhealthy, readiness reflects it, **the app still serves requests** (FR-AD-024)
-- [ ] A slow dependency reports *degraded* rather than hanging (FR-AD-025)
-- [ ] Kill switch on (`PATCH /admin/settings {"ai.enabled": false}`) → recommendations make **zero** model calls and return the existing fallback, not an error (FR-AD-026)
-- [ ] `GET /admin/usage` shows per-feature call counts; they stop rising while the switch is off (FR-AD-027)
-- [ ] `DELETE /admin/cache?userId=user-a` → next request recomputes (FR-AD-028)
-- [ ] `GET /admin/limits` shows state; `DELETE /admin/limits/:key` clears a bucket (FR-AD-029)
+- [ ] `/api/v1/me` reports `isAdmin:false` for `alice`, `true` for the browser session
+- [ ] Promote / pipeline transitions / export return **403** for `alice` — **not 401**
+      (401 would send the client into its token-refresh retry loop)
+- [ ] Nothing changes on a refusal — re-read the record, the stage has not moved
+- [ ] An end user still sees and manages **their own** feedback exactly as before
 
-## AD5 — accounts (US6)
+## AD2 — the maintainer can finally see everyone's reports (US2 + US5)
 
-- [ ] `GET /admin/users/user-a/export` contains data from **all six** collections (FR-AD-017)
-- [ ] `POST .../erase` → `user-a` is immediately refused, and disappears from every admin surface incl. the support view (FR-AD-018)
-- [ ] `POST .../restore` inside the window → everything returns intact (FR-AD-019)
-- [ ] After the window, restore returns **410 Gone** — an explicit refusal, never a silent success (FR-AD-019)
-- [ ] After purge: **zero** documents keyed to that user across all six collections (FR-AD-018)
-- [ ] The erasure's **audit entry survives** the purge (FR-AD-023 — the 90-vs-30-day margin)
-- [ ] Erasing the last administrator is refused (FR-AD-020)
+**The point:** every feedback query was `{userId}`-scoped, so reports were collected and
+then hidden from the only person who could act on them.
 
-## AD6 — runtime config (US7)
+**In the browser → <http://localhost:3010/admin>**
 
-- [ ] Changing an approved recipe domain / fallback set / limit takes effect **without a redeploy** (FR-AD-030)
-- [ ] An invalid value is rejected and the prior value stays in force (FR-AD-030)
-- [ ] With the settings collection **empty**, behaviour is identical to today (FR-AD-030 — code-owned defaults)
+- [ ] All three reports are listed, each **attributed** to alice / bob / carol
+- [ ] The status filter chips (All / Complete / Draft / Reviewed) narrow the list
+- [ ] **Promote** appears only on *complete, not-yet-promoted* reports — never on carol's draft
+- [ ] Clicking Promote moves it into the pipeline and the badge changes
+- [ ] `/feedback` shows an **"Open administration →"** link (admins only)
+
+```bash
+curl -s $BASE/api/v1/admin/feedback | jq '.feedback[] | {userId, title}'
+curl -s $BASE/api/v1/admin/audit    | jq '.entries[] | {adminUserId, action, subjectUserId}'
+```
+
+- [ ] The audit trail shows one entry per admin action, with actor + subject + time
+- [ ] `GET /api/v1/admin/audit` is the only verb — there is no way to edit or delete an entry
+- [ ] A **refused** action records nothing
+
+## AD3 — read-only support view (US3)
+
+**The point:** "my grocery list is wrong" used to be uninvestigable.
+
+**In the browser:** click a report's **title** on `/admin` → the reporter's kitchen opens.
+
+- [ ] The panel shows their inventory / meal plans / grocery lists with counts
+- [ ] **The only button is Close** — no edit, no delete, no stepper
+- [ ] The access appears in `/api/v1/admin/audit` as `user.data.view`
+
+```bash
+curl -s $BASE/api/v1/admin/users/alice/data | jq '{userId, counts}'
+curl -s -o /dev/null -w '%{http_code}\n' "${USER[@]}" $BASE/api/v1/admin/users/alice/data  # → 403
+curl -s -o /dev/null -w '%{http_code}\n' -X DELETE $BASE/api/v1/admin/users/alice/data     # → 405
+```
+
+## AD4 + AD6 — operational visibility & control (US4 + US7)
+
+```bash
+curl -s $BASE/api/health        | jq .     # liveness — UNCHANGED {status, version}
+curl -s $BASE/api/health/ready  | jq .     # readiness — per dependency
+```
+
+- [ ] `/api/health` is still exactly `{status, version}` (three shipped consumers rely on it)
+- [ ] `/api/health/ready` names mongodb / meal-recommender / feedback-agent / recipe-providers
+- [ ] Stop Mongo (`docker stop fridge-planner-mongodb-1`) → that entry is not `ok`, overall **503**,
+      and the app still answers. Start it again to recover.
+
+```bash
+# Kill switch — AI features degrade, they do not error
+curl -s -X PATCH $BASE/api/v1/admin/settings -H 'content-type: application/json' \
+     -d '{"ai.enabled": false}' | jq .settings
+curl -s $BASE/api/v1/admin/usage   | jq .usage        # per-day, per-feature call counts
+curl -s -X DELETE "$BASE/api/v1/admin/cache?userId=alice"      # flush one user
+curl -s $BASE/api/v1/admin/limits  | jq .buckets      # limiter state
+```
+
+- [ ] With `ai.enabled:false`, recommendations still return (popular-recipe fallback), never a 500
+- [ ] Usage counts stop rising while the switch is off — a blocked call is an *uncounted* call
+- [ ] An **invalid** value is rejected and the previous value stays in force:
+      `-d '{"limits.recommendationsPerMinute": -5}'` → **400**
+- [ ] Turn it back on: `-d '{"ai.enabled": true}'`
+
+## AD5 — account export & two-phase erasure (US6)
+
+```bash
+curl -s $BASE/api/v1/admin/users/alice/export | jq '{userId, collections}'
+curl -s -X POST $BASE/api/v1/admin/users/alice/erase   | jq .
+curl -s "${USER[@]}" -o /dev/null -w '%{http_code}\n' $BASE/api/v1/inventory   # → 401, account gone
+curl -s -X POST $BASE/api/v1/admin/users/alice/restore | jq .
+curl -s "${USER[@]}" -o /dev/null -w '%{http_code}\n' $BASE/api/v1/inventory   # → 200 again
+```
+
+- [ ] The export lists **all six** user-keyed collections
+- [ ] After erase, alice is refused everywhere (401) — but her data still exists, awaiting the window
+- [ ] Restore inside the window returns access **and** data intact
+- [ ] An administrator cannot erase **themselves** → 409
+- [ ] Erasing twice → 409 (the window is not reset)
+- [ ] To see the purge: set `purgeAfter` into the past, then `POST /api/v1/admin/users/purge` →
+      every user-keyed collection is empty **and** the erase/purge audit entries survive
+      (that is what the 90-day-vs-30-day retention margin is for)
+
+---
 
 ## Release gate
 
 ```bash
 npm run lint                                   # 0 warnings
-npm test                                       # full suite green
-npm -w packages/client run test:e2e            # incl. e2e/admin.e2e.ts (CLAUDE.md §8)
-bash scripts/validate-e2e.sh --no-agent        # deterministic gate
+npm test                                       # full unit suite
+npm -w packages/client run test:e2e            # incl. e2e/admin.e2e.ts
+bash scripts/validate-e2e.sh --no-agent
 ```
 
-- [ ] `tests/server/admin-authorization.test.ts` enumerates **every** admin route × method and asserts 403 for a non-admin (SC-AD-001 — this is the evidence for "100%")
-- [ ] A test asserts `AUDIT_TTL_DAYS > ERASURE_WINDOW_DAYS` from the constants (FR-AD-023)
+- [ ] `tests/server/admin-authorization.test.ts` enumerates **every** admin route × method (SC-AD-001)
+- [ ] A test asserts `AUDIT_RETENTION_DAYS > ERASURE_WINDOW_DAYS` from the constants (FR-AD-023)
 - [ ] A test asserts the dev seam cannot confer admin in production (FR-AD-004)
-- [ ] A test asserts a non-admin 403 does **not** trigger the client's token refresh (Research D3)
+- [ ] A test asserts a 403 does **not** trigger the client's token refresh (research D3)
 
-## Deployment cascade (manual — CLAUDE.md §15 boundary)
+## Before production (manual — CLAUDE.md §15 boundary)
 
-- [ ] Keycloak: create the `admin` realm role and assign it to the operator — **one-time, human-only**, not automatable from the repo
-- [ ] Confirm the role appears in the access token at the configured claim path before relying on it
-- [ ] New env vars documented in `.env.example` + `docs/deployment.md`: `AUTH_ADMIN_ROLE`, `AUTH_ROLES_CLAIM`
-- [ ] Confirm `AUTH_ALLOW_DEV` remains absent from every production surface
+⚠️ **Ship 011 only after the Keycloak role exists.** Today in production every
+authenticated user is treated as the maintainer, so *you* can promote/approve/export. The
+moment AD1 ships without an `admin` role issued, **nobody** can — including you. End users
+are unaffected (FR-AD-006) and it is fixed by assigning the role, but do not discover it live.
+
+1. `https://auth.fridgeplanner.lan` → sign in → select the **`fridge-planner`** realm (not `master`)
+2. **Realm roles → Create role** → `admin` → Save
+3. **Users →** your user **→ Role mapping → Assign role** → filter *realm roles* → tick `admin`
+4. **Sign out and back in** — existing tokens will not carry it
+5. Decode the token; confirm `realm_access.roles` contains `admin`.
+   **If it lives elsewhere, set `AUTH_ROLES_CLAIM` to that dotted path — no code change.**
+6. Leave `AUTH_ADMIN_ROLE` / `AUTH_ROLES_CLAIM` unset to accept the defaults.
+   **`AUTH_ALLOW_DEV` must remain absent**, and never set `AUTH_DEV_*` in production.
 
 ## Verification log
 
