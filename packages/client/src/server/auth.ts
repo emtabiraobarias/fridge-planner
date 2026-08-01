@@ -109,13 +109,27 @@ function principal(userId: string, roles: string[]): Principal {
  * production refusal (FR-AD-004) rather than re-checking it.
  */
 function devPrincipal(request: Request): Principal {
+  const idHeader = request.headers.get('x-user-id');
   const rolesHeader = request.headers.get('x-user-roles');
-  const rolesSource = rolesHeader ?? process.env['AUTH_DEV_ROLES'] ?? '';
+
+  // The env defaults apply ONLY to a request that identifies itself with no headers at
+  // all — i.e. a browser, the single case they exist for. Any caller that sends
+  // `x-user-id` is being explicit about who it is, so its roles come from the header
+  // alone and default to none.
+  //
+  // This narrowness is load-bearing, not tidiness: `.env.local` is loaded by
+  // `next start` as well as `next dev`, so a broader fallback silently promoted every
+  // header-identified E2E request to administrator and turned the suite's refusal
+  // assertions green for the wrong reason. Discovered exactly that way.
+  const isHeaderIdentified = idHeader !== null;
+  const rolesSource =
+    rolesHeader ?? (isHeaderIdentified ? '' : (process.env['AUTH_DEV_ROLES'] ?? ''));
   const roles = rolesSource
     .split(',')
     .map((r) => r.trim())
     .filter(Boolean);
-  const userId = request.headers.get('x-user-id') ?? process.env['AUTH_DEV_USER_ID'] ?? 'anonymous';
+
+  const userId = idHeader ?? process.env['AUTH_DEV_USER_ID'] ?? 'anonymous';
   return principal(userId, roles);
 }
 

@@ -93,10 +93,10 @@
 
 ## Phase 5: US3 — AD3 read-only support view
 
-- [ ] T037 [P] [US3] Add failing `packages/client/tests/server/admin-user-data.test.ts`: admin `GET /admin/users/:userId/data` returns that user's inventory + meal plans + grocery lists (FR-AD-015); **no write verb exists** on the path; the access is audited (FR-AD-021); a non-admin requesting another user's data gets **403** with `001` FR-036 isolation intact (FR-AD-016)
-- [ ] T038 [US3] Add `controllers/admin-users.ts` (read-only aggregate) + `app/api/v1/admin/users/[userId]/data/route.ts` (**GET only**)
-- [ ] T039 [P] [US3] Add `src/components/admin/UserDataPanel.tsx` — read-only rendering, no mutating control
-- [ ] T040 [US3] Append to the refusal matrix; run lint + tests
+- [x] T037 [P] [US3] Add failing `packages/client/tests/server/admin-user-data.test.ts`: admin `GET /admin/users/:userId/data` returns that user's inventory + meal plans + grocery lists (FR-AD-015); **no write verb exists** on the path; the access is audited (FR-AD-021); a non-admin requesting another user's data gets **403** with `001` FR-036 isolation intact (FR-AD-016)
+- [x] T038 [US3] Add `controllers/admin-users.ts` (read-only aggregate) + `app/api/v1/admin/users/[userId]/data/route.ts` (**GET only**)
+- [x] T039 [P] [US3] Add `src/components/admin/UserDataPanel.tsx` — read-only rendering, no mutating control
+- [x] T040 [US3] Append to the refusal matrix; run lint + tests
 
 ---
 

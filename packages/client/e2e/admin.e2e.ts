@@ -81,3 +81,40 @@ test('the admin entry point appears only for an administrator', async ({ browser
   await expect(userPage.getByRole('link', { name: /open administration/i })).toHaveCount(0);
   await userCtx.close();
 });
+
+// Spec 011 US3 (FR-AD-015/016/021) — the read-only support view.
+test('the maintainer can inspect a reporter’s kitchen read-only; an end user cannot', async ({
+  page,
+}) => {
+  // Give user-a something to look at, through the real inventory API as that user.
+  const created = await page.request.post('/api/v1/inventory', {
+    data: {
+      name: 'Support Spinach',
+      quantity: 1,
+      unit: 'bunch',
+      category: 'Produce',
+      location: 'fridge',
+    },
+    headers: AS_USER_A,
+  });
+  expect(created.status()).toBeLessThan(300);
+
+  // Administrator sees it…
+  const asAdmin = await page.request.get('/api/v1/admin/users/user-a/data', { headers: AS_ADMIN });
+  expect(asAdmin.status()).toBe(200);
+  const body = (await asAdmin.json()) as {
+    userId: string;
+    inventory: Array<{ name: string }>;
+  };
+  expect(body.userId).toBe('user-a');
+  expect(body.inventory.some((i) => i.name === 'Support Spinach')).toBe(true);
+
+  // …an ordinary user does not, even for their OWN id — this surface is admin-only,
+  // and `001` FR-036 already gives them their data through the normal endpoints.
+  const asUser = await page.request.get('/api/v1/admin/users/user-a/data', { headers: AS_USER_A });
+  expect(asUser.status()).toBe(403);
+
+  // The route offers no write verb at all (FR-AD-015) — read-only by absence.
+  const write = await page.request.delete('/api/v1/admin/users/user-a/data', { headers: AS_ADMIN });
+  expect(write.status()).toBe(405);
+});

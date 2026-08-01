@@ -81,6 +81,27 @@ export async function fetchAuditLog(subjectUserId?: string): Promise<AuditEntry[
   return data.entries;
 }
 
+export interface UserSupportView {
+  userId: string;
+  counts: { inventoryItems: number; mealPlans: number; groceryLists: number };
+  inventory: Array<{
+    _id: string;
+    name: string;
+    quantity: number;
+    unit: string;
+    location: string;
+    expirationStatus: string;
+  }>;
+  mealPlans: Array<{ _id: string; weekStart: string }>;
+  groceryLists: Array<{ _id: string; weekStart: string; items: unknown[] }>;
+}
+
+/** Read-only support view of one user's kitchen (admin-only, FR-AD-015). */
+export async function fetchUserData(userId: string): Promise<UserSupportView> {
+  const res = await apiFetch(`/api/v1/admin/users/${encodeURIComponent(userId)}/data`);
+  return (await ensureOk(res, 'load that user\u2019s data').json()) as UserSupportView;
+}
+
 /** Promote a report into the development pipeline (admin-only, FR-AD-010). */
 export async function promoteFeedback(id: string): Promise<void> {
   const res = await apiFetch(`/api/v1/feedback/${id}/promote`, { method: 'POST' });

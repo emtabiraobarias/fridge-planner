@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useIsAdmin } from '../hooks/useIsAdmin';
 import { FeedbackTriageList } from '../components/admin/FeedbackTriageList';
+import { UserDataPanel } from '../components/admin/UserDataPanel';
 import {
   fetchAdminFeedback,
   promoteFeedback,
@@ -34,6 +35,7 @@ export function AdminPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [supportUserId, setSupportUserId] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -111,10 +113,16 @@ export function AdminPage(): React.JSX.Element {
             rows={rows}
             busyId={busyId}
             onPromote={(id) => void handlePromote(id)}
-            onSelect={() => undefined}
+            onSelect={(id) => setSupportUserId(rows.find((r) => r._id === id)?.userId ?? null)}
           />
         )}
       </div>
+
+      {/* US3: open the reporter's kitchen read-only, so "my grocery list is wrong"
+          can actually be investigated instead of guessed at (FR-AD-015). */}
+      {supportUserId && (
+        <UserDataPanel userId={supportUserId} onClose={() => setSupportUserId(null)} />
+      )}
     </main>
   );
 }

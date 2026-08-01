@@ -50,9 +50,11 @@ const adminAudit = await import('../../app/api/v1/admin/audit/route');
 const promote = await import('../../app/api/v1/feedback/[id]/promote/route');
 const exportRoute = await import('../../app/api/v1/feedback/[id]/export/route');
 const pipelineId = await import('../../app/api/v1/pipeline/[id]/route');
+const adminUserData = await import('../../app/api/v1/admin/users/[userId]/data/route');
 
 const someId = new mongoose.Types.ObjectId().toString();
 const idCtx = { params: Promise.resolve({ id: someId }) };
+const userCtx = { params: Promise.resolve({ userId: 'user-a' }) };
 
 const ROWS: Row[] = [
   // ─── net-new admin surface ───────────────────────────────────────────────
@@ -63,6 +65,11 @@ const ROWS: Row[] = [
     invoke: (r) => adminFeedbackId.GET(r, idCtx),
   },
   { name: 'GET /api/v1/admin/audit', method: 'GET', invoke: (r) => adminAudit.GET(r) },
+  {
+    name: 'GET /api/v1/admin/users/:userId/data',
+    method: 'GET',
+    invoke: (r) => adminUserData.GET(r, userCtx),
+  },
   // ─── shipped maintainer actions that spec 011 put behind the guard ───────
   {
     name: 'POST /api/v1/feedback/:id/promote',
@@ -108,7 +115,7 @@ describe('refusal matrix — every admin-only route (SC-AD-001)', () => {
   it('enumerates at least every admin route the app exposes', () => {
     // A guard on the guard: if this drops to zero the matrix has silently stopped
     // testing anything.
-    expect(ROWS.length).toBeGreaterThanOrEqual(6);
+    expect(ROWS.length).toBeGreaterThanOrEqual(7);
   });
 
   it.each(ROWS.map((r) => [r.name, r] as const))(

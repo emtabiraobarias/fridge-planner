@@ -60,10 +60,25 @@ describe('authenticatePrincipal — dev seam (FR-AD-001, D2)', () => {
 });
 
 describe('AUTH_DEV_ROLES — the browser-testing seam (dev only)', () => {
-  it('supplies default roles when no header is present', async () => {
+  it('supplies default identity AND roles for a headerless request (the browser case)', async () => {
+    process.env['AUTH_DEV_ROLES'] = 'admin';
+    process.env['AUTH_DEV_USER_ID'] = 'demo-admin';
+    const { authenticatePrincipal } = await import('@server/auth');
+    const p = await authenticatePrincipal(req());
+    expect(p.userId).toBe('demo-admin');
+    expect(p.isAdmin).toBe(true);
+  });
+
+  // The narrowness matters: `.env.local` is loaded by `next start` too, so a broader
+  // fallback silently promoted every header-identified E2E request to administrator
+  // and made the suite's refusal assertions pass for the wrong reason.
+  it('does NOT apply to a caller that identifies itself by header', async () => {
     process.env['AUTH_DEV_ROLES'] = 'admin';
     const { authenticatePrincipal } = await import('@server/auth');
-    expect((await authenticatePrincipal(req({ 'x-user-id': 'me' }))).isAdmin).toBe(true);
+    const p = await authenticatePrincipal(req({ 'x-user-id': 'user-a' }));
+    expect(p.userId).toBe('user-a');
+    expect(p.roles).toEqual([]);
+    expect(p.isAdmin).toBe(false);
   });
 
   // An EXPLICIT header always wins, so a test or script can still drive an ordinary

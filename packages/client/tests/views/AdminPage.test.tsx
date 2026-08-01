@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AdminPage } from '../../src/views/AdminPage';
@@ -119,5 +119,59 @@ describe('AdminPage — report content is inert (FR-AD-014)', () => {
     // React escapes by construction and this tree has no dangerouslySetInnerHTML —
     // the payload is displayed, never interpreted.
     expect(container.querySelector('img')).toBeNull();
+  });
+});
+
+describe('AdminPage — read-only support view (spec 011 US3, FR-AD-015)', () => {
+  const mockFetchUserData = vi.mocked(adminService.fetchUserData);
+
+  beforeEach(() => {
+    mockFetchUserData.mockResolvedValue({
+      userId: 'user-a',
+      counts: { inventoryItems: 1, mealPlans: 0, groceryLists: 1 },
+      inventory: [
+        {
+          _id: 'i1',
+          name: 'Spinach',
+          quantity: 1,
+          unit: 'bunch',
+          location: 'fridge',
+          expirationStatus: 'expiring-soon',
+        },
+      ],
+      mealPlans: [],
+      groceryLists: [{ _id: 'g1', weekStart: '2026-08-03T00:00:00.000Z', items: [] }],
+    });
+  });
+
+  it('opens the reporter’s kitchen when their report is selected', async () => {
+    render(<AdminPage />);
+    await userEvent.click(await screen.findByText('Grocery count wrong'));
+
+    expect(await screen.findByLabelText(/support view for user-a/i)).toBeInTheDocument();
+    expect(mockFetchUserData).toHaveBeenCalledWith('user-a');
+    expect(screen.getByText(/Spinach/)).toBeInTheDocument();
+  });
+
+  // The whole point of US3 is investigation, not intervention — this panel must offer
+  // no way to change another user's data (FR-AD-015).
+  it('offers no mutating control anywhere in the panel', async () => {
+    render(<AdminPage />);
+    await userEvent.click(await screen.findByText('Grocery count wrong'));
+    const panel = await screen.findByLabelText(/support view for user-a/i);
+
+    // The only button is Close.
+    const buttons = within(panel).getAllByRole('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAccessibleName(/close/i);
+    expect(within(panel).queryAllByRole('textbox')).toHaveLength(0);
+    expect(within(panel).queryAllByRole('spinbutton')).toHaveLength(0);
+  });
+
+  it('surfaces a load failure instead of rendering a blank panel', async () => {
+    mockFetchUserData.mockRejectedValue(new Error('Forbidden'));
+    render(<AdminPage />);
+    await userEvent.click(await screen.findByText('Grocery count wrong'));
+    expect(await screen.findByText(/could not load that user/i)).toBeInTheDocument();
   });
 });
