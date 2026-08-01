@@ -34,6 +34,9 @@ export interface ITransitionLogEntry {
   from: PipelineStage | null; // null only on the seed (promotion) entry
   to: PipelineStage;
   actor: TransitionActor; // audit label, not an identity/permission (D6)
+  actorUserId?: string; // spec 011 FR-AD-012: WHICH administrator acted — an
+  // approval must evidence who approved, not merely that approval occurred.
+  // Optional: pre-011 entries predate it.
   at: Date;
   isGateApproval: boolean; // set by the endpoint from the action verb — never client-forgeable (D3)
   note?: string;
@@ -73,9 +76,21 @@ const actorSchema = z.enum(TRANSITION_ACTORS);
 const artifactTypeSchema = z.enum(ARTIFACT_TYPES);
 
 export const transitionRequestSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('advance'), actor: actorSchema.optional(), note: z.string().max(500).optional() }),
-  z.object({ action: z.literal('approve-spec'), actor: actorSchema.optional(), note: z.string().max(500).optional() }),
-  z.object({ action: z.literal('approve-release'), actor: actorSchema.optional(), note: z.string().max(500).optional() }),
+  z.object({
+    action: z.literal('advance'),
+    actor: actorSchema.optional(),
+    note: z.string().max(500).optional(),
+  }),
+  z.object({
+    action: z.literal('approve-spec'),
+    actor: actorSchema.optional(),
+    note: z.string().max(500).optional(),
+  }),
+  z.object({
+    action: z.literal('approve-release'),
+    actor: actorSchema.optional(),
+    note: z.string().max(500).optional(),
+  }),
   z.object({ action: z.literal('park'), reason: z.string().max(500).optional() }),
   z.object({ action: z.literal('reopen') }),
   z.object({

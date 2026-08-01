@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectDb } from '@server/db';
-import { authenticate } from '@server/auth';
+import { requirePrincipalAdmin } from '@server/admin-guard';
 import { exportFeedback } from '@server/controllers/feedback';
 import { withRoute } from '@server/route-helpers';
 
@@ -12,7 +12,9 @@ export async function GET(request: Request, ctx: RouteContext): Promise<NextResp
   return withRoute(async () => {
     await connectDb();
     const { id } = await ctx.params;
-    const result = await exportFeedback(await authenticate(request), id);
+    // Spec 011 FR-AD-013: export produces a maintainer artifact — administrator-only.
+    const { userId } = await requirePrincipalAdmin(request);
+    const result = await exportFeedback(userId, id);
     // Success → raw markdown; errors → Problem JSON.
     if (result.status === 200) {
       return new NextResponse(result.body as string, {

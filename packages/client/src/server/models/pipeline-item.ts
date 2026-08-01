@@ -10,6 +10,7 @@ const transitionLogEntrySchema = new Schema<ITransitionLogEntry>(
     from: { type: String, enum: PIPELINE_STAGES, default: null },
     to: { type: String, required: true, enum: PIPELINE_STAGES },
     actor: { type: String, required: true, enum: TRANSITION_ACTORS },
+    actorUserId: { type: String },
     at: { type: Date, required: true, default: Date.now },
     isGateApproval: { type: Boolean, required: true, default: false },
     note: { type: String },
