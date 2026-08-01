@@ -15,9 +15,9 @@
 
 **Purpose**: Establish the baseline and — critically — **prove the role claim exists before building on it**. The whole feature is inert if Keycloak does not issue the claim (plan.md Risks).
 
-- [ ] T001 Run `npm run lint && npm test` at repo root; record the baseline (expect **797 unit / 76 files green, 0 lint warnings**) in `specs/011-admin-capabilities/quickstart.md` verification log
-- [ ] T002 ⚠️ **BLOCKING SPIKE — do not build on an unverified claim.** With `AUTH_MODE=oidc` against the local/LAN Keycloak, obtain an access token for the operator and dump the **verified** payload (a throwaway script or a temporary `console.warn` in `authenticate()`); record in the quickstart log: the exact claim path holding roles (expect `realm_access.roles`), the exact role string, and whether the app's client is in the token `aud`. If the role is absent, **stop and complete the manual Keycloak steps** (see "Manual steps" at the bottom of this file) before T003
-- [ ] T003 Review the seams the plan names so later tasks don't reinvent them: `authenticate()` (`packages/client/src/server/auth.ts:51-74`) and its **23** route-file callers, `resolveMode()`'s two-flag production guard (`:24-38`, the guarantee FR-AD-004 inherits), `withRoute()`'s single `AuthError`→401 branch (`route-helpers.ts:24-34`), `promoteFromFeedback()`'s `promotedBy` write (`controllers/pipeline.ts:150-158`), and the six `userId`-keyed models (data-model.md purge table) — note in the quickstart log which task consumes each
+- [x] T001 Run `npm run lint && npm test` at repo root; record the baseline (expect **797 unit / 76 files green, 0 lint warnings**) in `specs/011-admin-capabilities/quickstart.md` verification log
+- [ ] T002 ⚠️ **BLOCKING SPIKE — DEFERRED by user decision 2026-08-01: built claim-agnostic instead (AUTH_ROLES_CLAIM configurable, default `realm_access.roles`), so a different claim layout is config not code. STILL REQUIRED before the feature does anything in production.** — do not build on an unverified claim.** With `AUTH_MODE=oidc` against the local/LAN Keycloak, obtain an access token for the operator and dump the **verified** payload (a throwaway script or a temporary `console.warn` in `authenticate()`); record in the quickstart log: the exact claim path holding roles (expect `realm_access.roles`), the exact role string, and whether the app's client is in the token `aud`. If the role is absent, **stop and complete the manual Keycloak steps** (see "Manual steps" at the bottom of this file) before T003
+- [x] T003 Review the seams the plan names so later tasks don't reinvent them: `authenticate()` (`packages/client/src/server/auth.ts:51-74`) and its **23** route-file callers, `resolveMode()`'s two-flag production guard (`:24-38`, the guarantee FR-AD-004 inherits), `withRoute()`'s single `AuthError`→401 branch (`route-helpers.ts:24-34`), `promoteFromFeedback()`'s `promotedBy` write (`controllers/pipeline.ts:150-158`), and the six `userId`-keyed models (data-model.md purge table) — note in the quickstart log which task consumes each
 
 ---
 
@@ -25,16 +25,16 @@
 
 **Purpose**: The `Principal` seam, roles, 403, and the admin guard. Ends with **no behaviour change** — nothing calls the guard yet.
 
-- [ ] T004 [P] Add failing `packages/client/tests/server/unit/auth-principal.test.ts`: `authenticatePrincipal()` returns `{userId, roles, isAdmin}`; `isAdmin` true only when `roles` contains `AUTH_ADMIN_ROLE` (default `admin`); roles read from `AUTH_ROLES_CLAIM` (default `realm_access.roles`) and from a **custom** dotted path when set; missing/malformed claim ⇒ `roles: []`, `isAdmin: false` (never a throw) — FR-AD-001 (D2)
-- [ ] T005 [P] Add failing `packages/client/tests/server/unit/auth-principal-devseam.test.ts`: in `dev` mode `X-User-Roles: admin` yields `isAdmin`; **in production** (`NODE_ENV=production`, no `AUTH_ALLOW_DEV`) `resolveMode()` throws so the header **cannot** confer admin — FR-AD-004 (D2). Assert the throw comes from the existing guard, not a new check
-- [ ] T006 Add `Principal` + `authenticatePrincipal()` to `packages/client/src/server/auth.ts`, and reduce `authenticate()` to `return (await authenticatePrincipal(request)).userId` — **do not change its signature**; all 23 callers stay untouched (D1). Read roles on both branches of `resolveMode()`; extract via a small dotted-path helper. T004/T005 pass
-- [ ] T007 [P] Add `ForbiddenError` to `packages/client/src/server/auth-errors.ts` (mirroring `AuthError`, `status = 403`)
-- [ ] T008 Add the `ForbiddenError` → `problemResponse(403, 'Forbidden', …)` branch to `withRoute()` in `packages/client/src/server/route-helpers.ts` — placed **before** the generic 500 catch (D3)
-- [ ] T009 [P] Add failing `packages/client/tests/server/unit/admin-guard.test.ts`: `requirePrincipalAdmin()` returns the principal for an admin, throws `ForbiddenError` for an authenticated non-admin, and throws `AuthError` when unauthenticated — so 401 and 403 stay distinguishable (FR-AD-003)
-- [ ] T010 Add `packages/client/src/server/admin-guard.ts` exporting `requirePrincipalAdmin(request): Promise<Principal>` (`import 'server-only'`). T009 passes
-- [ ] T011 [P] Add the **refusal-matrix harness** `packages/client/tests/server/admin-authorization.test.ts`: a table of `{path, method, invoke}` — empty for now with a guard test asserting the table is non-empty once admin routes exist — that every later phase appends to. This table is the evidence for **SC-AD-001** (D12)
-- [ ] T012 [P] Document `AUTH_ADMIN_ROLE` and `AUTH_ROLES_CLAIM` in `.env.example` (defaults + "optional; defaults suit Keycloak realm roles")
-- [ ] T013 Run `npm run lint && npm test` — green, and **no existing test changed** (proof the seam is non-breaking, D1)
+- [x] T004 [P] Add failing `packages/client/tests/server/unit/auth-principal.test.ts`: `authenticatePrincipal()` returns `{userId, roles, isAdmin}`; `isAdmin` true only when `roles` contains `AUTH_ADMIN_ROLE` (default `admin`); roles read from `AUTH_ROLES_CLAIM` (default `realm_access.roles`) and from a **custom** dotted path when set; missing/malformed claim ⇒ `roles: []`, `isAdmin: false` (never a throw) — FR-AD-001 (D2)
+- [x] T005 [P] Add failing `packages/client/tests/server/unit/auth-principal-devseam.test.ts`: in `dev` mode `X-User-Roles: admin` yields `isAdmin`; **in production** (`NODE_ENV=production`, no `AUTH_ALLOW_DEV`) `resolveMode()` throws so the header **cannot** confer admin — FR-AD-004 (D2). Assert the throw comes from the existing guard, not a new check
+- [x] T006 Add `Principal` + `authenticatePrincipal()` to `packages/client/src/server/auth.ts`, and reduce `authenticate()` to `return (await authenticatePrincipal(request)).userId` — **do not change its signature**; all 23 callers stay untouched (D1). Read roles on both branches of `resolveMode()`; extract via a small dotted-path helper. T004/T005 pass
+- [x] T007 [P] Add `ForbiddenError` to `packages/client/src/server/auth-errors.ts` (mirroring `AuthError`, `status = 403`)
+- [x] T008 Add the `ForbiddenError` → `problemResponse(403, 'Forbidden', …)` branch to `withRoute()` in `packages/client/src/server/route-helpers.ts` — placed **before** the generic 500 catch (D3)
+- [x] T009 [P] Add failing `packages/client/tests/server/unit/admin-guard.test.ts`: `requirePrincipalAdmin()` returns the principal for an admin, throws `ForbiddenError` for an authenticated non-admin, and throws `AuthError` when unauthenticated — so 401 and 403 stay distinguishable (FR-AD-003)
+- [x] T010 Add `packages/client/src/server/admin-guard.ts` exporting `requirePrincipalAdmin(request): Promise<Principal>` (`import 'server-only'`). T009 passes
+- [~] T011 [P] *(partial — per-route 403 refusals are asserted in `pipeline.test.ts`/`feedback.test.ts`; the enumerated table lands with the first `/admin/**` routes in AD2)* Add the **refusal-matrix harness** `packages/client/tests/server/admin-authorization.test.ts`: a table of `{path, method, invoke}` — empty for now with a guard test asserting the table is non-empty once admin routes exist — that every later phase appends to. This table is the evidence for **SC-AD-001** (D12)
+- [x] T012 [P] Document `AUTH_ADMIN_ROLE` and `AUTH_ROLES_CLAIM` in `.env.example` (defaults + "optional; defaults suit Keycloak realm roles")
+- [x] T013 Run `npm run lint && npm test` — green, and **no existing test changed** (proof the seam is non-breaking, D1)
 
 **Checkpoint**: AD0 is shippable alone — new capability, zero behaviour change.
 
@@ -44,16 +44,18 @@
 
 **Purpose**: Close **Defect 1** (self-approval). This is the `003` **bug fix**; tests cite `003`'s FR numbers.
 
-- [ ] T014 [P] [US1] Add failing tests in `packages/client/tests/server/feedback.test.ts`: a non-admin `POST /feedback/:id/promote` returns **403** and the record's pipeline state is unchanged — `it('refuses promotion for a non-admin (FR-AD-010 / FR-F-013)')`
-- [ ] T015 [P] [US1] Add failing tests in `packages/client/tests/server/pipeline.test.ts`: a non-admin `PATCH /pipeline/:id` returns **403** for `advance`, `approve-spec`, `approve-release`, `park`, `reopen`, and the stage does not move — `it('refuses stage transitions for a non-admin (FR-AD-011 / FR-F-016)')`. Include the spec's headline case: **an end user cannot reach `shipped`** (SC-AD-003)
-- [ ] T016 [P] [US1] Add a failing test: non-admin `GET /feedback/:id/export` returns **403** (FR-AD-013)
-- [ ] T017 [P] [US1] Add a failing test: promotion by an admin of **another user's** completed record records `promotedBy` = the **acting admin**, while the pipeline item's `userId` stays the **author's** so the author's own status view still resolves (FR-AD-012, data-model.md)
-- [ ] T018 [US1] Add `requirePrincipalAdmin()` to `packages/client/app/api/v1/feedback/[id]/promote/route.ts`, `…/feedback/[id]/export/route.ts`, and `…/pipeline/[id]/route.ts` — guard **in place**, no shape change, no relocation (D5)
-- [ ] T019 [US1] Change `promoteFromFeedback()` in `packages/client/src/server/controllers/pipeline.ts` to take the acting admin id and write it to `promotedBy` (`:150-158`), leaving the item's `userId` as the record author's. Drop the `{ _id, userId }` scoping on the **admin** lookup of the source record so any user's record is promotable (FR-AD-009 precursor); keep every other guard intact
-- [ ] T020 [US1] Record the acting administrator on gate approvals in the transition log entry (today `actor` carries only `'human' | 'session'`) — FR-AD-012
-- [ ] T021 [US1] Append the three guarded routes to the T011 refusal matrix
-- [ ] T022 [P] [US1] Add a failing client test: a **403** response does **not** trigger `services/http.ts`'s FR-D-010 refresh-and-retry (only 401 does) — the regression D3 exists to prevent
+- [x] T014 [P] [US1] Add failing tests in `packages/client/tests/server/feedback.test.ts`: a non-admin `POST /feedback/:id/promote` returns **403** and the record's pipeline state is unchanged — `it('refuses promotion for a non-admin (FR-AD-010 / FR-F-013)')`
+- [x] T015 [P] [US1] Add failing tests in `packages/client/tests/server/pipeline.test.ts`: a non-admin `PATCH /pipeline/:id` returns **403** for `advance`, `approve-spec`, `approve-release`, `park`, `reopen`, and the stage does not move — `it('refuses stage transitions for a non-admin (FR-AD-011 / FR-F-016)')`. Include the spec's headline case: **an end user cannot reach `shipped`** (SC-AD-003)
+- [x] T016 [P] [US1] Add a failing test: non-admin `GET /feedback/:id/export` returns **403** (FR-AD-013)
+- [x] T017 [P] [US1] Add a failing test: promotion by an admin of **another user's** completed record records `promotedBy` = the **acting admin**, while the pipeline item's `userId` stays the **author's** so the author's own status view still resolves (FR-AD-012, data-model.md)
+- [x] T018 [US1] Add `requirePrincipalAdmin()` to `packages/client/app/api/v1/feedback/[id]/promote/route.ts`, `…/feedback/[id]/export/route.ts`, and `…/pipeline/[id]/route.ts` — guard **in place**, no shape change, no relocation (D5)
+- [x] T019 [US1] Change `promoteFromFeedback()` in `packages/client/src/server/controllers/pipeline.ts` to take the acting admin id and write it to `promotedBy` (`:150-158`), leaving the item's `userId` as the record author's. Drop the `{ _id, userId }` scoping on the **admin** lookup of the source record so any user's record is promotable (FR-AD-009 precursor); keep every other guard intact
+- [x] T020 [US1] Record the acting administrator on gate approvals in the transition log entry (today `actor` carries only `'human' | 'session'`) — FR-AD-012
+- [~] T021 [US1] *(covered per-route; folds into the table in AD2)* Append the three guarded routes to the T011 refusal matrix
+- [x] T022 [P] [US1] Add a failing client test: a **403** response does **not** trigger `services/http.ts`'s FR-D-010 refresh-and-retry (only 401 does) — the regression D3 exists to prevent
 ### Invariants — the requirements that assert nothing *else* changed
+
+> **Status 2026-08-01**: still open. AD0+AD1 shipped the enforcement; these four assert that *nothing else* moved and are the first tasks of the next pass.
 
 *(Added by `/speckit.analyze`: FR-AD-002/005/006/007 are non-regression guarantees that had no explicit task. They are cheap to assert and expensive to discover broken.)*
 
@@ -61,7 +63,7 @@
 - [ ] T023b [P] [US1] Add a failing test asserting an **administrator's ordinary experience is unchanged** (FR-AD-005): with an admin principal, inventory/meal-plan/grocery/own-feedback requests return exactly what the same requests return for a non-admin — admin capability is strictly additive, never a different app
 - [ ] T023c [P] [US1] Add a failing test asserting the system **never fails open when no administrator exists** (FR-AD-006): with zero admin-role holders, every end-user route still works **and** every admin-only route returns 403 — the "everyone is admin" default this whole spec exists to remove
 - [ ] T023d [P] [US1] Add a failing test asserting **end-user feedback is untouched** (FR-AD-007/008): submission, conversation, own-list, and own-delete behave exactly as before the guard, including the existing pipeline-protected delete refusal
-- [ ] T023 [US1] Run `npm run lint && npm test` — green
+- [x] T023 [US1] Run `npm run lint && npm test` — green
 
 **Checkpoint**: 🎯 **Recommended first release with AD0.** The privilege hole is closed; no UI required.
 
