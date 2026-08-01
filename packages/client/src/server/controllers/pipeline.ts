@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { FeedbackRecord } from '../models/feedback-record';
 import { PipelineItem } from '../models/pipeline-item';
 import { assertPromotable, isGateAction, nextStage } from '../lib/pipeline-transitions';
+import { record as auditRecord } from '../lib/audit';
 import { problem, type ControllerResult } from '../http';
 import {
   pipelineListQuerySchema,
@@ -120,6 +121,11 @@ async function applyStageTransition(
       'Pipeline item changed concurrently; retry the transition.',
     );
   }
+  await auditRecord(adminUserId, 'pipeline.transition', {
+    userId: updated.userId,
+    type: 'pipelineItem',
+    id,
+  });
   return { status: 200, body: { pipelineItem: serialize(updated) } };
 }
 
@@ -190,6 +196,11 @@ export async function promoteFromFeedback(
     });
     record.status = 'reviewed';
     await record.save();
+    await auditRecord(adminUserId, 'feedback.promote', {
+      userId: ownerId,
+      type: 'feedback',
+      id: feedbackId,
+    });
     return { status: 201, body: { pipelineItem: serialize(created) } };
   } catch (err) {
     // Concurrent double-promote race backstop: the unique (userId, feedbackRecordId)
