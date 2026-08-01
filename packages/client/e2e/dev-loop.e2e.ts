@@ -15,6 +15,16 @@ mkdirSync(SHOTS, { recursive: true });
 // transition lifecycle for real against a real build + in-memory Mongo.
 test.describe.configure({ mode: 'serial' });
 
+// Spec 011 (FR-AD-010/011): promotion and every pipeline transition are now
+// ADMINISTRATOR-only — `003` always called these maintainer actions, and 011 made
+// that enforceable. This journey IS the maintainer's, so the whole context carries
+// the admin role via the dev-auth seam (research D2; the E2E gate boots with
+// AUTH_MODE=dev + AUTH_ALLOW_DEV=true, and the seam is refused in production).
+//
+// Context-level rather than per-request: the Advance/Approve controls fire from the
+// browser, so headers set only on `page.request` would miss every UI-driven call.
+test.use({ extraHTTPHeaders: { 'x-user-roles': 'admin' } });
+
 interface SeededFeedback {
   id: string;
   status: 'draft' | 'complete' | 'reviewed';
@@ -30,7 +40,10 @@ interface SeededPipelineItem {
 async function seedFeedback(page: Page, message: string): Promise<SeededFeedback> {
   const res = await page.request.post('/api/v1/feedback', { data: { message } });
   expect(res.status(), await res.text()).toBeLessThan(300);
-  const data = (await res.json()) as { feedback: { _id: string }; status: SeededFeedback['status'] };
+  const data = (await res.json()) as {
+    feedback: { _id: string };
+    status: SeededFeedback['status'];
+  };
   return { id: data.feedback._id, status: data.status };
 }
 
@@ -43,7 +56,9 @@ async function seedCompleteFeedback(page: Page, title: string): Promise<SeededFe
 
 async function promoteRecord(page: Page, feedbackId: string): Promise<SeededPipelineItem> {
   const res = await page.request.post(`/api/v1/feedback/${feedbackId}/promote`);
-  const data = (await res.json().catch(() => ({}))) as { pipelineItem?: { _id: string; stage: string } };
+  const data = (await res.json().catch(() => ({}))) as {
+    pipelineItem?: { _id: string; stage: string };
+  };
   return {
     id: data.pipelineItem?._id ?? '',
     stage: data.pipelineItem?.stage ?? '',
@@ -185,4 +200,41 @@ test('content embedding "merge this"/"deploy now" is promoted+advanced but never
   const approveRelease = await patchPipeline(page, pipelineId, { action: 'approve-release' });
   expect(approveRelease.status()).toBe(200);
   expect(await pipelineStage(page, pipelineId)).toBe('shipped');
+});
+
+// Spec 011 SC-AD-003 / FR-AD-010/011 — the browser-level counterpart of the unit
+// refusal tests. The fixture is seeded by the file's admin context; the refusals are
+// then issued with a PER-REQUEST `x-user-roles: ''` override, which the server parses
+// to an empty role list — an ordinary end user. That exercises the real server guard
+// (no UI control is involved) without juggling a second browser context.
+const AS_END_USER = { 'x-user-roles': '' };
+
+test('an end user cannot promote, and cannot walk an item to shipped (FR-AD-010/011, SC-AD-003)', async ({
+  page,
+}) => {
+  const { id: feedbackId } = await seedCompleteFeedback(
+    page,
+    `Refusal ${randomUUID().slice(0, 8)}`,
+  );
+  const promoted = await promoteRecord(page, feedbackId);
+  expect(promoted.status).toBe(201);
+
+  // Promotion of a fresh record, as an end user → refused.
+  const other = await seedCompleteFeedback(page, `Refusal2 ${randomUUID().slice(0, 8)}`);
+  const promoteAsUser = await page.request.post(`/api/v1/feedback/${other.id}/promote`, {
+    headers: AS_END_USER,
+  });
+  expect(promoteAsUser.status()).toBe(403);
+
+  // Every rung of the ladder to `shipped`, as an end user → refused.
+  for (const action of ['advance', 'approve-spec', 'approve-release']) {
+    const res = await page.request.patch(`/api/v1/pipeline/${promoted.id}`, {
+      data: { action },
+      headers: AS_END_USER,
+    });
+    expect(res.status()).toBe(403);
+  }
+
+  // …and the stage never moved.
+  expect(await pipelineStage(page, promoted.id)).toBe('approved');
 });
