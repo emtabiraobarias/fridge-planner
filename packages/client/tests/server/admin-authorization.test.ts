@@ -28,10 +28,22 @@ interface Row {
 
 process.env['AUTH_MODE'] = 'dev';
 
-// ⚠️ The table is built at MODULE scope, with top-level await — NOT in `beforeAll`.
-// `it.each` expands at collection time, so a table populated in a hook is still empty
-// when the cases are registered and the matrix silently tests nothing. (That happened
-// on the first draft of this file and is exactly the regression it exists to catch.)
+// ⚠️ TWO ordering constraints collide here; both are load-bearing.
+//
+// 1. The table must be built at MODULE scope with top-level await, NOT in `beforeAll`:
+//    `it.each` expands at collection time, so a table filled by a hook is still empty
+//    when cases are registered and the matrix silently tests NOTHING. (First draft of
+//    this file registered 0 cases for exactly that reason.)
+//
+// 2. …but `src/server/db.ts` reads `MONGODB_URI` at MODULE scope (`db.ts:4`), so those
+//    same module-scope imports freeze whatever the env says at that instant. Setting
+//    the URI in `beforeAll` is therefore too late — the routes would already be bound
+//    to the default localhost:27017 and fail with ECONNREFUSED on CI.
+//
+// So the memory server is started here, at module scope, BEFORE the route imports.
+mongod = await MongoMemoryServer.create();
+process.env['MONGODB_URI'] = mongod.getUri();
+
 const adminFeedback = await import('../../app/api/v1/admin/feedback/route');
 const adminFeedbackId = await import('../../app/api/v1/admin/feedback/[id]/route');
 const adminAudit = await import('../../app/api/v1/admin/audit/route');
@@ -70,8 +82,6 @@ const ROWS: Row[] = [
 ];
 
 beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
-  process.env['MONGODB_URI'] = mongod.getUri();
   await (await import('@server/db')).connectDb();
 });
 
