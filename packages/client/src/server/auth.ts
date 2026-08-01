@@ -1,4 +1,5 @@
 import 'server-only';
+import mongoose from 'mongoose';
 import { jwtVerify, createRemoteJWKSet, type JWTVerifyGetKey } from 'jose';
 import { AuthError } from './auth-errors';
 
@@ -133,8 +134,32 @@ function devPrincipal(request: Request): Principal {
   return principal(userId, roles);
 }
 
+/**
+ * Spec 011 FR-AD-018: an erased account is refused HERE, at the single seam every
+ * authenticated request passes through — so no controller can forget it, and the
+ * refusal covers the user's own access and every administrator surface at once.
+ *
+ * Fails OPEN on a lookup error: a database blip must not lock every user out. The
+ * window this leaves is bounded and strictly better than the alternative.
+ */
+async function refuseIfErased(userId: string): Promise<void> {
+  if (mongoose.connection.readyState !== 1) return;
+  try {
+    const { AccountErasure } = await import('./models/account-erasure');
+    const erased = await AccountErasure.findOne({ userId, restoredAt: null }).lean();
+    if (erased) throw new AuthError('This account has been removed');
+  } catch (err) {
+    if (err instanceof AuthError) throw err;
+    console.error('[auth] erasure check failed (failing open)', err);
+  }
+}
+
 export async function authenticatePrincipal(request: Request): Promise<Principal> {
-  if (resolveMode() === 'dev') return devPrincipal(request);
+  if (resolveMode() === 'dev') {
+    const devP = devPrincipal(request);
+    await refuseIfErased(devP.userId);
+    return devP;
+  }
 
   const token = bearerToken(request);
   if (!token) throw new AuthError('Missing bearer token');
@@ -151,6 +176,7 @@ export async function authenticatePrincipal(request: Request): Promise<Principal
   try {
     const { payload } = await jwtVerify(token, jwks(), options);
     if (!payload.sub) throw new AuthError('Token has no subject');
+    await refuseIfErased(payload.sub);
     return principal(payload.sub, rolesFromPayload(payload));
   } catch (err) {
     if (err instanceof AuthError) throw err;

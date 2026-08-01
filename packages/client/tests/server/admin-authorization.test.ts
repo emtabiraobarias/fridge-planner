@@ -56,6 +56,10 @@ const adminUsage = await import('../../app/api/v1/admin/usage/route');
 const adminCache = await import('../../app/api/v1/admin/cache/route');
 const adminLimits = await import('../../app/api/v1/admin/limits/route');
 const adminLimitKey = await import('../../app/api/v1/admin/limits/[key]/route');
+const adminExport = await import('../../app/api/v1/admin/users/[userId]/export/route');
+const adminErase = await import('../../app/api/v1/admin/users/[userId]/erase/route');
+const adminRestore = await import('../../app/api/v1/admin/users/[userId]/restore/route');
+const adminPurge = await import('../../app/api/v1/admin/users/purge/route');
 
 const someId = new mongoose.Types.ObjectId().toString();
 const idCtx = { params: Promise.resolve({ id: someId }) };
@@ -90,6 +94,22 @@ const ROWS: Row[] = [
     method: 'DELETE',
     invoke: (r) => adminLimitKey.DELETE(r, keyCtx),
   },
+  {
+    name: 'GET /api/v1/admin/users/:userId/export',
+    method: 'GET',
+    invoke: (r) => adminExport.GET(r, userCtx),
+  },
+  {
+    name: 'POST /api/v1/admin/users/:userId/erase',
+    method: 'POST',
+    invoke: (r) => adminErase.POST(r, userCtx),
+  },
+  {
+    name: 'POST /api/v1/admin/users/:userId/restore',
+    method: 'POST',
+    invoke: (r) => adminRestore.POST(r, userCtx),
+  },
+  { name: 'POST /api/v1/admin/users/purge', method: 'POST', invoke: (r) => adminPurge.POST(r) },
   // ─── shipped maintainer actions that spec 011 put behind the guard ───────
   {
     name: 'POST /api/v1/feedback/:id/promote',
@@ -135,7 +155,7 @@ describe('refusal matrix — every admin-only route (SC-AD-001)', () => {
   it('enumerates at least every admin route the app exposes', () => {
     // A guard on the guard: if this drops to zero the matrix has silently stopped
     // testing anything.
-    expect(ROWS.length).toBeGreaterThanOrEqual(13);
+    expect(ROWS.length).toBeGreaterThanOrEqual(17);
   });
 
   it.each(ROWS.map((r) => [r.name, r] as const))(

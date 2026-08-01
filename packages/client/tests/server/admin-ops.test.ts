@@ -190,8 +190,15 @@ describe('AI kill switch (FR-AD-026) + usage counting (FR-AD-027)', () => {
     const { aiAllowed } = await import('@server/lib/ai-guard');
 
     expect(await aiAllowed('recommendations')).toBe(true);
-    await new Promise((r) => setTimeout(r, 60)); // the counter write is fire-and-forget
-    const doc = await AiUsageCounter.findOne({ feature: 'recommendations' }).lean();
+
+    // The counter write is deliberately fire-and-forget (accounting must never block a
+    // user request), so POLL for it rather than sleeping a guessed interval — a fixed
+    // 60ms passed alone and failed under full-suite load.
+    let doc = null;
+    for (let i = 0; i < 50 && !doc; i++) {
+      doc = await AiUsageCounter.findOne({ feature: 'recommendations' }).lean();
+      if (!doc) await new Promise((r) => setTimeout(r, 20));
+    }
     expect(doc?.calls).toBeGreaterThanOrEqual(1);
   });
 

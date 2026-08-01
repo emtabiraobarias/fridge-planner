@@ -118,15 +118,15 @@
 
 ## Phase 7: US6 — AD5 account export & two-phase erasure
 
-- [ ] T052 [P] [US6] Add failing `packages/client/tests/server/admin-accounts.test.ts` (export): the export contains data from **all six** `userId`-keyed collections (FR-AD-017, data-model.md table)
-- [ ] T053 [P] [US6] Add failing erasure tests: after `POST …/erase` the user is refused **at the principal seam** and disappears from every admin surface including the support view (FR-AD-018); `restore` inside the window returns everything intact (FR-AD-019); after the window `restore` returns **410 Gone**, never a silent success (FR-AD-019); erasing the **last administrator** is refused (FR-AD-020)
-- [ ] T054 [P] [US6] Add a failing purge test: after purge, **zero** documents keyed to that user across all six collections (FR-AD-018 "no orphans"), **and** the erasure's audit entry **survives** (FR-AD-023 margin)
-- [ ] T055 [US6] Add `models/account-erasure.ts` (unique `userId`, indexed `purgeAfter`) per data-model.md
-- [ ] T056 [US6] Enforce active-erasure refusal **inside `authenticatePrincipal()`** so no controller can forget it (D7) — one indexed lookup, cached per request
-- [ ] T057 [US6] Add `src/server/lib/account-purge.ts` — the six-collection table as **one tested constant** iterated once (keeps complexity ≤10), returning per-collection deleted counts
-- [ ] T058 [US6] Add `controllers/admin-accounts.ts` + routes `export`, `erase`, `restore`, `users/purge`; run the sweep opportunistically on accounts routes **and** on explicit trigger (no scheduler exists — D7). Rate-limit + audit every one
+- [x] T052 [P] [US6] Add failing `packages/client/tests/server/admin-accounts.test.ts` (export): the export contains data from **all six** `userId`-keyed collections (FR-AD-017, data-model.md table)
+- [x] T053 [P] [US6] Add failing erasure tests: after `POST …/erase` the user is refused **at the principal seam** and disappears from every admin surface including the support view (FR-AD-018); `restore` inside the window returns everything intact (FR-AD-019); after the window `restore` returns **410 Gone**, never a silent success (FR-AD-019); erasing the **last administrator** is refused (FR-AD-020)
+- [x] T054 [P] [US6] Add a failing purge test: after purge, **zero** documents keyed to that user across all six collections (FR-AD-018 "no orphans"), **and** the erasure's audit entry **survives** (FR-AD-023 margin)
+- [x] T055 [US6] Add `models/account-erasure.ts` (unique `userId`, indexed `purgeAfter`) per data-model.md
+- [x] T056 [US6] Enforce active-erasure refusal **inside `authenticatePrincipal()`** so no controller can forget it (D7) — one indexed lookup, cached per request
+- [x] T057 [US6] Add `src/server/lib/account-purge.ts` — the six-collection table as **one tested constant** iterated once (keeps complexity ≤10), returning per-collection deleted counts
+- [x] T058 [US6] Add `controllers/admin-accounts.ts` + routes `export`, `erase`, `restore`, `users/purge`; run the sweep opportunistically on accounts routes **and** on explicit trigger (no scheduler exists — D7). Rate-limit + audit every one
 - [ ] T059 [US6] Add `src/components/admin/AccountsPanel.tsx` with an explicit confirmation on erase (destructive, mirrors `003` FR-F-020's confirmable-delete precedent)
-- [ ] T060 [US6] Append to the refusal matrix; run lint + tests
+- [x] T060 [US6] Append to the refusal matrix; run lint + tests
 
 ---
 
@@ -134,7 +134,7 @@
 
 - [x] T061 [P] [US7] Add failing tests: changing approved recipe domains / popular fallbacks / the recommendations limit takes effect **without a restart**; an invalid value is rejected with the prior value in force (FR-AD-030)
 - [x] T062 [US7] Route `services/recipe-verifier.ts`'s approved-domain list, `lib/popular-recipes.ts`'s fallback set, and the recommendations rate limit through `runtime-settings` **with their current hardcoded values as the code defaults** — so an empty collection is a no-op change
-- [ ] T063 [US7] Add `src/components/admin/SettingsPanel.tsx`; run lint + tests
+- [x] T063 [US7] Add `src/components/admin/SettingsPanel.tsx`; run lint + tests
 
 ---
 
