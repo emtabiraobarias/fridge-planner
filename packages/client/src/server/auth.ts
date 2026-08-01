@@ -97,24 +97,30 @@ function principal(userId: string, roles: string[]): Principal {
  * is therefore *inherited* from that existing guard rather than re-implemented as
  * a second check that could drift out of agreement with it.
  */
+/**
+ * The dev-seam principal. Headers are what tests and scripts drive; the `AUTH_DEV_*`
+ * env vars exist only because a BROWSER cannot set headers, which would otherwise make
+ * every admin screen unreachable in local manual testing.
+ *
+ * An explicit header always wins over the env — including an empty one — so a refusal
+ * test can still drive an ordinary user on a machine whose env defaults to admin.
+ *
+ * Reached only from the `dev` branch below, so it inherits resolveMode()'s two-flag
+ * production refusal (FR-AD-004) rather than re-checking it.
+ */
+function devPrincipal(request: Request): Principal {
+  const rolesHeader = request.headers.get('x-user-roles');
+  const rolesSource = rolesHeader ?? process.env['AUTH_DEV_ROLES'] ?? '';
+  const roles = rolesSource
+    .split(',')
+    .map((r) => r.trim())
+    .filter(Boolean);
+  const userId = request.headers.get('x-user-id') ?? process.env['AUTH_DEV_USER_ID'] ?? 'anonymous';
+  return principal(userId, roles);
+}
+
 export async function authenticatePrincipal(request: Request): Promise<Principal> {
-  if (resolveMode() === 'dev') {
-    // The header is the seam tests and scripts use. A BROWSER cannot set it, so local
-    // manual testing would otherwise always be an unprivileged `anonymous` — unable to
-    // reach any admin screen. `AUTH_DEV_ROLES` supplies a default for that case only.
-    // It is read on this branch alone, so it inherits resolveMode()'s two-flag
-    // production refusal exactly as the identity header does (FR-AD-004): it cannot
-    // grant anything in production, where this code path is unreachable.
-    const header = request.headers.get('x-user-roles');
-    const source = header ?? process.env['AUTH_DEV_ROLES'] ?? '';
-    const roles = source
-      .split(',')
-      .map((r) => r.trim())
-      .filter(Boolean);
-    const userId =
-      request.headers.get('x-user-id') ?? process.env['AUTH_DEV_USER_ID'] ?? 'anonymous';
-    return principal(userId, roles);
-  }
+  if (resolveMode() === 'dev') return devPrincipal(request);
 
   const token = bearerToken(request);
   if (!token) throw new AuthError('Missing bearer token');
