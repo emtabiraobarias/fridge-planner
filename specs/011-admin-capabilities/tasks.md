@@ -32,7 +32,7 @@
 - [x] T008 Add the `ForbiddenError` → `problemResponse(403, 'Forbidden', …)` branch to `withRoute()` in `packages/client/src/server/route-helpers.ts` — placed **before** the generic 500 catch (D3)
 - [x] T009 [P] Add failing `packages/client/tests/server/unit/admin-guard.test.ts`: `requirePrincipalAdmin()` returns the principal for an admin, throws `ForbiddenError` for an authenticated non-admin, and throws `AuthError` when unauthenticated — so 401 and 403 stay distinguishable (FR-AD-003)
 - [x] T010 Add `packages/client/src/server/admin-guard.ts` exporting `requirePrincipalAdmin(request): Promise<Principal>` (`import 'server-only'`). T009 passes
-- [~] T011 [P] *(partial — per-route 403 refusals are asserted in `pipeline.test.ts`/`feedback.test.ts`; the enumerated table lands with the first `/admin/**` routes in AD2)* Add the **refusal-matrix harness** `packages/client/tests/server/admin-authorization.test.ts`: a table of `{path, method, invoke}` — empty for now with a guard test asserting the table is non-empty once admin routes exist — that every later phase appends to. This table is the evidence for **SC-AD-001** (D12)
+- [x] T011 [P] *(partial — per-route 403 refusals are asserted in `pipeline.test.ts`/`feedback.test.ts`; the enumerated table lands with the first `/admin/**` routes in AD2)* Add the **refusal-matrix harness** `packages/client/tests/server/admin-authorization.test.ts`: a table of `{path, method, invoke}` — empty for now with a guard test asserting the table is non-empty once admin routes exist — that every later phase appends to. This table is the evidence for **SC-AD-001** (D12)
 - [x] T012 [P] Document `AUTH_ADMIN_ROLE` and `AUTH_ROLES_CLAIM` in `.env.example` (defaults + "optional; defaults suit Keycloak realm roles")
 - [x] T013 Run `npm run lint && npm test` — green, and **no existing test changed** (proof the seam is non-breaking, D1)
 
@@ -51,7 +51,7 @@
 - [x] T018 [US1] Add `requirePrincipalAdmin()` to `packages/client/app/api/v1/feedback/[id]/promote/route.ts`, `…/feedback/[id]/export/route.ts`, and `…/pipeline/[id]/route.ts` — guard **in place**, no shape change, no relocation (D5)
 - [x] T019 [US1] Change `promoteFromFeedback()` in `packages/client/src/server/controllers/pipeline.ts` to take the acting admin id and write it to `promotedBy` (`:150-158`), leaving the item's `userId` as the record author's. Drop the `{ _id, userId }` scoping on the **admin** lookup of the source record so any user's record is promotable (FR-AD-009 precursor); keep every other guard intact
 - [x] T020 [US1] Record the acting administrator on gate approvals in the transition log entry (today `actor` carries only `'human' | 'session'`) — FR-AD-012
-- [~] T021 [US1] *(covered per-route; folds into the table in AD2)* Append the three guarded routes to the T011 refusal matrix
+- [x] T021 [US1] *(covered per-route; folds into the table in AD2)* Append the three guarded routes to the T011 refusal matrix
 - [x] T022 [P] [US1] Add a failing client test: a **403** response does **not** trigger `services/http.ts`'s FR-D-010 refresh-and-retry (only 401 does) — the regression D3 exists to prevent
 ### Invariants — the requirements that assert nothing *else* changed
 
@@ -73,19 +73,19 @@
 
 **Purpose**: Close **Defect 2**. Audit lands here, **not at its P5 spec priority**, because FR-AD-021 requires the first cross-user read to be recorded (D6).
 
-- [ ] T024 [P] [US5] Add failing `packages/client/tests/server/unit/admin-audit.test.ts`: `record()` writes admin/action/subject/time; `list()` filters by admin, subject, period; **no update or delete export exists** (FR-AD-022); and `AUDIT_TTL_DAYS (90) > ERASURE_WINDOW_DAYS (30)` asserted **from the constants** so editing either fails loudly (FR-AD-023, D6)
-- [ ] T025 [US5] Add `packages/client/src/server/models/admin-audit-log.ts` per data-model.md — TTL index on `at` (`90*24*3600`), compound `(subjectUserId, at)`, hot-reload-guarded like every existing model
-- [ ] T026 [US5] Add `packages/client/src/server/lib/audit.ts` exporting **only** `record()` and `list()`. T024 passes
-- [ ] T027 [P] [US2] Add failing `packages/client/tests/server/admin-feedback.test.ts`: admin `GET /api/v1/admin/feedback` lists **all** users' records attributed to authors, filterable by `status`/`stage`/`userId` (FR-AD-009); an end user's `GET /api/v1/feedback` still returns **only their own** (FR-AD-008, unchanged); non-admin gets **403**
-- [ ] T028 [P] [US2] Add a failing test: a record containing instruction-like text is returned as **inert data** and alters no behaviour (FR-AD-014)
-- [ ] T029 [US2] Add `packages/client/src/server/controllers/admin-feedback.ts` (cross-user list + read) and routes `app/api/v1/admin/feedback/route.ts`, `app/api/v1/admin/feedback/[id]/route.ts` — thin handlers per `CLAUDE.md` §7
-- [ ] T030 [US2] Wire `audit.record()` into every admin controller action added so far (list, read, promote, transition, export) — FR-AD-021
-- [ ] T031 [P] [US5] Add `app/api/v1/admin/audit/route.ts` (GET only — **no write verb**) + its controller
-- [ ] T032 [P] [US2] Add `packages/client/src/services/admin.ts` browser fetch wrappers (never import `src/server/*` — `CLAUDE.md` §14)
-- [ ] T033 [US2] Add the admin route group: `app/admin/page.tsx` + `src/views/AdminPage.tsx` + `src/components/admin/FeedbackTriageList.tsx` — triage list attributed by author, filterable
-- [ ] T034 [P] [US2] Add `useIsAdmin()` derived from the existing `AuthContext` token, and show the admin nav entry only when present (D11) — hiding is UX, **never** the enforcement
-- [ ] T035 [US2] Append the new admin routes to the refusal matrix
-- [ ] T036 [US2] Run `npm run lint && npm test` — green
+- [x] T024 [P] [US5] Add failing `packages/client/tests/server/unit/admin-audit.test.ts`: `record()` writes admin/action/subject/time; `list()` filters by admin, subject, period; **no update or delete export exists** (FR-AD-022); and `AUDIT_TTL_DAYS (90) > ERASURE_WINDOW_DAYS (30)` asserted **from the constants** so editing either fails loudly (FR-AD-023, D6)
+- [x] T025 [US5] Add `packages/client/src/server/models/admin-audit-log.ts` per data-model.md — TTL index on `at` (`90*24*3600`), compound `(subjectUserId, at)`, hot-reload-guarded like every existing model
+- [x] T026 [US5] Add `packages/client/src/server/lib/audit.ts` exporting **only** `record()` and `list()`. T024 passes
+- [x] T027 [P] [US2] Add failing `packages/client/tests/server/admin-feedback.test.ts`: admin `GET /api/v1/admin/feedback` lists **all** users' records attributed to authors, filterable by `status`/`stage`/`userId` (FR-AD-009); an end user's `GET /api/v1/feedback` still returns **only their own** (FR-AD-008, unchanged); non-admin gets **403**
+- [x] T028 [P] [US2] Add a failing test: a record containing instruction-like text is returned as **inert data** and alters no behaviour (FR-AD-014)
+- [x] T029 [US2] Add `packages/client/src/server/controllers/admin-feedback.ts` (cross-user list + read) and routes `app/api/v1/admin/feedback/route.ts`, `app/api/v1/admin/feedback/[id]/route.ts` — thin handlers per `CLAUDE.md` §7
+- [x] T030 [US2] Wire `audit.record()` into every admin controller action added so far (list, read, promote, transition, export) — FR-AD-021
+- [x] T031 [P] [US5] Add `app/api/v1/admin/audit/route.ts` (GET only — **no write verb**) + its controller
+- [x] T032 [P] [US2] Add `packages/client/src/services/admin.ts` browser fetch wrappers (never import `src/server/*` — `CLAUDE.md` §14)
+- [x] T033 [US2] Add the admin route group: `app/admin/page.tsx` + `src/views/AdminPage.tsx` + `src/components/admin/FeedbackTriageList.tsx` — triage list attributed by author, filterable
+- [x] T034 [P] [US2] Add `useIsAdmin()` derived from the existing `AuthContext` token, and show the admin nav entry only when present (D11) — hiding is UX, **never** the enforcement
+- [x] T035 [US2] Append the new admin routes to the refusal matrix
+- [x] T036 [US2] Run `npm run lint && npm test` — green
 
 **Checkpoint**: the feedback feature is usable in production — reports reach the maintainer, every cross-user read is audited.
 
@@ -140,7 +140,7 @@
 
 ## Phase 9: AD7 — polish, verification, cascade
 
-- [ ] T064 [P] Add `packages/client/e2e/admin.e2e.ts`: admin triage journey (submit as user → appears in admin triage → promote → gate) **and** a non-admin seeing no admin entry and being refused on direct navigation (`CLAUDE.md` §8 per-feature rule)
+- [x] T064 [P] Add `packages/client/e2e/admin.e2e.ts`: admin triage journey (submit as user → appears in admin triage → promote → gate) **and** a non-admin seeing no admin entry and being refused on direct navigation (`CLAUDE.md` §8 per-feature rule)
 - [ ] T065 Confirm the refusal matrix enumerates **every** admin route × method — SC-AD-001's "100%" evidence (D12)
 - [ ] T066 [P] Cascade `CLAUDE.md`: §4 (new admin endpoints + `/api/health/ready`), §5 (four new collections), §6 (`AUTH_ADMIN_ROLE`, `AUTH_ROLES_CLAIM`), §7 (the 403 mapping + admin-guard handler pattern)
 - [ ] T067 [P] Cascade `docs/deployment.md`: the **manual** Keycloak realm-role step, the two new env vars, and the reminder that `AUTH_ALLOW_DEV` must stay absent in production
