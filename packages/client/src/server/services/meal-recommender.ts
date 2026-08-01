@@ -1,4 +1,5 @@
 import type { MealRecommendation } from '../types/meal-recommendation';
+import { aiAllowed } from '../lib/ai-guard';
 
 export interface IngredientInput {
   /** Inventory item id — echoed back by the agent as a grounded reference (spec 006). */
@@ -21,6 +22,13 @@ export async function getMealRecommendations(
   ingredients: IngredientInput[],
   excludeMealNames: string[] = [],
 ): Promise<MealRecommendation[]> {
+  // Spec 011 FR-AD-026: when the kill switch is off, behave exactly as an unavailable
+  // agent does — the controller's existing EC-08 ladder then serves cached-or-popular
+  // recipes, so the user gets the shipped graceful fallback rather than an error.
+  if (!(await aiAllowed('recommendations'))) {
+    throw new Error('AI features are disabled by an administrator');
+  }
+
   const holodeckUrl = process.env['HOLODECK_URL'];
   if (!holodeckUrl) {
     throw new Error('HOLODECK_URL environment variable is not set');

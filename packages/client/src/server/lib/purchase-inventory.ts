@@ -1,5 +1,9 @@
 import 'server-only';
-import type { IGroceryListItem, PurchaseReceipt, ResolvedPurchaseInput } from '../types/grocery-list';
+import type {
+  IGroceryListItem,
+  PurchaseReceipt,
+  ResolvedPurchaseInput,
+} from '../types/grocery-list';
 import { IngredientAlias } from '../models/ingredient-alias';
 import { InventoryItem, type InventoryItemDocument, type Location } from '../models/inventory-item';
 import { canMergeUnits, mergeInto, sameNameCandidates } from './inventory-merge';

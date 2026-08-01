@@ -1,4 +1,5 @@
 import 'server-only';
+import { aiAllowed } from '../lib/ai-guard';
 import { z } from 'zod';
 import { CATEGORIES, LOCATIONS } from '../models/inventory-item';
 
@@ -114,6 +115,10 @@ export async function assistedInterpretation(
   const key = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const hit = cache.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.value;
+  // FR-AD-026: null is this service's existing fail-open value — the quick-add client
+  // already treats it as "no AI assist available" (503-equivalent), so the kill switch
+  // degrades rather than errors.
+  if (!(await aiAllowed('parse-assist'))) return null;
   const value = await callOpenAI(text, apiKey);
   cache.set(key, { value, expiresAt: Date.now() + TTL_MS });
   return value;

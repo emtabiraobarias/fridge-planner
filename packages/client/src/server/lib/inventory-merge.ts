@@ -36,7 +36,9 @@ export async function sameNameCandidates(
   displayName: string,
 ): Promise<InventoryItemDocument[]> {
   const candidates = await InventoryItem.find({ userId, ...notExpiredQuery() });
-  return candidates.filter((item) => sameIngredient(item.name, displayName)) as InventoryItemDocument[];
+  return candidates.filter((item) =>
+    sameIngredient(item.name, displayName),
+  ) as InventoryItemDocument[];
 }
 
 /**

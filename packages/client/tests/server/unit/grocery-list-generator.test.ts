@@ -28,11 +28,7 @@ function makePlan(missingIngredients: string[][], mealNames?: string[]): IMealPl
   };
 }
 
-function makeInventoryItem(
-  name: string,
-  quantity: number,
-  unit: string,
-): IInventoryItem {
+function makeInventoryItem(name: string, quantity: number, unit: string): IInventoryItem {
   return {
     userId: 'user-1',
     name,
@@ -55,10 +51,7 @@ describe('generateGroceryList', () => {
   });
 
   it('aggregates same ingredient across 3 meals (FR-026)', () => {
-    const plan = makePlan(
-      [['onion'], ['onion'], ['onion']],
-      ['Meal A', 'Meal B', 'Meal C'],
-    );
+    const plan = makePlan([['onion'], ['onion'], ['onion']], ['Meal A', 'Meal B', 'Meal C']);
     const result = generateGroceryList(plan, []);
 
     expect(result.items).toHaveLength(1);
@@ -223,9 +216,7 @@ describe('generateGroceryList — grounded quantities (spec 006 US4)', () => {
   });
 
   it('mixes grounded real-amount lines with servings lines from missing ingredients (FR-MC-017)', () => {
-    const plan = makeGroundedPlan([
-      { grounded: [g('mince', 500, 'g')], missing: ['soy sauce'] },
-    ]);
+    const plan = makeGroundedPlan([{ grounded: [g('mince', 500, 'g')], missing: ['soy sauce'] }]);
     const result = generateGroceryList(plan, [makeInventoryItem('mince', 100, 'g')]);
     const mince = result.items.find((i) => i.ingredientName === 'mince')!;
     const soy = result.items.find((i) => i.ingredientName === 'soy sauce')!;
@@ -285,23 +276,25 @@ function makeDatedPlan(meals: DatedMealSpec[]): IMealPlan {
   return {
     userId: 'user-1',
     weekStart: new Date('2026-07-13'),
-    entries: meals.map((m, i): IMealPlanEntry => ({
-      slotId: `slot-${i}`,
-      date: m.date,
-      mealType: 'dinner',
-      status: m.status ?? 'planned',
-      meal: {
-        mealName: m.mealName ?? `Meal ${i + 1}`,
-        suggestedMealType: 'dinner',
-        prepTimeMinutes: 20,
-        cuisine: 'Test',
-        description: '',
-        usesIngredients: (m.grounded ?? []).map((x) => x.name),
-        expiringIngredients: [],
-        missingIngredients: m.missing ?? [],
-        ...(m.grounded ? { groundedIngredients: m.grounded } : {}),
-      },
-    })),
+    entries: meals.map(
+      (m, i): IMealPlanEntry => ({
+        slotId: `slot-${i}`,
+        date: m.date,
+        mealType: 'dinner',
+        status: m.status ?? 'planned',
+        meal: {
+          mealName: m.mealName ?? `Meal ${i + 1}`,
+          suggestedMealType: 'dinner',
+          prepTimeMinutes: 20,
+          cuisine: 'Test',
+          description: '',
+          usesIngredients: (m.grounded ?? []).map((x) => x.name),
+          expiringIngredients: [],
+          missingIngredients: m.missing ?? [],
+          ...(m.grounded ? { groundedIngredients: m.grounded } : {}),
+        },
+      }),
+    ),
     createdAt: new Date(),
     updatedAt: new Date(),
   };

@@ -36,12 +36,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function seed(
-  name: string,
-  quantity: number,
-  unit: string,
-  userId = USER,
-): Promise<string> {
+async function seed(name: string, quantity: number, unit: string, userId = USER): Promise<string> {
   const item = await InventoryItem.create({
     userId,
     name,
@@ -67,7 +62,9 @@ function rawMeal(usesIngredients: unknown): MealRecommendation {
   };
 }
 
-async function inventoryOf(userId = USER): Promise<import('@server/models/inventory-item').InventoryItemDocument[]> {
+async function inventoryOf(
+  userId = USER,
+): Promise<import('@server/models/inventory-item').InventoryItemDocument[]> {
   return (await InventoryItem.find({ userId })) as never;
 }
 
@@ -76,7 +73,11 @@ describe('groundMeals — tiered resolution (FR-MC-001..004)', () => {
     const id = await seed('Chicken Thighs', 1, 'kg');
     const [meal] = await groundMeals(
       USER,
-      [rawMeal([{ inventoryItemId: id, name: 'chicken thighs', quantityToConsume: 0.5, unit: 'kg' }])],
+      [
+        rawMeal([
+          { inventoryItemId: id, name: 'chicken thighs', quantityToConsume: 0.5, unit: 'kg' },
+        ]),
+      ],
       await inventoryOf(),
     );
     expect(meal!.groundedIngredients).toHaveLength(1);
@@ -93,7 +94,11 @@ describe('groundMeals — tiered resolution (FR-MC-001..004)', () => {
     await seed('Chicken', 2, 'kg');
     const [meal] = await groundMeals(
       USER,
-      [rawMeal([{ inventoryItemId: foreignId, name: 'chicken', quantityToConsume: 1, unit: 'kg' }])],
+      [
+        rawMeal([
+          { inventoryItemId: foreignId, name: 'chicken', quantityToConsume: 1, unit: 'kg' },
+        ]),
+      ],
       await inventoryOf(),
     );
     const g = meal!.groundedIngredients![0]!;
@@ -105,7 +110,16 @@ describe('groundMeals — tiered resolution (FR-MC-001..004)', () => {
     await seed('Chicken', 2, 'kg');
     const [meal] = await groundMeals(
       USER,
-      [rawMeal([{ inventoryItemId: '000000000000000000000000', name: 'chicken', quantityToConsume: 1, unit: 'kg' }])],
+      [
+        rawMeal([
+          {
+            inventoryItemId: '000000000000000000000000',
+            name: 'chicken',
+            quantityToConsume: 1,
+            unit: 'kg',
+          },
+        ]),
+      ],
       await inventoryOf(),
     );
     expect(meal!.groundedIngredients![0]!.resolution).toBe('fuzzy');
@@ -142,12 +156,14 @@ describe('groundMeals — tiered resolution (FR-MC-001..004)', () => {
   it('consults the LLM once on an alias miss, persists the pairing, and reuses it (FR-MC-004)', async () => {
     process.env['OPENAI_API_KEY'] = 'test-key';
     const id = await seed('Beef Mince', 500, 'g');
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ choices: [{ message: { content: '{"match":"Beef Mince"}' } }] }),
-        { status: 200 },
-      ),
-    );
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ choices: [{ message: { content: '{"match":"Beef Mince"}' } }] }),
+          { status: 200 },
+        ),
+      );
     vi.stubGlobal('fetch', fetchSpy);
 
     const ingredientName = `ground-mince-${Date.now()}`; // unique key: module-level cache survives tests

@@ -20,12 +20,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     // but still bounded to keep provider usage sane.
     const rl = rateLimit(`verify-links:${userId}`, 30, 60_000);
     if (!rl.allowed) {
-      return problemResponse(429, 'Rate Limit Exceeded', 'Too many link-verification requests. Try again in a minute.');
+      return problemResponse(
+        429,
+        'Rate Limit Exceeded',
+        'Too many link-verification requests. Try again in a minute.',
+      );
     }
 
     const parsed = bodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
-      return problemResponse(400, 'Bad Request', 'Body must be { mealNames: string[] } with 1-10 names.');
+      return problemResponse(
+        400,
+        'Bad Request',
+        'Body must be { mealNames: string[] } with 1-10 names.',
+      );
     }
 
     const result = await verifyRecipeLinks(parsed.data.mealNames);

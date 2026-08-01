@@ -19,7 +19,11 @@ vi.mock('@server/services/recommendations-cache', async (importOriginal) => {
   };
 });
 
-function entry(slotId: string, usesIngredients: string[], mealName = 'Meal'): Record<string, unknown> {
+function entry(
+  slotId: string,
+  usesIngredients: string[],
+  mealName = 'Meal',
+): Record<string, unknown> {
   return {
     slotId,
     date: '2026-04-06T00:00:00.000Z',
@@ -59,9 +63,8 @@ beforeAll(async () => {
   ({ GET } = await import('../../app/api/v1/meal-plans/route'));
   ({ PUT } = await import('../../app/api/v1/meal-plans/[weekStart]/route'));
   ({ POST: ADD_ENTRY } = await import('../../app/api/v1/meal-plans/[weekStart]/entries/route'));
-  ({ DELETE: DELETE_ENTRY, PATCH: PATCH_ENTRY } = await import(
-    '../../app/api/v1/meal-plans/[weekStart]/entries/[slotId]/route'
-  ));
+  ({ DELETE: DELETE_ENTRY, PATCH: PATCH_ENTRY } =
+    await import('../../app/api/v1/meal-plans/[weekStart]/entries/[slotId]/route'));
 });
 
 afterAll(async () => {
@@ -94,12 +97,22 @@ function wk(weekStart = WEEK_START): { params: Promise<{ weekStart: string }> } 
   return { params: Promise.resolve({ weekStart }) };
 }
 
-function wkSlot(slotId: string, weekStart = WEEK_START): { params: Promise<{ weekStart: string; slotId: string }> } {
+function wkSlot(
+  slotId: string,
+  weekStart = WEEK_START,
+): { params: Promise<{ weekStart: string; slotId: string }> } {
   return { params: Promise.resolve({ weekStart, slotId }) };
 }
 
 async function seedInv(name: string, quantity: number, unit = 'units'): Promise<string> {
-  const item = await InventoryItem.create({ userId: USER, name, quantity, unit, category: 'Meat', location: 'fridge' });
+  const item = await InventoryItem.create({
+    userId: USER,
+    name,
+    quantity,
+    unit,
+    category: 'Meat',
+    location: 'fridge',
+  });
   return String(item._id);
 }
 
@@ -187,7 +200,10 @@ describe('DELETE entries — no inventory side-effects (FR-MC-006/014)', () => {
     const id = await seedInv('Chicken Breast', 3);
     await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast'])), wk());
     await PATCH_ENTRY(
-      bodyReq('PATCH', cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }])),
+      bodyReq(
+        'PATCH',
+        cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }]),
+      ),
       wkSlot(SLOT_A),
     );
     expect(await invQty('Chicken Breast')).toBe(2);
@@ -219,7 +235,10 @@ describe('PUT — replace is inventory-neutral and lifecycle-preserving (FR-MC-0
     const id = await seedInv('Chicken Breast', 3);
     await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast'])), wk());
     await PATCH_ENTRY(
-      bodyReq('PATCH', cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }])),
+      bodyReq(
+        'PATCH',
+        cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }]),
+      ),
       wkSlot(SLOT_A),
     );
 
@@ -242,7 +261,10 @@ describe('PUT — replace is inventory-neutral and lifecycle-preserving (FR-MC-0
     const id = await seedInv('Chicken Breast', 3);
     await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast'])), wk());
     await PATCH_ENTRY(
-      bodyReq('PATCH', cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }])),
+      bodyReq(
+        'PATCH',
+        cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }]),
+      ),
       wkSlot(SLOT_A),
     );
     expect(await invQty('Chicken Breast')).toBe(2);
@@ -277,7 +299,9 @@ describe('PATCH entries — cook (FR-MC-007..010, SC-MC-003)', () => {
       wkSlot(SLOT_A),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { receipt: Array<{ name: string; quantityConsumed: number }> };
+    const body = (await res.json()) as {
+      receipt: Array<{ name: string; quantityConsumed: number }>;
+    };
     expect(await invQty('Chicken Breast')).toBe(1);
     expect(await invQty('Rice')).toBe(2);
     expect(await invQty('Soy Sauce')).toBeNull(); // depleted → removed
@@ -314,7 +338,14 @@ describe('PATCH entries — cook (FR-MC-007..010, SC-MC-003)', () => {
     await MealPlan.create({
       userId: USER,
       weekStart: new Date(WEEK_START),
-      entries: [{ slotId: SLOT_A, date: new Date(WEEK_START), mealType: 'dinner', meal: entry(SLOT_A, ['Chicken Breast'])['meal'] }],
+      entries: [
+        {
+          slotId: SLOT_A,
+          date: new Date(WEEK_START),
+          mealType: 'dinner',
+          meal: entry(SLOT_A, ['Chicken Breast'])['meal'],
+        },
+      ],
     });
 
     const res = await PATCH_ENTRY(bodyReq('PATCH', cookBody([])), wkSlot(SLOT_A));
@@ -326,7 +357,10 @@ describe('PATCH entries — cook (FR-MC-007..010, SC-MC-003)', () => {
     const id = await seedInv('Chicken Breast', 3);
     await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast'])), wk());
     await PATCH_ENTRY(
-      bodyReq('PATCH', cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }])),
+      bodyReq(
+        'PATCH',
+        cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }]),
+      ),
       wkSlot(SLOT_A),
     );
     expect(invalidateUserSpy).toHaveBeenCalledWith(USER);
@@ -380,7 +414,10 @@ describe('PATCH entries — un-cook (FR-MC-012..014, SC-MC-004)', () => {
     const id = await seedInv('Chicken Breast', 3);
     await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast'])), wk());
     await PATCH_ENTRY(
-      bodyReq('PATCH', cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }])),
+      bodyReq(
+        'PATCH',
+        cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }]),
+      ),
       wkSlot(SLOT_A),
     );
 
@@ -408,7 +445,14 @@ describe('PATCH entries — un-cook (FR-MC-012..014, SC-MC-004)', () => {
     await MealPlan.create({
       userId: USER,
       weekStart: new Date(WEEK_START),
-      entries: [{ slotId: SLOT_A, date: new Date(WEEK_START), mealType: 'dinner', meal: entry(SLOT_A, ['Chicken Breast'])['meal'] }],
+      entries: [
+        {
+          slotId: SLOT_A,
+          date: new Date(WEEK_START),
+          mealType: 'dinner',
+          meal: entry(SLOT_A, ['Chicken Breast'])['meal'],
+        },
+      ],
     });
 
     const res = await PATCH_ENTRY(bodyReq('PATCH', uncookBody), wkSlot(SLOT_A));
@@ -420,7 +464,10 @@ describe('PATCH entries — un-cook (FR-MC-012..014, SC-MC-004)', () => {
     const id = await seedInv('Chicken Breast', 3);
     await ADD_ENTRY(bodyReq('POST', entry(SLOT_A, ['Chicken Breast'])), wk());
     await PATCH_ENTRY(
-      bodyReq('PATCH', cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }])),
+      bodyReq(
+        'PATCH',
+        cookBody([{ inventoryItemId: id, name: 'Chicken Breast', quantity: 1, unit: 'units' }]),
+      ),
       wkSlot(SLOT_A),
     );
     invalidateUserSpy.mockClear();

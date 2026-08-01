@@ -17,7 +17,11 @@ export async function POST(request: Request, ctx: RouteContext): Promise<NextRes
     // Share the chat rate-limit budget with the start endpoint (FR-F-009).
     const rl = rateLimit(`feedback-chat:${userId}`, 10, 60_000);
     if (!rl.allowed) {
-      return problemResponse(429, 'Rate Limit Exceeded', 'Too many feedback messages. Try again in a minute.');
+      return problemResponse(
+        429,
+        'Rate Limit Exceeded',
+        'Too many feedback messages. Try again in a minute.',
+      );
     }
     await connectDb();
     const { id } = await ctx.params;

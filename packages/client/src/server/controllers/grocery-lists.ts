@@ -9,7 +9,11 @@ import { reconcileRollingList, startOfTodayCutoff } from '../lib/rolling-grocery
 import { notExpiredQuery } from '../lib/expiration';
 import { applyPurchase, reversePurchase } from '../lib/purchase-inventory';
 import { invalidateUser } from '../services/recommendations-cache';
-import { GROCERY_CATEGORIES, type IGroceryListItem, type ResolvedPurchaseInput } from '../types/grocery-list';
+import {
+  GROCERY_CATEGORIES,
+  type IGroceryListItem,
+  type ResolvedPurchaseInput,
+} from '../types/grocery-list';
 import { problem, type ControllerResult } from '../http';
 
 const categoryEnum = z.enum(GROCERY_CATEGORIES as unknown as [string, ...string[]]);
@@ -181,7 +185,11 @@ async function unpurchaseGroceryItem(
 ): Promise<ControllerResult> {
   if (!current.isPurchased) return problem(409, 'Not purchased', 'Grocery item is not purchased');
   if (!current.purchaseReceipt) {
-    return problem(409, 'Cannot reverse without purchase receipt', 'Grocery item has no purchase receipt');
+    return problem(
+      409,
+      'Cannot reverse without purchase receipt',
+      'Grocery item has no purchase receipt',
+    );
   }
 
   // {new:false}: reverse from the guard's PRE-IMAGE receipt, not a pre-fetched copy —
@@ -190,7 +198,9 @@ async function unpurchaseGroceryItem(
     {
       userId,
       weekStart,
-      items: { $elemMatch: { _id: objectId, isPurchased: true, purchaseReceipt: { $exists: true } } },
+      items: {
+        $elemMatch: { _id: objectId, isPurchased: true, purchaseReceipt: { $exists: true } },
+      },
     },
     {
       $set: {
@@ -250,7 +260,9 @@ async function processCheckoutItem(
     else acc.created.push(summary);
     return true;
   } catch (err) {
-    acc.errors.push(`Failed to add "${item.displayName}": ${err instanceof Error ? err.message : String(err)}`);
+    acc.errors.push(
+      `Failed to add "${item.displayName}": ${err instanceof Error ? err.message : String(err)}`,
+    );
     return false;
   }
 }
@@ -306,7 +318,10 @@ async function recomputeRollingList(
 }
 
 // GET /api/v1/grocery-lists/:weekStart — recomputes on every view (spec 008 US3)
-export async function getGroceryList(userId: string, weekStartParam: string): Promise<ControllerResult> {
+export async function getGroceryList(
+  userId: string,
+  weekStartParam: string,
+): Promise<ControllerResult> {
   const parsed = parseWeekStart(weekStartParam);
   if ('error' in parsed) return parsed.error;
   const { weekStart } = parsed;
@@ -323,7 +338,10 @@ export async function getGroceryList(userId: string, weekStartParam: string): Pr
 }
 
 // POST /:weekStart/generate — force-regenerate; shares the rolling recompute path with GET
-export async function regenerateGroceryList(userId: string, weekStartParam: string): Promise<ControllerResult> {
+export async function regenerateGroceryList(
+  userId: string,
+  weekStartParam: string,
+): Promise<ControllerResult> {
   const parsed = parseWeekStart(weekStartParam);
   if ('error' in parsed) return parsed.error;
   const { weekStart } = parsed;
@@ -451,7 +469,9 @@ export async function completeGroceryList(
   if ('error' in parsedWeek) return parsedWeek.error;
   const { weekStart } = parsedWeek;
 
-  const parsed = z.object({ items: z.array(completeItemSchema).optional().default([]) }).safeParse(body);
+  const parsed = z
+    .object({ items: z.array(completeItemSchema).optional().default([]) })
+    .safeParse(body);
   if (!parsed.success) return invalidInput(parsed.error);
 
   const list = await GroceryList.findOne({ userId, weekStart });

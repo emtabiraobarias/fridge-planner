@@ -18,7 +18,9 @@ function jsonResponse(body: unknown, ok = true): { ok: boolean; json: () => Prom
   return { ok, json: async () => body };
 }
 
-const braveHit = (title: string, url: string): unknown => ({ web: { results: [{ title, url, description: '' }] } });
+const braveHit = (title: string, url: string): unknown => ({
+  web: { results: [{ title, url, description: '' }] },
+});
 const braveEmpty = (): unknown => ({ web: { results: [] } });
 
 const mockMeal: MealRecommendation = {
@@ -50,7 +52,9 @@ describe('recipe-verifier', () => {
 
   it('returns a verified URL from an approved domain when Brave finds a relevant match', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(braveHit('Chicken Adobo Recipe', 'https://www.recipetineats.com/chicken-adobo/')),
+      jsonResponse(
+        braveHit('Chicken Adobo Recipe', 'https://www.recipetineats.com/chicken-adobo/'),
+      ),
     );
     const result = await verifyRecipe('Chicken Adobo');
     expect(result).toEqual({ recipeUrl: 'https://www.recipetineats.com/chicken-adobo/' });
@@ -62,7 +66,9 @@ describe('recipe-verifier', () => {
 
   it('rejects a Brave result whose URL is not one of the four approved domains, even if returned', async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(braveHit('Chicken Adobo Recipe', 'https://www.allrecipes.com/chicken-adobo/')))
+      .mockResolvedValueOnce(
+        jsonResponse(braveHit('Chicken Adobo Recipe', 'https://www.allrecipes.com/chicken-adobo/')),
+      )
       .mockResolvedValueOnce({ ok: false }); // Spoonacular fallback also misses
     const result = await verifyRecipe('Chicken Adobo');
     expect(result).toBeNull();
@@ -70,7 +76,9 @@ describe('recipe-verifier', () => {
 
   it('rejects a Brave result on an approved domain whose title is unrelated (low similarity)', async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(braveHit('Beef Wellington', 'https://www.recipetineats.com/beef-wellington/')))
+      .mockResolvedValueOnce(
+        jsonResponse(braveHit('Beef Wellington', 'https://www.recipetineats.com/beef-wellington/')),
+      )
       .mockResolvedValueOnce({ ok: false }); // falls through to Spoonacular, which also misses
     const result = await verifyRecipe('Chicken Adobo');
     expect(result).toBeNull();
@@ -91,7 +99,12 @@ describe('recipe-verifier', () => {
     // sharing one ingredient word must not count as the same dish.
     mockFetch
       .mockResolvedValueOnce(
-        jsonResponse(braveHit('Chicken Pot Pie Casserole Delight', 'https://www.recipetineats.com/chicken-pot-pie/')),
+        jsonResponse(
+          braveHit(
+            'Chicken Pot Pie Casserole Delight',
+            'https://www.recipetineats.com/chicken-pot-pie/',
+          ),
+        ),
       )
       .mockResolvedValueOnce({ ok: false }); // Spoonacular fallback misses too
     const result = await verifyRecipe('Chicken Adobo');
@@ -102,12 +115,24 @@ describe('recipe-verifier', () => {
     mockFetch
       .mockResolvedValueOnce(jsonResponse(braveEmpty()))
       .mockResolvedValueOnce(
-        jsonResponse({ results: [{ id: 42, title: 'Chicken Adobo', image: 'https://img.spoonacular.com/42.jpg' }] }),
+        jsonResponse({
+          results: [
+            { id: 42, title: 'Chicken Adobo', image: 'https://img.spoonacular.com/42.jpg' },
+          ],
+        }),
       )
-      .mockResolvedValueOnce(jsonResponse({ sourceUrl: 'https://www.food.com/chicken-adobo', image: 'https://img.spoonacular.com/42.jpg' }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          sourceUrl: 'https://www.food.com/chicken-adobo',
+          image: 'https://img.spoonacular.com/42.jpg',
+        }),
+      );
 
     const result = await verifyRecipe('Chicken Adobo');
-    expect(result).toEqual({ recipeUrl: 'https://www.food.com/chicken-adobo', imageUrl: 'https://img.spoonacular.com/42.jpg' });
+    expect(result).toEqual({
+      recipeUrl: 'https://www.food.com/chicken-adobo',
+      imageUrl: 'https://img.spoonacular.com/42.jpg',
+    });
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
@@ -117,10 +142,21 @@ describe('recipe-verifier', () => {
     mockFetch
       .mockResolvedValueOnce(jsonResponse(braveEmpty()))
       .mockResolvedValueOnce(
-        jsonResponse({ results: [{ id: 653775, title: 'Chicken Adobo', image: 'https://img.spoonacular.com/recipes/653775-312x231.jpg' }] }),
+        jsonResponse({
+          results: [
+            {
+              id: 653775,
+              title: 'Chicken Adobo',
+              image: 'https://img.spoonacular.com/recipes/653775-312x231.jpg',
+            },
+          ],
+        }),
       )
       .mockResolvedValueOnce(
-        jsonResponse({ sourceUrl: 'https://www.foodista.com/chicken-adobo', image: 'https://img.spoonacular.com/recipes/653775-556x370.' }),
+        jsonResponse({
+          sourceUrl: 'https://www.foodista.com/chicken-adobo',
+          image: 'https://img.spoonacular.com/recipes/653775-556x370.',
+        }),
       );
 
     const result = await verifyRecipe('Chicken Adobo');
@@ -134,7 +170,12 @@ describe('recipe-verifier', () => {
     mockFetch
       .mockResolvedValueOnce(jsonResponse(braveEmpty()))
       .mockResolvedValueOnce(jsonResponse({ results: [{ id: 99, title: 'Chicken Adobo' }] }))
-      .mockResolvedValueOnce(jsonResponse({ sourceUrl: 'https://www.food.com/chicken-adobo', image: 'https://img.spoonacular.com/recipes/99-556x370.' }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          sourceUrl: 'https://www.food.com/chicken-adobo',
+          image: 'https://img.spoonacular.com/recipes/99-556x370.',
+        }),
+      );
 
     const result = await verifyRecipe('Chicken Adobo');
     expect(result).toEqual({ recipeUrl: 'https://www.food.com/chicken-adobo' });
@@ -150,7 +191,9 @@ describe('recipe-verifier', () => {
   });
 
   it('never fabricates on a network/API error — degrades to null', async () => {
-    mockFetch.mockRejectedValueOnce(new Error('network down')).mockRejectedValueOnce(new Error('network down'));
+    mockFetch
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('network down'));
     const result = await verifyRecipe('Chicken Adobo');
     expect(result).toBeNull();
   });
@@ -174,14 +217,19 @@ describe('recipe-verifier', () => {
 
   it('attachVerifiedRecipes enriches only the meals with a confident match, leaving others untouched', async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(braveHit('Chicken Adobo', 'https://www.kawalingpinoy.com/chicken-adobo/')))
+      .mockResolvedValueOnce(
+        jsonResponse(braveHit('Chicken Adobo', 'https://www.kawalingpinoy.com/chicken-adobo/')),
+      )
       .mockResolvedValueOnce(jsonResponse(braveEmpty())) // second meal: Brave miss
       .mockResolvedValueOnce(jsonResponse({ results: [] })); // second meal: Spoonacular miss too
 
     const secondMeal: MealRecommendation = { ...mockMeal, mealName: 'Obscure Dish With No Match' };
     const enriched = await attachVerifiedRecipes([mockMeal, secondMeal]);
 
-    expect(enriched[0]).toMatchObject({ mealName: 'Chicken Adobo', recipeUrl: 'https://www.kawalingpinoy.com/chicken-adobo/' });
+    expect(enriched[0]).toMatchObject({
+      mealName: 'Chicken Adobo',
+      recipeUrl: 'https://www.kawalingpinoy.com/chicken-adobo/',
+    });
     expect(enriched[1]).not.toHaveProperty('recipeUrl');
     expect(enriched[1]).not.toHaveProperty('imageUrl');
   });
@@ -189,7 +237,9 @@ describe('recipe-verifier', () => {
   it('verifyRecipeCached caches hits AND misses per meal name (FR-037 lazy phase)', async () => {
     clearLinkCache();
     // Hit: first call fetches, second call is served from cache (no new fetch).
-    mockFetch.mockResolvedValueOnce(jsonResponse(braveHit('Chicken Adobo', 'https://www.kawalingpinoy.com/chicken-adobo/')));
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(braveHit('Chicken Adobo', 'https://www.kawalingpinoy.com/chicken-adobo/')),
+    );
     const first = await verifyRecipeCached('Chicken Adobo');
     expect(first?.recipeUrl).toBe('https://www.kawalingpinoy.com/chicken-adobo/');
     const callsAfterFirst = mockFetch.mock.calls.length;

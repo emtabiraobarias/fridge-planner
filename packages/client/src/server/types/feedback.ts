@@ -87,13 +87,25 @@ export const structuredRecordSchema = z
   .superRefine((rec, ctx) => {
     if (rec.type === 'bug') {
       if (rec.reproSteps.length === 0) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['reproSteps'], message: 'reproSteps required for a bug' });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['reproSteps'],
+          message: 'reproSteps required for a bug',
+        });
       }
       if (rec.expectedBehavior.trim() === '') {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['expectedBehavior'], message: 'expectedBehavior required for a bug' });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['expectedBehavior'],
+          message: 'expectedBehavior required for a bug',
+        });
       }
       if (rec.actualBehavior.trim() === '') {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['actualBehavior'], message: 'actualBehavior required for a bug' });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['actualBehavior'],
+          message: 'actualBehavior required for a bug',
+        });
       }
     }
   });

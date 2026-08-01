@@ -2,8 +2,15 @@ import mongoose, { type Document, type Model, Schema } from 'mongoose';
 import { getExpirationStatus, type ExpirationStatus } from '../lib/expiration';
 
 export const CATEGORIES = [
-  'Produce', 'Dairy', 'Meat', 'Seafood',
-  'Grains', 'Pantry', 'Condiments', 'Frozen', 'Other',
+  'Produce',
+  'Dairy',
+  'Meat',
+  'Seafood',
+  'Grains',
+  'Pantry',
+  'Condiments',
+  'Frozen',
+  'Other',
 ] as const;
 
 export const LOCATIONS = ['fridge', 'freezer', 'pantry'] as const;
@@ -51,7 +58,10 @@ inventoryItemSchema.pre('save', function () {
 
 inventoryItemSchema.pre('findOneAndUpdate', function () {
   const update = this.getUpdate() as
-    | (Partial<IInventoryItem> & { $set?: Record<string, unknown>; $unset?: Record<string, unknown> })
+    | (Partial<IInventoryItem> & {
+        $set?: Record<string, unknown>;
+        $unset?: Record<string, unknown>;
+      })
     | null;
   if (!update) return;
   // Clearing the expiry ($unset) → status derives from "no date" ('none'). Written
@@ -61,9 +71,7 @@ inventoryItemSchema.pre('findOneAndUpdate', function () {
     return;
   }
   if ('expiresAt' in update) {
-    update.expirationStatus = getExpirationStatus(
-      update.expiresAt as Date | undefined,
-    );
+    update.expirationStatus = getExpirationStatus(update.expiresAt as Date | undefined);
   }
 });
 

@@ -102,17 +102,17 @@
 
 ## Phase 6: US4 — AD4 operational visibility & control
 
-- [ ] T041 [P] [US4] Add failing `packages/client/tests/server/health-ready.test.ts`: `/api/health/ready` reports per-dependency status + overall + version; a **down** dependency ⇒ that entry unhealthy, overall not-ready, **503**, and the app still serves other routes (FR-AD-024); a **slow** dependency reports `degraded` within the bound rather than hanging (FR-AD-025)
-- [ ] T042 [P] [US4] Add a failing test asserting `GET /api/health` is **unchanged** — exactly `{status, version}`, no dependency fields — because `scripts/verify-rollout.sh`, the Docker healthcheck, and the smoke gate depend on it (D8)
-- [ ] T043 [US4] Add `src/server/lib/health-checks.ts` (bounded per-dependency probes: Mongo ping, both agent `/health`, recipe-provider config presence) + `app/api/health/ready/route.ts`. **Do not touch** `app/api/health/route.ts`
-- [ ] T044 [P] [US4] Add failing `packages/client/tests/server/unit/runtime-settings.test.ts`: effective value = stored override ?? **code default**; an **empty** collection reproduces today's behaviour exactly; invalid values rejected with the prior value in force (FR-AD-030, D9)
-- [ ] T045 [US4] Add `models/runtime-setting.ts` + `services/runtime-settings.ts` (typed key union, per-key zod, short-TTL in-process cache). T044 passes
-- [ ] T046 [P] [US4] Add failing tests: with `ai.enabled=false`, recommendations/parse-assist/alias-pairing/recipe-verify make **zero** model calls and return their **existing** fallbacks (not errors); an in-flight call is not aborted (FR-AD-026 + spec edge case)
-- [ ] T047 [US4] Add the kill-switch check at the **service** boundary (`services/meal-recommender.ts`, `parse-assist.ts`, `recipe-verifier.ts`, `alias-pairing.ts`) so every caller inherits it (D9)
-- [ ] T048 [P] [US4] Add `models/ai-usage-counter.ts` + an atomic `$inc` upsert at the **same** boundary as the kill switch, so a blocked call is an uncounted call (FR-AD-027, D10) — with a test asserting exactly that
-- [ ] T049 [P] [US4] Add `app/api/v1/admin/{settings,usage,cache,limits}` routes + controllers: settings GET/PATCH (FR-AD-026/030), usage GET (FR-AD-027), cache DELETE with optional `?userId=` (FR-AD-028), limits GET + `DELETE /limits/:key` (FR-AD-029). Rate-limit the destructive ones
+- [x] T041 [P] [US4] Add failing `packages/client/tests/server/health-ready.test.ts`: `/api/health/ready` reports per-dependency status + overall + version; a **down** dependency ⇒ that entry unhealthy, overall not-ready, **503**, and the app still serves other routes (FR-AD-024); a **slow** dependency reports `degraded` within the bound rather than hanging (FR-AD-025)
+- [x] T042 [P] [US4] Add a failing test asserting `GET /api/health` is **unchanged** — exactly `{status, version}`, no dependency fields — because `scripts/verify-rollout.sh`, the Docker healthcheck, and the smoke gate depend on it (D8)
+- [x] T043 [US4] Add `src/server/lib/health-checks.ts` (bounded per-dependency probes: Mongo ping, both agent `/health`, recipe-provider config presence) + `app/api/health/ready/route.ts`. **Do not touch** `app/api/health/route.ts`
+- [x] T044 [P] [US4] Add failing `packages/client/tests/server/unit/runtime-settings.test.ts`: effective value = stored override ?? **code default**; an **empty** collection reproduces today's behaviour exactly; invalid values rejected with the prior value in force (FR-AD-030, D9)
+- [x] T045 [US4] Add `models/runtime-setting.ts` + `services/runtime-settings.ts` (typed key union, per-key zod, short-TTL in-process cache). T044 passes
+- [x] T046 [P] [US4] Add failing tests: with `ai.enabled=false`, recommendations/parse-assist/alias-pairing/recipe-verify make **zero** model calls and return their **existing** fallbacks (not errors); an in-flight call is not aborted (FR-AD-026 + spec edge case)
+- [x] T047 [US4] Add the kill-switch check at the **service** boundary (`services/meal-recommender.ts`, `parse-assist.ts`, `recipe-verifier.ts`, `alias-pairing.ts`) so every caller inherits it (D9)
+- [x] T048 [P] [US4] Add `models/ai-usage-counter.ts` + an atomic `$inc` upsert at the **same** boundary as the kill switch, so a blocked call is an uncounted call (FR-AD-027, D10) — with a test asserting exactly that
+- [x] T049 [P] [US4] Add `app/api/v1/admin/{settings,usage,cache,limits}` routes + controllers: settings GET/PATCH (FR-AD-026/030), usage GET (FR-AD-027), cache DELETE with optional `?userId=` (FR-AD-028), limits GET + `DELETE /limits/:key` (FR-AD-029). Rate-limit the destructive ones
 - [ ] T050 [US4] Add `src/components/admin/OpsPanel.tsx` (readiness, usage, kill switch toggle, cache flush, limit reset)
-- [ ] T051 [US4] Append to the refusal matrix; run lint + tests
+- [x] T051 [US4] Append to the refusal matrix; run lint + tests
 
 ---
 
@@ -132,8 +132,8 @@
 
 ## Phase 8: US7 — AD6 runtime-adjustable operational content
 
-- [ ] T061 [P] [US7] Add failing tests: changing approved recipe domains / popular fallbacks / the recommendations limit takes effect **without a restart**; an invalid value is rejected with the prior value in force (FR-AD-030)
-- [ ] T062 [US7] Route `services/recipe-verifier.ts`'s approved-domain list, `lib/popular-recipes.ts`'s fallback set, and the recommendations rate limit through `runtime-settings` **with their current hardcoded values as the code defaults** — so an empty collection is a no-op change
+- [x] T061 [P] [US7] Add failing tests: changing approved recipe domains / popular fallbacks / the recommendations limit takes effect **without a restart**; an invalid value is rejected with the prior value in force (FR-AD-030)
+- [x] T062 [US7] Route `services/recipe-verifier.ts`'s approved-domain list, `lib/popular-recipes.ts`'s fallback set, and the recommendations rate limit through `runtime-settings` **with their current hardcoded values as the code defaults** — so an empty collection is a no-op change
 - [ ] T063 [US7] Add `src/components/admin/SettingsPanel.tsx`; run lint + tests
 
 ---

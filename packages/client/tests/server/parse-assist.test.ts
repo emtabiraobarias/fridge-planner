@@ -28,7 +28,11 @@ function req(body: unknown, userId = 'u1'): Request {
   });
 }
 
-function openaiResponse(payload: unknown): { ok: boolean; status: number; json: () => Promise<unknown> } {
+function openaiResponse(payload: unknown): {
+  ok: boolean;
+  status: number;
+  json: () => Promise<unknown>;
+} {
   return {
     ok: true,
     status: 200,

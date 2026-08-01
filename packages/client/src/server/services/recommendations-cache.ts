@@ -45,3 +45,8 @@ export function invalidateUser(userId: string): void {
     if (key.startsWith(prefix)) cache.delete(key);
   }
 }
+
+/** Spec 011 FR-AD-028 — flush every cached result (bad agent output, no waiting for TTL). */
+export function invalidateAll(): void {
+  cache.clear();
+}

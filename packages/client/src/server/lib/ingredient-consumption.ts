@@ -74,7 +74,12 @@ async function consumeLine(userId: string, line: ConsumptionLine): Promise<Consu
   }
 
   if (line.quantity === 0) {
-    return { inventoryItemId: String(item._id), name: item.name, quantityConsumed: 0, unit: item.unit };
+    return {
+      inventoryItemId: String(item._id),
+      name: item.name,
+      quantityConsumed: 0,
+      unit: item.unit,
+    };
   }
 
   const deduct = Math.min(deductionInItemUnit(line, item), item.quantity); // clamp to live stock
@@ -94,7 +99,12 @@ async function consumeLine(userId: string, line: ConsumptionLine): Promise<Consu
 
   item.quantity = remaining;
   await item.save();
-  return { inventoryItemId: String(item._id), name: item.name, quantityConsumed: deduct, unit: item.unit };
+  return {
+    inventoryItemId: String(item._id),
+    name: item.name,
+    quantityConsumed: deduct,
+    unit: item.unit,
+  };
 }
 
 /** Apply the confirmed review; returns the receipt (one line per submitted line). */

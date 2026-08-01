@@ -12,7 +12,11 @@ export async function GET(request: Request): Promise<NextResponse> {
     const userId = await authenticate(request);
     const rl = rateLimit(`pipeline:${userId}`, 100, 60_000);
     if (!rl.allowed) {
-      return problemResponse(429, 'Rate Limit Exceeded', 'Too many pipeline requests. Try again in a minute.');
+      return problemResponse(
+        429,
+        'Rate Limit Exceeded',
+        'Too many pipeline requests. Try again in a minute.',
+      );
     }
     await connectDb();
     const { searchParams } = new URL(request.url);

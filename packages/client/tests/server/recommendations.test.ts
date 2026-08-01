@@ -71,7 +71,9 @@ beforeEach(async () => {
   isRecipeVerificationConfigured.mockReturnValue(true);
   invalidateUser(USER);
   // Reset the in-memory rate-limit windows so per-test call counts start fresh.
-  (globalThis as unknown as { _rateLimitBuckets?: Map<string, unknown> })._rateLimitBuckets?.clear();
+  (
+    globalThis as unknown as { _rateLimitBuckets?: Map<string, unknown> }
+  )._rateLimitBuckets?.clear();
 });
 
 function req(userId = USER): Request {
@@ -98,7 +100,14 @@ function linksReq(body: unknown, userId = USER): Request {
 }
 
 async function seedInv(name: string, quantity = 2): Promise<void> {
-  await InventoryItem.create({ userId: USER, name, quantity, unit: 'lbs', category: 'Meat', location: 'fridge' });
+  await InventoryItem.create({
+    userId: USER,
+    name,
+    quantity,
+    unit: 'lbs',
+    category: 'Meat',
+    location: 'fridge',
+  });
 }
 
 interface RecResponse {
@@ -141,7 +150,13 @@ describe('POST /api/v1/recommendations', () => {
     yesterday.setDate(yesterday.getDate() - 1);
     await seedInv('Chicken Breast');
     await InventoryItem.create({
-      userId: USER, name: 'Old Milk', quantity: 1, unit: 'l', category: 'Dairy', location: 'fridge', expiresAt: yesterday,
+      userId: USER,
+      name: 'Old Milk',
+      quantity: 1,
+      unit: 'l',
+      category: 'Dairy',
+      location: 'fridge',
+      expiresAt: yesterday,
     });
     getMealRecommendations.mockResolvedValue(mockMeals);
     await POST(req());
@@ -187,15 +202,23 @@ describe('POST /api/v1/recommendations/verify-links (FR-037 lazy phase)', () => 
     verifyRecipeCached.mockImplementation((name: string) =>
       Promise.resolve(
         name === 'Chicken Stir-fry'
-          ? { recipeUrl: 'https://www.recipetineats.com/stir-fry/', imageUrl: 'https://img.example/x.jpg' }
+          ? {
+              recipeUrl: 'https://www.recipetineats.com/stir-fry/',
+              imageUrl: 'https://img.example/x.jpg',
+            }
           : null,
       ),
     );
     const res = await POST_LINKS(linksReq({ mealNames: ['Chicken Stir-fry', 'Obscure Dish'] }));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { links: Record<string, { recipeUrl: string }>; available: boolean };
+    const body = (await res.json()) as {
+      links: Record<string, { recipeUrl: string }>;
+      available: boolean;
+    };
     expect(body.available).toBe(true);
-    expect(body.links['Chicken Stir-fry']?.recipeUrl).toBe('https://www.recipetineats.com/stir-fry/');
+    expect(body.links['Chicken Stir-fry']?.recipeUrl).toBe(
+      'https://www.recipetineats.com/stir-fry/',
+    );
     expect(body.links['Obscure Dish']).toBeUndefined();
   });
 
@@ -242,7 +265,11 @@ describe('POST /api/v1/recommendations — grounding (spec 006, FR-MC-001..003)'
     const body = (await res.json()) as {
       recommendations: Array<{
         usesIngredients: string[];
-        groundedIngredients?: Array<{ inventoryItemId?: string; resolution: string; quantityToConsume?: number }>;
+        groundedIngredients?: Array<{
+          inventoryItemId?: string;
+          resolution: string;
+          quantityToConsume?: number;
+        }>;
       }>;
     };
     const meal = body.recommendations[0]!;
@@ -341,7 +368,9 @@ describe('getRecommendations — ingredient scoping (spec 009 US2, FR-IR-005/008
 
     // groundMeals ran over the subset only: the unselected idC ref cannot resolve 'direct'.
     const body = result.body as {
-      recommendations: Array<{ groundedIngredients?: Array<{ inventoryItemId?: string; resolution: string }> }>;
+      recommendations: Array<{
+        groundedIngredients?: Array<{ inventoryItemId?: string; resolution: string }>;
+      }>;
     };
     const g = body.recommendations[0]?.groundedIngredients?.[0];
     if (g) expect(g.resolution).not.toBe('direct');

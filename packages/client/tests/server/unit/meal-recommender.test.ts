@@ -53,7 +53,9 @@ describe('getMealRecommendations (Holodeck agent client)', () => {
 
   it('calls the correct holodeck endpoint with POST', async () => {
     mockFetch.mockResolvedValueOnce(holodeckOk(JSON.stringify([mockMeal])));
-    await getMealRecommendations([{ name: 'chicken breast', quantity: 2, unit: 'lbs', expiresAt: '2026-03-31' }]);
+    await getMealRecommendations([
+      { name: 'chicken breast', quantity: 2, unit: 'lbs', expiresAt: '2026-03-31' },
+    ]);
     expect(mockFetch).toHaveBeenCalledWith(
       'http://localhost:8001/agent/meal-recommender/chat',
       expect.objectContaining({ method: 'POST' }),
@@ -66,7 +68,9 @@ describe('getMealRecommendations (Holodeck agent client)', () => {
       [{ name: 'chicken breast', quantity: 2, unit: 'lbs' }],
       ['Chicken Stir-fry', 'Chicken Adobo'],
     );
-    const body = JSON.parse((mockFetch.mock.calls[0]?.[1] as { body: string }).body) as { message: string };
+    const body = JSON.parse((mockFetch.mock.calls[0]?.[1] as { body: string }).body) as {
+      message: string;
+    };
     expect(body.message).toContain('Do NOT suggest any of these meals');
     expect(body.message).toContain('Chicken Stir-fry, Chicken Adobo');
     // The top-up round also steers toward conventionally named dishes so the
@@ -77,7 +81,9 @@ describe('getMealRecommendations (Holodeck agent client)', () => {
   it('omits the exclusion instruction when excludeMealNames is empty', async () => {
     mockFetch.mockResolvedValueOnce(holodeckOk(JSON.stringify([mockMeal])));
     await getMealRecommendations([{ name: 'chicken breast', quantity: 2, unit: 'lbs' }]);
-    const body = JSON.parse((mockFetch.mock.calls[0]?.[1] as { body: string }).body) as { message: string };
+    const body = JSON.parse((mockFetch.mock.calls[0]?.[1] as { body: string }).body) as {
+      message: string;
+    };
     expect(body.message).not.toContain('Do NOT suggest');
     expect(body.message).not.toContain('well-known dishes with common, conventional names');
   });
@@ -89,7 +95,11 @@ describe('getMealRecommendations (Holodeck agent client)', () => {
       { name: 'rice', quantity: 1, unit: 'cup', expiresAt: '2026-06-01' },
     ]);
     expect(Array.isArray(result)).toBe(true);
-    expect(result[0]).toMatchObject({ mealName: 'Chicken Fried Rice', suggestedMealType: 'dinner', prepTimeMinutes: 25 });
+    expect(result[0]).toMatchObject({
+      mealName: 'Chicken Fried Rice',
+      suggestedMealType: 'dinner',
+      prepTimeMinutes: 25,
+    });
   });
 
   it('parses a MealRecommendation array wrapped in a ```json markdown fence', async () => {

@@ -51,10 +51,16 @@ const promote = await import('../../app/api/v1/feedback/[id]/promote/route');
 const exportRoute = await import('../../app/api/v1/feedback/[id]/export/route');
 const pipelineId = await import('../../app/api/v1/pipeline/[id]/route');
 const adminUserData = await import('../../app/api/v1/admin/users/[userId]/data/route');
+const adminSettings = await import('../../app/api/v1/admin/settings/route');
+const adminUsage = await import('../../app/api/v1/admin/usage/route');
+const adminCache = await import('../../app/api/v1/admin/cache/route');
+const adminLimits = await import('../../app/api/v1/admin/limits/route');
+const adminLimitKey = await import('../../app/api/v1/admin/limits/[key]/route');
 
 const someId = new mongoose.Types.ObjectId().toString();
 const idCtx = { params: Promise.resolve({ id: someId }) };
 const userCtx = { params: Promise.resolve({ userId: 'user-a' }) };
+const keyCtx = { params: Promise.resolve({ key: 'demo:user-a' }) };
 
 const ROWS: Row[] = [
   // ─── net-new admin surface ───────────────────────────────────────────────
@@ -69,6 +75,20 @@ const ROWS: Row[] = [
     name: 'GET /api/v1/admin/users/:userId/data',
     method: 'GET',
     invoke: (r) => adminUserData.GET(r, userCtx),
+  },
+  { name: 'GET /api/v1/admin/settings', method: 'GET', invoke: (r) => adminSettings.GET(r) },
+  {
+    name: 'PATCH /api/v1/admin/settings',
+    method: 'PATCH',
+    invoke: (r) => adminSettings.PATCH(r),
+  },
+  { name: 'GET /api/v1/admin/usage', method: 'GET', invoke: (r) => adminUsage.GET(r) },
+  { name: 'DELETE /api/v1/admin/cache', method: 'DELETE', invoke: (r) => adminCache.DELETE(r) },
+  { name: 'GET /api/v1/admin/limits', method: 'GET', invoke: (r) => adminLimits.GET(r) },
+  {
+    name: 'DELETE /api/v1/admin/limits/:key',
+    method: 'DELETE',
+    invoke: (r) => adminLimitKey.DELETE(r, keyCtx),
   },
   // ─── shipped maintainer actions that spec 011 put behind the guard ───────
   {
@@ -115,7 +135,7 @@ describe('refusal matrix — every admin-only route (SC-AD-001)', () => {
   it('enumerates at least every admin route the app exposes', () => {
     // A guard on the guard: if this drops to zero the matrix has silently stopped
     // testing anything.
-    expect(ROWS.length).toBeGreaterThanOrEqual(7);
+    expect(ROWS.length).toBeGreaterThanOrEqual(13);
   });
 
   it.each(ROWS.map((r) => [r.name, r] as const))(
