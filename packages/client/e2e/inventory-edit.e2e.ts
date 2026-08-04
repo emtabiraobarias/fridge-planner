@@ -20,11 +20,18 @@ test('edit an item: change location and expiry, then clear the expiry (FR-UI-019
     page.getByRole('region', { name: shelf }).getByRole('listitem').filter({ hasText: 'Salmon' });
   await expect(onShelf(/fridge shelf/i)).toHaveCount(1);
 
+  // A date comfortably in the future, computed at RUN time. This was a hardcoded
+  // '2026-08-01', which silently became a PAST date once the calendar rolled past it —
+  // the chip then read "expired 3 days ago" and the assertion below failed for reasons
+  // that had nothing to do with the behaviour under test. Same trap the roadmap records
+  // for the spec-008 calendar-rollover failures; a relative date cannot rot.
+  const farFuture = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
   // Edit → move to freezer + set a specific date.
   await row.getByRole('button', { name: /edit salmon/i }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel('Expiry date').fill('2026-08-01');
+  await dialog.getByLabel('Expiry date').fill(farFuture);
   await dialog.getByRole('radio', { name: 'Freezer' }).click();
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog).not.toBeVisible();
