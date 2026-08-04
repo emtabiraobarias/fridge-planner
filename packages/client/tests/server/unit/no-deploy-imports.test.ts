@@ -43,7 +43,9 @@ describe('FR-F-017 — pipeline layer is structurally incapable of merge/tag/dep
   for (const rel of GUARDED_FILES) {
     it(`${rel} references no process/git/deploy-capable module`, () => {
       const source = readFileSync(path.join(clientRoot, rel), 'utf8');
-      const hits = FORBIDDEN.filter(({ pattern }) => pattern.test(source)).map(({ label }) => label);
+      const hits = FORBIDDEN.filter(({ pattern }) => pattern.test(source)).map(
+        ({ label }) => label,
+      );
       expect(hits, `forbidden token(s) found in ${rel}: ${hits.join(', ')}`).toEqual([]);
     });
   }

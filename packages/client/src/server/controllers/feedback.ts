@@ -6,6 +6,7 @@ import { PipelineItem } from '../models/pipeline-item';
 import { sendToFeedbackAgent } from '../services/feedback-collector';
 import { renderFeedbackMarkdown } from '../lib/feedback-export';
 import { FEEDBACK_STATUSES, type AgentReply, type IFeedbackMessage } from '../types/feedback';
+import { record as auditRecord } from '../lib/audit';
 import { problem, type ControllerResult } from '../http';
 
 // Bound the transcript so token/latency growth is capped (FR-F-008). Counted in user turns.
@@ -32,7 +33,10 @@ function agentUnavailable(): ControllerResult {
 }
 
 /** Copy a validated agent `record` onto the document and mark it complete. */
-function applyComplete(doc: InstanceType<typeof FeedbackRecord>, reply: Extract<AgentReply, { status: 'complete' }>): void {
+function applyComplete(
+  doc: InstanceType<typeof FeedbackRecord>,
+  reply: Extract<AgentReply, { status: 'complete' }>,
+): void {
   const r = reply.record;
   doc.type = r.type;
   doc.title = r.title;
@@ -75,7 +79,8 @@ export async function continueConversation(
   id: string,
   body: unknown,
 ): Promise<ControllerResult> {
-  if (!mongoose.isValidObjectId(id)) return problem(404, 'Not Found', 'Feedback conversation not found');
+  if (!mongoose.isValidObjectId(id))
+    return problem(404, 'Not Found', 'Feedback conversation not found');
 
   const parsed = messageSchema.safeParse(body);
   if (!parsed.success) return invalidInput(parsed.error);
@@ -83,7 +88,11 @@ export async function continueConversation(
   const doc = await FeedbackRecord.findOne({ _id: id, userId });
   if (!doc) return problem(404, 'Not Found', 'Feedback conversation not found');
   if (doc.status !== 'draft') {
-    return problem(409, 'Conversation Complete', 'This conversation is already complete. Start a new one to add more feedback.');
+    return problem(
+      409,
+      'Conversation Complete',
+      'This conversation is already complete. Start a new one to add more feedback.',
+    );
   }
 
   doc.transcript.push({ role: 'user', content: parsed.data.message, at: new Date() });
@@ -121,7 +130,10 @@ async function runAgentTurn(doc: InstanceType<typeof FeedbackRecord>): Promise<C
 }
 
 // GET /api/v1/feedback — list the user's own records (lean, no transcript).
-export async function listFeedback(userId: string, query: URLSearchParams): Promise<ControllerResult> {
+export async function listFeedback(
+  userId: string,
+  query: URLSearchParams,
+): Promise<ControllerResult> {
   const parsed = listQuerySchema.safeParse({ status: query.get('status') ?? undefined });
   if (!parsed.success) return invalidInput(parsed.error);
 
@@ -138,7 +150,8 @@ export async function listFeedback(userId: string, query: URLSearchParams): Prom
 
 // GET /api/v1/feedback/:id — full record incl. transcript.
 export async function getFeedback(userId: string, id: string): Promise<ControllerResult> {
-  if (!mongoose.isValidObjectId(id)) return problem(404, 'Not Found', 'Feedback conversation not found');
+  if (!mongoose.isValidObjectId(id))
+    return problem(404, 'Not Found', 'Feedback conversation not found');
   const doc = await FeedbackRecord.findOne({ _id: id, userId });
   if (!doc) return problem(404, 'Not Found', 'Feedback conversation not found');
   return { status: 200, body: { feedback: serialize(doc) } };
@@ -150,7 +163,8 @@ export async function getFeedback(userId: string, id: string): Promise<Controlle
 // both the record and the parked item are removed together, so no PipelineItem is
 // ever left pointing at a deleted record.
 export async function deleteFeedback(userId: string, id: string): Promise<ControllerResult> {
-  if (!mongoose.isValidObjectId(id)) return problem(404, 'Not Found', 'Feedback conversation not found');
+  if (!mongoose.isValidObjectId(id))
+    return problem(404, 'Not Found', 'Feedback conversation not found');
 
   const pipelineItem = await PipelineItem.findOne({ userId, feedbackRecordId: id });
   if (pipelineItem && pipelineItem.stage !== 'parked') {
@@ -171,11 +185,20 @@ export async function deleteFeedback(userId: string, id: string): Promise<Contro
 
 // GET /api/v1/feedback/:id/export — spec-template markdown (FR-F-007).
 export async function exportFeedback(userId: string, id: string): Promise<ControllerResult> {
-  if (!mongoose.isValidObjectId(id)) return problem(404, 'Not Found', 'Feedback conversation not found');
+  if (!mongoose.isValidObjectId(id))
+    return problem(404, 'Not Found', 'Feedback conversation not found');
   const doc = await FeedbackRecord.findOne({ _id: id, userId });
   if (!doc) return problem(404, 'Not Found', 'Feedback conversation not found');
   if (doc.status === 'draft') {
     return problem(409, 'Conversation Incomplete', 'Finish the conversation before exporting it.');
   }
+  // Spec 011 FR-AD-013/021: export produces a maintainer artifact and is
+  // administrator-only, so it is an audited administrative action. `userId` here is
+  // the acting administrator (the route resolves it via requirePrincipalAdmin).
+  await auditRecord(userId, 'feedback.export', {
+    userId: doc.userId,
+    type: 'feedback',
+    id: String(doc._id),
+  });
   return { status: 200, body: renderFeedbackMarkdown(doc.toObject()) };
 }

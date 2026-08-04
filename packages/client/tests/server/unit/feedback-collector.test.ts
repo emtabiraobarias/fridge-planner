@@ -72,7 +72,9 @@ describe('sendToFeedbackAgent (Holodeck feedback-collector client)', () => {
       'http://localhost:8002/agent/feedback-collector/chat',
       expect.objectContaining({ method: 'POST' }),
     );
-    const body = JSON.parse((mockFetch.mock.calls[0]![1] as { body: string }).body) as { message: string };
+    const body = JSON.parse((mockFetch.mock.calls[0]![1] as { body: string }).body) as {
+      message: string;
+    };
     expect(body.message).toContain('[USER] the grocery list is broken');
     expect(body.message).not.toContain('FINALIZE NOW');
   });
@@ -80,7 +82,9 @@ describe('sendToFeedbackAgent (Holodeck feedback-collector client)', () => {
   it('appends a FINALIZE NOW directive when finalize is requested (FR-F-008)', async () => {
     mockFetch.mockResolvedValueOnce(holodeckOk(completeBug));
     await sendToFeedbackAgent(transcript, { finalize: true });
-    const body = JSON.parse((mockFetch.mock.calls[0]![1] as { body: string }).body) as { message: string };
+    const body = JSON.parse((mockFetch.mock.calls[0]![1] as { body: string }).body) as {
+      message: string;
+    };
     expect(body.message).toContain('FINALIZE NOW');
   });
 

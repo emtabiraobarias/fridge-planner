@@ -1,4 +1,5 @@
 import type { MealRecommendation } from '../types/meal-recommendation';
+import { aiAllowed } from '../lib/ai-guard';
 
 // Option A (groundedness): the LLM never authors a recipeUrl/imageUrl — this module is
 // the ONLY source of those fields, and only ever attaches one when a real, existing
@@ -144,10 +145,16 @@ async function findSpoonacularCandidate(
 }
 
 /** Fetch full recipe info (for sourceUrl) once complexSearch has identified a candidate id. */
-async function fetchSpoonacularInfo(id: number, apiKey: string): Promise<SpoonacularRecipeInfo | null> {
-  const infoRes = await fetch(`https://api.spoonacular.com/recipes/${id}/information?apiKey=${apiKey}`, {
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
+async function fetchSpoonacularInfo(
+  id: number,
+  apiKey: string,
+): Promise<SpoonacularRecipeInfo | null> {
+  const infoRes = await fetch(
+    `https://api.spoonacular.com/recipes/${id}/information?apiKey=${apiKey}`,
+    {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    },
+  );
   if (!infoRes.ok) return null;
   return (await infoRes.json()) as SpoonacularRecipeInfo;
 }
@@ -191,6 +198,9 @@ export function isRecipeVerificationConfigured(): boolean {
  * Spoonacular. Returns null (never a guess) if nothing confident is found.
  */
 export async function verifyRecipe(mealName: string): Promise<VerifiedRecipe | null> {
+  // FR-AD-026: null is the shipped "no verified link" outcome (FR-037), so the lazy
+  // link phase simply finds nothing rather than failing.
+  if (!(await aiAllowed('recipe-verify'))) return null;
   const approved = await searchApprovedDomains(mealName);
   if (approved) return approved;
   return searchSpoonacular(mealName);
@@ -224,11 +234,15 @@ export function clearLinkCache(): void {
 }
 
 /** Enrich a recommendation list with verified recipe URLs (parallel across meals, best-effort). */
-export async function attachVerifiedRecipes(meals: MealRecommendation[]): Promise<MealRecommendation[]> {
+export async function attachVerifiedRecipes(
+  meals: MealRecommendation[],
+): Promise<MealRecommendation[]> {
   const verified = await Promise.all(meals.map((m) => verifyRecipe(m.mealName)));
   return meals.map((meal, i) => {
     const v = verified[i];
     if (!v) return meal;
-    return v.imageUrl ? { ...meal, recipeUrl: v.recipeUrl, imageUrl: v.imageUrl } : { ...meal, recipeUrl: v.recipeUrl };
+    return v.imageUrl
+      ? { ...meal, recipeUrl: v.recipeUrl, imageUrl: v.imageUrl }
+      : { ...meal, recipeUrl: v.recipeUrl };
   });
 }

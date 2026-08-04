@@ -64,8 +64,7 @@ function fuzzyMatch(name: string, inventory: GroundableItem[]): GroundableItem |
   for (const item of inventory) {
     const invKey = normalizeIngredientName(item.name);
     if (!invKey) continue;
-    const matches =
-      invKey === key || key.startsWith(`${invKey} `) || invKey.startsWith(`${key} `);
+    const matches = invKey === key || key.startsWith(`${invKey} `) || invKey.startsWith(`${key} `);
     if (matches && (!best || invKey.length > best.len)) {
       best = { item, len: invKey.length };
     }
@@ -121,7 +120,11 @@ async function resolveEntry(
   if (fuzzy) return grounded(entry, fuzzy, 'fuzzy');
 
   // Tier 3: learned pairing (cached, fail-open).
-  const pairedName = await lookupPairing(userId, entry.name, inventory.map((i) => i.name));
+  const pairedName = await lookupPairing(
+    userId,
+    entry.name,
+    inventory.map((i) => i.name),
+  );
   if (pairedName) {
     const item =
       fuzzyMatch(pairedName, inventory) ??
@@ -162,9 +165,7 @@ async function groundMeal(
   const unresolvedNames = groundedIngredients
     .filter((g) => g.resolution === 'unresolved')
     .map((g) => g.name);
-  const missingIngredients = [
-    ...new Set([...(meal.missingIngredients ?? []), ...unresolvedNames]),
-  ];
+  const missingIngredients = [...new Set([...(meal.missingIngredients ?? []), ...unresolvedNames])];
 
   return { ...meal, usesIngredients, missingIngredients, groundedIngredients };
 }

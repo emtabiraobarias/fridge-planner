@@ -25,7 +25,11 @@ export async function PATCH(request: Request, ctx: RouteContext): Promise<NextRe
     const userId = await authenticate(request);
     const rl = rateLimit(`meal-plan-entry:${userId}`, 100, 60_000);
     if (!rl.allowed) {
-      return problemResponse(429, 'Rate Limit Exceeded', 'Too many meal-plan requests. Try again in a minute.');
+      return problemResponse(
+        429,
+        'Rate Limit Exceeded',
+        'Too many meal-plan requests. Try again in a minute.',
+      );
     }
     await connectDb();
     const body: unknown = await request.json().catch(() => null);

@@ -38,7 +38,9 @@ export function isGateAction(action: TransitionAction): boolean {
 
 // Table-driven legal single-step forward transitions (D3). `reopen` (dynamic
 // destination) and `attach-artifact` (no stage change) are handled separately below.
-const TRANSITION_TABLE: Partial<Record<TransitionAction, Partial<Record<PipelineStage, PipelineStage>>>> = {
+const TRANSITION_TABLE: Partial<
+  Record<TransitionAction, Partial<Record<PipelineStage, PipelineStage>>>
+> = {
   advance: { approved: 'in-spec' },
   'approve-spec': { 'in-spec': 'in-review' },
   'approve-release': { 'in-review': 'shipped' },

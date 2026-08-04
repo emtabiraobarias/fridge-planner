@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  normalizeUnit,
-  canSubtract,
-  netNeeded,
-  resolveAlias,
-} from '@server/lib/unit-normalizer';
+import { normalizeUnit, canSubtract, netNeeded, resolveAlias } from '@server/lib/unit-normalizer';
 
 describe('resolveAlias', () => {
   it('resolves known aliases', () => {

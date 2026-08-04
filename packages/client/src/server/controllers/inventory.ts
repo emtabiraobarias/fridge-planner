@@ -49,7 +49,10 @@ export async function listInventory(
   if (status) Object.assign(filter, expirationStatusQuery(status));
 
   const [docs, total, expired, expiringSoon] = await Promise.all([
-    InventoryItem.find(filter).sort({ expiresAt: 1, name: 1 }).skip((page - 1) * limit).limit(limit),
+    InventoryItem.find(filter)
+      .sort({ expiresAt: 1, name: 1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
     InventoryItem.countDocuments(filter),
     InventoryItem.countDocuments({ ...filter, ...expirationStatusQuery('expired') }),
     InventoryItem.countDocuments({ ...filter, ...expirationStatusQuery('expiring-soon') }),
@@ -85,7 +88,12 @@ export async function createInventory(userId: string, body: unknown): Promise<Co
       invalidateUser(userId);
       return {
         status: 200,
-        body: { merged: true, item: target.toObject(), mergedItemId: String(target._id), addedQuantity },
+        body: {
+          merged: true,
+          item: target.toObject(),
+          mergedItemId: String(target._id),
+          addedQuantity,
+        },
       };
     }
   }
@@ -106,7 +114,8 @@ export async function updateInventory(
   id: string,
   body: unknown,
 ): Promise<ControllerResult> {
-  if (!mongoose.isValidObjectId(id)) return problem(400, 'Invalid ID', 'ID is not a valid ObjectId');
+  if (!mongoose.isValidObjectId(id))
+    return problem(400, 'Invalid ID', 'ID is not a valid ObjectId');
 
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return invalidInput(parsed.error);
@@ -121,11 +130,10 @@ export async function updateInventory(
       ? { $set: { ...rest }, $unset: { expiresAt: 1 } }
       : { ...rest, ...(expiresAt !== undefined ? { expiresAt: new Date(expiresAt) } : {}) };
 
-  const item = await InventoryItem.findOneAndUpdate(
-    { _id: id, userId },
-    update,
-    { new: true, runValidators: true },
-  );
+  const item = await InventoryItem.findOneAndUpdate({ _id: id, userId }, update, {
+    new: true,
+    runValidators: true,
+  });
   if (!item) return problem(404, 'Not Found', 'Inventory item not found');
 
   invalidateUser(userId);
@@ -134,7 +142,8 @@ export async function updateInventory(
 
 // DELETE /api/v1/inventory/:id
 export async function deleteInventory(userId: string, id: string): Promise<ControllerResult> {
-  if (!mongoose.isValidObjectId(id)) return problem(400, 'Invalid ID', 'ID is not a valid ObjectId');
+  if (!mongoose.isValidObjectId(id))
+    return problem(400, 'Invalid ID', 'ID is not a valid ObjectId');
 
   const item = await InventoryItem.findOneAndDelete({ _id: id, userId });
   if (!item) return problem(404, 'Not Found', 'Inventory item not found');

@@ -53,7 +53,10 @@ function line(overrides: Partial<IGroceryListItem> = {}): IGroceryListItem {
 
 describe('applyPurchase (spec 007 FR-GC-001..006/013)', () => {
   it('adds a real-amount line exactly and defaults location from category (FR-GC-001/006)', async () => {
-    const receipt = await applyPurchase(USER_A, line({ displayName: 'Olive Oil', unit: 'bottle', category: 'Pantry' }));
+    const receipt = await applyPurchase(
+      USER_A,
+      line({ displayName: 'Olive Oil', unit: 'bottle', category: 'Pantry' }),
+    );
 
     const item = await InventoryItem.findById(receipt.inventoryItemId);
     expect(item?.name).toBe('Olive Oil');
@@ -142,7 +145,13 @@ describe('applyPurchase (spec 007 FR-GC-001..006/013)', () => {
 
     const receipt = await applyPurchase(
       USER_A,
-      line({ ingredientName: 'stock', displayName: 'Stock', quantity: 500, unit: 'g', category: 'Pantry' }),
+      line({
+        ingredientName: 'stock',
+        displayName: 'Stock',
+        quantity: 500,
+        unit: 'g',
+        category: 'Pantry',
+      }),
     );
 
     expect(receipt.merged).toBe(false);
@@ -170,7 +179,10 @@ describe('applyPurchase (spec 007 FR-GC-001..006/013)', () => {
 
 describe('reversePurchase (spec 007 FR-GC-007/008/013)', () => {
   it('deletes a created item when reversing its receipt (FR-GC-007)', async () => {
-    const receipt = await applyPurchase(USER_A, line({ displayName: 'Olive Oil', unit: 'bottle', category: 'Pantry' }));
+    const receipt = await applyPurchase(
+      USER_A,
+      line({ displayName: 'Olive Oil', unit: 'bottle', category: 'Pantry' }),
+    );
 
     await reversePurchase(USER_A, receipt);
 
@@ -249,7 +261,11 @@ describe('applyPurchase after the T030/T031 extraction (spec 009 T027 — reuse 
 
     const receipt = await applyPurchase(USER_A, line({ quantity: 2, unit: 'L' }));
 
-    expect(receipt).toMatchObject({ merged: true, inventoryItemId: String(existing._id), quantityAdded: 2 });
+    expect(receipt).toMatchObject({
+      merged: true,
+      inventoryItemId: String(existing._id),
+      quantityAdded: 2,
+    });
     const reloaded = await InventoryItem.findById(existing._id);
     expect(reloaded?.quantity).toBe(3);
   });

@@ -10,7 +10,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     const userId = await authenticate(request);
     const rl = rateLimit(`quick-add-parse:${userId}`, 20, 60_000);
     if (!rl.allowed) {
-      return problemResponse(429, 'Rate Limit Exceeded', 'Too many parse-assist requests. Try again in a minute.');
+      return problemResponse(
+        429,
+        'Rate Limit Exceeded',
+        'Too many parse-assist requests. Try again in a minute.',
+      );
     }
     const body: unknown = await request.json().catch(() => ({}));
     const result = await parseAssisted(body);

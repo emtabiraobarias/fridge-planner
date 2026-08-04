@@ -40,25 +40,39 @@ beforeEach(async () => {
   await mongoose.connection.dropDatabase();
   sendToFeedbackAgent.mockReset();
   // Clear the in-memory rate-limit windows so counts don't leak across tests.
-  (globalThis as unknown as { _rateLimitBuckets?: Map<string, unknown> })._rateLimitBuckets?.clear();
+  (
+    globalThis as unknown as { _rateLimitBuckets?: Map<string, unknown> }
+  )._rateLimitBuckets?.clear();
 });
 
 interface ReqInit {
   method?: string;
   body?: unknown;
   userId?: string;
+  /** Spec 011: dev-seam roles (research D2). Omit for an ordinary end user. */
+  roles?: string;
 }
 function req(path: string, init: ReqInit = {}): Request {
-  const { method = 'GET', body, userId = 'u1' } = init;
+  const { method = 'GET', body, userId = 'u1', roles } = init;
   return new Request(`http://localhost${path}`, {
     method,
-    headers: { 'content-type': 'application/json', 'x-user-id': userId },
+    headers: {
+      'content-type': 'application/json',
+      'x-user-id': userId,
+      ...(roles ? { 'x-user-roles': roles } : {}),
+    },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 }
-const ctx = (id: string): { params: Promise<{ id: string }> } => ({ params: Promise.resolve({ id }) });
+const ctx = (id: string): { params: Promise<{ id: string }> } => ({
+  params: Promise.resolve({ id }),
+});
 
-const collecting: AgentReply = { status: 'collecting', reply: 'What did you expect to happen?', missing: ['expectedBehavior'] };
+const collecting: AgentReply = {
+  status: 'collecting',
+  reply: 'What did you expect to happen?',
+  missing: ['expectedBehavior'],
+};
 const completeBug: AgentReply = {
   status: 'complete',
   reply: 'Logged your grocery-count bug.',
@@ -76,8 +90,13 @@ const completeBug: AgentReply = {
   },
 };
 
-async function start(message = 'the grocery list is broken', userId = 'u1'): Promise<{ id: string; status: number; json: Record<string, unknown> }> {
-  const res = await POST_START(req('/api/v1/feedback', { method: 'POST', body: { message }, userId }));
+async function start(
+  message = 'the grocery list is broken',
+  userId = 'u1',
+): Promise<{ id: string; status: number; json: Record<string, unknown> }> {
+  const res = await POST_START(
+    req('/api/v1/feedback', { method: 'POST', body: { message }, userId }),
+  );
   const json = (await res.json()) as Record<string, unknown>;
   const feedback = json['feedback'] as { _id: string } | undefined;
   return { id: feedback?._id ?? '', status: res.status, json };
@@ -91,20 +110,27 @@ describe('POST /api/v1/feedback (start) — FR-F-001/002', () => {
     expect(json['status']).toBe('draft');
     expect(json['reply']).toMatch(/expect/i);
     const feedback = json['feedback'] as { transcript: Array<{ role: string; content: string }> };
-    expect(feedback.transcript[0]).toMatchObject({ role: 'user', content: 'the grocery list is broken' });
+    expect(feedback.transcript[0]).toMatchObject({
+      role: 'user',
+      content: 'the grocery list is broken',
+    });
     expect(feedback.transcript[1]).toMatchObject({ role: 'agent' });
     expect(id).toBeTruthy();
   });
 
   it('rejects an empty message with 400 before calling the agent', async () => {
-    const res = await POST_START(req('/api/v1/feedback', { method: 'POST', body: { message: '   ' } }));
+    const res = await POST_START(
+      req('/api/v1/feedback', { method: 'POST', body: { message: '   ' } }),
+    );
     expect(res.status).toBe(400);
     expect(sendToFeedbackAgent).not.toHaveBeenCalled();
   });
 
   it('preserves the draft and returns 502 when the agent fails (FR-F-002/004)', async () => {
     sendToFeedbackAgent.mockRejectedValueOnce(new Error('agent down'));
-    const res = await POST_START(req('/api/v1/feedback', { method: 'POST', body: { message: 'broken thing' } }));
+    const res = await POST_START(
+      req('/api/v1/feedback', { method: 'POST', body: { message: 'broken thing' } }),
+    );
     expect(res.status).toBe(502);
     // The user message must still be persisted as a draft.
     const list = await GET_LIST(req('/api/v1/feedback'));
@@ -119,7 +145,13 @@ describe('POST /api/v1/feedback/:id/messages (continue) — FR-F-001/003/012', (
     sendToFeedbackAgent.mockResolvedValueOnce(collecting);
     const { id } = await start();
     sendToFeedbackAgent.mockResolvedValueOnce(completeBug);
-    const res = await POST_MSG(req(`/api/v1/feedback/${id}/messages`, { method: 'POST', body: { message: 'expected 5 got 0' } }), ctx(id));
+    const res = await POST_MSG(
+      req(`/api/v1/feedback/${id}/messages`, {
+        method: 'POST',
+        body: { message: 'expected 5 got 0' },
+      }),
+      ctx(id),
+    );
     expect(res.status).toBe(200);
     const json = (await res.json()) as { status: string; feedback: Record<string, unknown> };
     expect(json.status).toBe('complete');
@@ -129,17 +161,27 @@ describe('POST /api/v1/feedback/:id/messages (continue) — FR-F-001/003/012', (
   it('refuses further messages once complete with 409 (US3-S3)', async () => {
     sendToFeedbackAgent.mockResolvedValueOnce(completeBug);
     const { id } = await start();
-    const res = await POST_MSG(req(`/api/v1/feedback/${id}/messages`, { method: 'POST', body: { message: 'more' } }), ctx(id));
+    const res = await POST_MSG(
+      req(`/api/v1/feedback/${id}/messages`, { method: 'POST', body: { message: 'more' } }),
+      ctx(id),
+    );
     expect(res.status).toBe(409);
   });
 
   it('finalizes the agent turn once the transcript cap is reached (FR-F-008)', async () => {
     // Seed a draft whose transcript already holds MAX_USER_TURNS user messages.
     const { FeedbackRecord } = await import('@server/models/feedback-record');
-    const transcript = Array.from({ length: 30 }, (_, i) => ({ role: 'user' as const, content: `m${i}`, at: new Date() }));
+    const transcript = Array.from({ length: 30 }, (_, i) => ({
+      role: 'user' as const,
+      content: `m${i}`,
+      at: new Date(),
+    }));
     const doc = await FeedbackRecord.create({ userId: 'u1', status: 'draft', transcript });
     sendToFeedbackAgent.mockResolvedValueOnce(completeBug);
-    await POST_MSG(req(`/api/v1/feedback/${doc._id}/messages`, { method: 'POST', body: { message: 'last' } }), ctx(String(doc._id)));
+    await POST_MSG(
+      req(`/api/v1/feedback/${doc._id}/messages`, { method: 'POST', body: { message: 'last' } }),
+      ctx(String(doc._id)),
+    );
     expect(sendToFeedbackAgent).toHaveBeenCalledWith(expect.anything(), { finalize: true });
   });
 });
@@ -154,12 +196,36 @@ describe('isolation + CRUD — FR-F-005 / SC-F-004', () => {
     expect(body.feedback).toHaveLength(1);
   });
 
-  it('returns 404 for another user’s record on GET/DELETE/export (no existence leak)', async () => {
+  it('returns 404 for another user’s record on GET/DELETE (no existence leak)', async () => {
     sendToFeedbackAgent.mockResolvedValueOnce(completeBug);
     const { id } = await start('mine', 'u1');
-    expect((await GET_ONE(req(`/api/v1/feedback/${id}`, { userId: 'u2' }), ctx(id))).status).toBe(404);
-    expect((await DELETE_ONE(req(`/api/v1/feedback/${id}`, { method: 'DELETE', userId: 'u2' }), ctx(id))).status).toBe(404);
-    expect((await GET_EXPORT(req(`/api/v1/feedback/${id}/export`, { userId: 'u2' }), ctx(id))).status).toBe(404);
+    expect((await GET_ONE(req(`/api/v1/feedback/${id}`, { userId: 'u2' }), ctx(id))).status).toBe(
+      404,
+    );
+    expect(
+      (await DELETE_ONE(req(`/api/v1/feedback/${id}`, { method: 'DELETE', userId: 'u2' }), ctx(id)))
+        .status,
+    ).toBe(404);
+  });
+
+  // Spec 011 FR-AD-013: export produces a maintainer artifact, so it is now
+  // administrator-only. A non-admin is refused with 403 BEFORE ownership is even
+  // considered — which also means no existence is leaked (every non-admin export
+  // gets 403 regardless of the id), so FR-F-005's no-leak guarantee still holds.
+  it('refuses export for a non-admin with 403, leaking nothing (FR-AD-013 / FR-F-005)', async () => {
+    sendToFeedbackAgent.mockResolvedValueOnce(completeBug);
+    const { id } = await start('mine', 'u1');
+    expect(
+      (await GET_EXPORT(req(`/api/v1/feedback/${id}/export`, { userId: 'u2' }), ctx(id))).status,
+    ).toBe(403);
+    expect(
+      (await GET_EXPORT(req(`/api/v1/feedback/${id}/export`, { userId: 'u1' }), ctx(id))).status,
+    ).toBe(403);
+    const missing = '0'.repeat(24);
+    expect(
+      (await GET_EXPORT(req(`/api/v1/feedback/${missing}/export`, { userId: 'u2' }), ctx(missing)))
+        .status,
+    ).toBe(403);
   });
 
   it('deletes the user’s own record (204)', async () => {
@@ -176,7 +242,10 @@ describe('export — FR-F-007 / US2-S2/S3', () => {
   it('serves text/markdown for a complete record', async () => {
     sendToFeedbackAgent.mockResolvedValueOnce(completeBug);
     const { id } = await start();
-    const res = await GET_EXPORT(req(`/api/v1/feedback/${id}/export`), ctx(id));
+    // Spec 011 FR-AD-013: export is administrator-only. `003` always said "the
+    // maintainer" — this test now says so explicitly instead of relying on every
+    // authenticated user being treated as one.
+    const res = await GET_EXPORT(req(`/api/v1/feedback/${id}/export`, { roles: 'admin' }), ctx(id));
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/markdown');
     const md = await res.text();
@@ -187,7 +256,7 @@ describe('export — FR-F-007 / US2-S2/S3', () => {
   it('refuses to export a draft with 409 (US2-S3)', async () => {
     sendToFeedbackAgent.mockResolvedValueOnce(collecting);
     const { id } = await start();
-    const res = await GET_EXPORT(req(`/api/v1/feedback/${id}/export`), ctx(id));
+    const res = await GET_EXPORT(req(`/api/v1/feedback/${id}/export`, { roles: 'admin' }), ctx(id));
     expect(res.status).toBe(409);
   });
 });
@@ -197,7 +266,9 @@ describe('rate limiting — FR-F-009', () => {
     sendToFeedbackAgent.mockResolvedValue(collecting);
     let last = 0;
     for (let i = 0; i < 11; i++) {
-      const res = await POST_START(req('/api/v1/feedback', { method: 'POST', body: { message: `m${i}` } }));
+      const res = await POST_START(
+        req('/api/v1/feedback', { method: 'POST', body: { message: `m${i}` } }),
+      );
       last = res.status;
     }
     expect(last).toBe(429);

@@ -4,7 +4,10 @@ export function normalizeIngredientName(raw: string): string {
 
   // Strip leading quantity prefix: e.g. "2 cups onion" -> "onion"
   // Longer unit strings must come before shorter ones to avoid partial matches
-  name = name.replace(/^\d+(\.\d+)?\s*(tablespoons|tablespoon|teaspoons|teaspoon|fl oz|pounds|ounces|pound|ounce|cups|tbsp|tsp|lbs|cup|oz|lb|kg|ml|g|l)?\s*/i, '');
+  name = name.replace(
+    /^\d+(\.\d+)?\s*(tablespoons|tablespoon|teaspoons|teaspoon|fl oz|pounds|ounces|pound|ounce|cups|tbsp|tsp|lbs|cup|oz|lb|kg|ml|g|l)?\s*/i,
+    '',
+  );
 
   // Strip remaining leading digits (e.g. "1 onion" -> "onion")
   name = name.replace(/^\d+\s+/, '');
@@ -21,8 +24,19 @@ export function normalizeIngredientName(raw: string): string {
 function stemPlural(word: string): string {
   // Exceptions — do not stem these
   const exceptions = new Set([
-    'asparagus', 'broccoli', 'couscous', 'hummus', 'quinoa', 'oats',
-    'peas', 'beans', 'lentils', 'chips', 'greens', 'sprouts', 'herbs',
+    'asparagus',
+    'broccoli',
+    'couscous',
+    'hummus',
+    'quinoa',
+    'oats',
+    'peas',
+    'beans',
+    'lentils',
+    'chips',
+    'greens',
+    'sprouts',
+    'herbs',
   ]);
   if (exceptions.has(word)) return word;
 

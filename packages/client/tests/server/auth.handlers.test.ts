@@ -25,7 +25,11 @@ let GL_ITEM: typeof import('../../app/api/v1/grocery-lists/[weekStart]/items/[it
 async function mkToken(sub: string): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: 'RS256', kid: 'test' })
-    .setSubject(sub).setIssuer(ISS).setAudience(AUD).setIssuedAt().setExpirationTime('10m')
+    .setSubject(sub)
+    .setIssuer(ISS)
+    .setAudience(AUD)
+    .setIssuedAt()
+    .setExpirationTime('10m')
     .sign(privateKey);
 }
 
@@ -39,14 +43,37 @@ function req(token: string | null, opts: { method?: string; body?: unknown } = {
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 }
-const wk = (weekStart = WEEK): { params: Promise<{ weekStart: string }> } => ({ params: Promise.resolve({ weekStart }) });
-const wkSlot = (slotId: string): { params: Promise<{ weekStart: string; slotId: string }> } => ({ params: Promise.resolve({ weekStart: WEEK, slotId }) });
-const wkItem = (itemId: string): { params: Promise<{ weekStart: string; itemId: string }> } => ({ params: Promise.resolve({ weekStart: WEEK, itemId }) });
+const wk = (weekStart = WEEK): { params: Promise<{ weekStart: string }> } => ({
+  params: Promise.resolve({ weekStart }),
+});
+const wkSlot = (slotId: string): { params: Promise<{ weekStart: string; slotId: string }> } => ({
+  params: Promise.resolve({ weekStart: WEEK, slotId }),
+});
+const wkItem = (itemId: string): { params: Promise<{ weekStart: string; itemId: string }> } => ({
+  params: Promise.resolve({ weekStart: WEEK, itemId }),
+});
 
-const ITEM = { name: 'Chicken Breast', quantity: 2, unit: 'lbs', category: 'Meat', location: 'fridge' };
+const ITEM = {
+  name: 'Chicken Breast',
+  quantity: 2,
+  unit: 'lbs',
+  category: 'Meat',
+  location: 'fridge',
+};
 const ENTRY = {
-  slotId: SLOT, date: WEEK, mealType: 'dinner',
-  meal: { mealName: 'M', suggestedMealType: 'dinner', prepTimeMinutes: 10, cuisine: 'x', description: 'x', usesIngredients: [], expiringIngredients: [], missingIngredients: [] },
+  slotId: SLOT,
+  date: WEEK,
+  mealType: 'dinner',
+  meal: {
+    mealName: 'M',
+    suggestedMealType: 'dinner',
+    prepTimeMinutes: 10,
+    cuisine: 'x',
+    description: 'x',
+    usesIngredients: [],
+    expiringIngredients: [],
+    missingIngredients: [],
+  },
 };
 
 beforeAll(async () => {
@@ -109,8 +136,12 @@ describe('Token identity drives scoping — FR-D-003, SC-D-002', () => {
 
 describe('No cross-user access (404) across resource types — FR-D-004/036, SC-D-002', () => {
   it('inventory: B cannot update A’s item', async () => {
-    const created = (await (await INV.POST(req(tokenA, { method: 'POST', body: ITEM }))).json()) as { _id: string };
-    const res = await INV_ID.PUT(req(tokenB, { method: 'PUT', body: { quantity: 9 } }), { params: Promise.resolve({ id: created._id }) });
+    const created = (await (
+      await INV.POST(req(tokenA, { method: 'POST', body: ITEM }))
+    ).json()) as { _id: string };
+    const res = await INV_ID.PUT(req(tokenB, { method: 'PUT', body: { quantity: 9 } }), {
+      params: Promise.resolve({ id: created._id }),
+    });
     expect(res.status).toBe(404);
   });
   it('meal-plans: B cannot delete A’s entry', async () => {
@@ -119,9 +150,20 @@ describe('No cross-user access (404) across resource types — FR-D-004/036, SC-
     expect(res.status).toBe(404);
   });
   it('grocery-lists: B cannot patch A’s item', async () => {
-    const list = (await (await GL_ITEMS.POST(req(tokenA, { method: 'POST', body: { displayName: 'Bread', quantity: 1, unit: 'loaf', category: 'Grains' } }), wk())).json()) as { groceryList: { items: Array<{ _id: string }> } };
+    const list = (await (
+      await GL_ITEMS.POST(
+        req(tokenA, {
+          method: 'POST',
+          body: { displayName: 'Bread', quantity: 1, unit: 'loaf', category: 'Grains' },
+        }),
+        wk(),
+      )
+    ).json()) as { groceryList: { items: Array<{ _id: string }> } };
     const itemId = list.groceryList.items[0]!._id;
-    const res = await GL_ITEM.PATCH(req(tokenB, { method: 'PATCH', body: { isPurchased: true } }), wkItem(itemId));
+    const res = await GL_ITEM.PATCH(
+      req(tokenB, { method: 'PATCH', body: { isPurchased: true } }),
+      wkItem(itemId),
+    );
     expect(res.status).toBe(404);
   });
 });

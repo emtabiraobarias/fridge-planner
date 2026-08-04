@@ -24,7 +24,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Agent-backed chat is rate-limited per user (FR-F-009), like recommendations.
     const rl = rateLimit(`feedback-chat:${userId}`, 10, 60_000);
     if (!rl.allowed) {
-      return problemResponse(429, 'Rate Limit Exceeded', 'Too many feedback messages. Try again in a minute.');
+      return problemResponse(
+        429,
+        'Rate Limit Exceeded',
+        'Too many feedback messages. Try again in a minute.',
+      );
     }
     await connectDb();
     const body: unknown = await request.json().catch(() => ({}));

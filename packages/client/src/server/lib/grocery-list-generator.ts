@@ -34,8 +34,7 @@ export function generateGroceryList(
 ): GenerateResult {
   const planned = mealPlan.entries.filter(
     (e) =>
-      entryStatus(e) === 'planned' &&
-      (asOf === undefined || e.date.getTime() >= asOf.getTime()),
+      entryStatus(e) === 'planned' && (asOf === undefined || e.date.getTime() >= asOf.getTime()),
   );
 
   const items = [
@@ -193,7 +192,12 @@ function missingServingsLines(
     );
     if (!matchingInventory) return true;
 
-    const net = netNeeded(item.quantity, item.unit, matchingInventory.quantity, matchingInventory.unit);
+    const net = netNeeded(
+      item.quantity,
+      item.unit,
+      matchingInventory.quantity,
+      matchingInventory.unit,
+    );
     if (net === null) return true;
 
     item.quantity = net.netQty;

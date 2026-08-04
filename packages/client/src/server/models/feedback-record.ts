@@ -1,6 +1,12 @@
 import mongoose, { type Document, type Model, Schema } from 'mongoose';
 import type { IFeedbackMessage, IFeedbackRecord } from '../types/feedback';
-import { AFFECTED_AREAS, FEEDBACK_STATUSES, FEEDBACK_TYPES, MESSAGE_ROLES, PRIORITIES } from '../types/feedback';
+import {
+  AFFECTED_AREAS,
+  FEEDBACK_STATUSES,
+  FEEDBACK_TYPES,
+  MESSAGE_ROLES,
+  PRIORITIES,
+} from '../types/feedback';
 
 export type FeedbackRecordDocument = IFeedbackRecord & Document;
 

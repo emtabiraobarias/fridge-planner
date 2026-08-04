@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { FeedbackRecord } from '../models/feedback-record';
 import { PipelineItem } from '../models/pipeline-item';
 import { assertPromotable, isGateAction, nextStage } from '../lib/pipeline-transitions';
+import { record as auditRecord } from '../lib/audit';
 import { problem, type ControllerResult } from '../http';
 import {
   pipelineListQuerySchema,
@@ -30,7 +31,8 @@ function serialize(doc: InstanceType<typeof PipelineItem>): Record<string, unkno
   return doc.toObject() as unknown as Record<string, unknown>;
 }
 
-const notFound = (): ControllerResult => problem(404, 'Not Found', 'Feedback conversation not found');
+const notFound = (): ControllerResult =>
+  problem(404, 'Not Found', 'Feedback conversation not found');
 const notFoundItem = (): ControllerResult => problem(404, 'Not Found', 'Pipeline item not found');
 
 type PipelineDoc = InstanceType<typeof PipelineItem>;
@@ -54,7 +56,7 @@ function resolveNote(data: TransitionRequest): string | undefined {
  * entry (protects SC-F-008). `ref` is a bounded string stored verbatim (FR-F-017).
  */
 async function appendArtifact(
-  userId: string,
+  adminUserId: string,
   id: string,
   artifact: { type: ArtifactType; ref: string; note?: string | undefined },
   now: Date,
@@ -65,8 +67,9 @@ async function appendArtifact(
     at: now,
     ...(artifact.note ? { note: artifact.note } : {}),
   };
+  // Reached only from the admin-guarded PATCH (FR-AD-011) — addressed by id across users.
   const updated = await PipelineItem.findOneAndUpdate(
-    { _id: id, userId },
+    { _id: id },
     { $push: { artifacts: entry } },
     { new: true },
   );
@@ -83,7 +86,7 @@ async function appendArtifact(
  * are the only transitions that can carry `isGateApproval:true`.
  */
 async function applyStageTransition(
-  userId: string,
+  adminUserId: string,
   id: string,
   current: PipelineDoc,
   data: TransitionRequest,
@@ -95,6 +98,7 @@ async function applyStageTransition(
     from: current.stage,
     to,
     actor: resolveActor(data),
+    actorUserId: adminUserId, // FR-AD-012: evidence WHICH administrator approved
     at: now,
     isGateApproval: isGateAction(data.action),
     ...(note ? { note } : {}),
@@ -102,14 +106,26 @@ async function applyStageTransition(
   const setFields: Record<string, unknown> = { stage: to };
   if (data.action === 'park') setFields['parkedFromStage'] = current.stage;
 
+  // Spec 011 FR-AD-011: the caller is an administrator (route-guarded), so the item
+  // is addressed by id ACROSS users — the maintainer advances other people's reports.
+  // The atomic pre-state guard on `stage` is unchanged and still prevents double-apply.
   const updated = await PipelineItem.findOneAndUpdate(
-    { _id: id, userId, stage: current.stage },
+    { _id: id, stage: current.stage },
     { $set: setFields, $push: { transitions: entry } },
     { new: true },
   );
   if (!updated) {
-    return problem(409, 'Illegal Transition', 'Pipeline item changed concurrently; retry the transition.');
+    return problem(
+      409,
+      'Illegal Transition',
+      'Pipeline item changed concurrently; retry the transition.',
+    );
   }
+  await auditRecord(adminUserId, 'pipeline.transition', {
+    userId: updated.userId,
+    type: 'pipelineItem',
+    id,
+  });
   return { status: 200, body: { pipelineItem: serialize(updated) } };
 }
 
@@ -123,13 +139,24 @@ async function applyStageTransition(
  * status to 'reviewed' — a status-gated re-promote would otherwise wrongly 409 on
  * every call after the first (D1/D6).
  */
-export async function promoteFromFeedback(userId: string, feedbackId: string): Promise<ControllerResult> {
+export async function promoteFromFeedback(
+  adminUserId: string,
+  feedbackId: string,
+): Promise<ControllerResult> {
   if (!mongoose.isValidObjectId(feedbackId)) return notFound();
 
-  const record = await FeedbackRecord.findOne({ _id: feedbackId, userId });
+  // Spec 011 FR-AD-010: promotion is an administrator action, so the source record
+  // is looked up ACROSS users — the maintainer promotes other people's reports, which
+  // is the entire point (the route is admin-guarded, so this is not an isolation hole).
+  const record = await FeedbackRecord.findOne({ _id: feedbackId });
   if (!record) return notFound();
 
-  const existing = await PipelineItem.findOne({ userId, feedbackRecordId: feedbackId });
+  // The pipeline item stays owned by the record's AUTHOR so their own status view
+  // (`003` FR-F-015) keeps resolving under its existing `{ userId }` scoping; only
+  // the *attribution* of who promoted it becomes the administrator (FR-AD-012).
+  const ownerId: string = record.userId;
+
+  const existing = await PipelineItem.findOne({ userId: ownerId, feedbackRecordId: feedbackId });
   if (existing) return { status: 200, body: { pipelineItem: serialize(existing) } };
 
   if (!assertPromotable(record)) {
@@ -147,26 +174,40 @@ export async function promoteFromFeedback(userId: string, feedbackId: string): P
     // applyComplete, validated by structuredRecordSchema) — the identity snapshot is
     // never taken from a record with these fields unset.
     const created = await PipelineItem.create({
-      userId,
+      userId: ownerId,
       feedbackRecordId: feedbackId,
       sourceTitle: record.title!,
       sourceType: record.type!,
       sourceAffectedArea: record.affectedArea!,
       stage: 'approved',
-      promotedBy: userId,
+      promotedBy: adminUserId,
       promotedAt: now,
-      transitions: [{ from: null, to: 'approved', actor: 'human', at: now, isGateApproval: true }],
+      transitions: [
+        {
+          from: null,
+          to: 'approved',
+          actor: 'human',
+          actorUserId: adminUserId,
+          at: now,
+          isGateApproval: true,
+        },
+      ],
       artifacts: [],
     });
     record.status = 'reviewed';
     await record.save();
+    await auditRecord(adminUserId, 'feedback.promote', {
+      userId: ownerId,
+      type: 'feedback',
+      id: feedbackId,
+    });
     return { status: 201, body: { pipelineItem: serialize(created) } };
   } catch (err) {
     // Concurrent double-promote race backstop: the unique (userId, feedbackRecordId)
     // index rejects the losing insert — return the winner's item instead of erroring
     // (D1/D12, spec EC "promote an already-promoted record").
     if (isDuplicateKeyError(err)) {
-      const winner = await PipelineItem.findOne({ userId, feedbackRecordId: feedbackId });
+      const winner = await PipelineItem.findOne({ userId: ownerId, feedbackRecordId: feedbackId });
       if (winner) return { status: 200, body: { pipelineItem: serialize(winner) } };
     }
     throw err;
@@ -190,7 +231,10 @@ export async function getPipelineItem(userId: string, id: string): Promise<Contr
  * log — kept lean; the full log is served by `getPipelineItem`). Optional `?stage=`
  * filter, Zod-validated (400 on an invalid value).
  */
-export async function listPipeline(userId: string, query: URLSearchParams): Promise<ControllerResult> {
+export async function listPipeline(
+  userId: string,
+  query: URLSearchParams,
+): Promise<ControllerResult> {
   const parsed = pipelineListQuerySchema.safeParse({ stage: query.get('stage') ?? undefined });
   if (!parsed.success) {
     return problem(400, 'Invalid input', parsed.error.issues.map((i) => i.message).join('; '));
@@ -199,7 +243,10 @@ export async function listPipeline(userId: string, query: URLSearchParams): Prom
   const filter: Record<string, unknown> = { userId };
   if (parsed.data.stage) filter['stage'] = parsed.data.stage;
 
-  const docs = await PipelineItem.find(filter).select('-transitions').sort({ updatedAt: -1 }).lean();
+  const docs = await PipelineItem.find(filter)
+    .select('-transitions')
+    .sort({ updatedAt: -1 })
+    .lean();
 
   return { status: 200, body: { pipeline: docs } };
 }
@@ -213,7 +260,7 @@ export async function listPipeline(userId: string, query: URLSearchParams): Prom
  * `in-spec` and into `shipped` (FR-F-016, SC-F-008).
  */
 export async function transitionPipelineItem(
-  userId: string,
+  adminUserId: string,
   id: string,
   body: unknown,
 ): Promise<ControllerResult> {
@@ -225,13 +272,14 @@ export async function transitionPipelineItem(
   }
   const data = parsed.data;
 
-  const current = await PipelineItem.findOne({ _id: id, userId });
+  // Administrator-scoped (FR-AD-011): any user's item, addressed by id.
+  const current = await PipelineItem.findOne({ _id: id });
   if (!current) return notFoundItem();
 
   const now = new Date();
 
   if (data.action === 'attach-artifact') {
-    return appendArtifact(userId, id, data.artifact, now);
+    return appendArtifact(adminUserId, id, data.artifact, now);
   }
 
   // Idempotent re-park: an already-parked item stays parked with no new log entry and
@@ -244,5 +292,5 @@ export async function transitionPipelineItem(
   const result = nextStage(current.stage, data.action, ctx);
   if (!result.ok) return problem(409, 'Illegal Transition', result.reason);
 
-  return applyStageTransition(userId, id, current, data, result.stage, now);
+  return applyStageTransition(adminUserId, id, current, data, result.stage, now);
 }

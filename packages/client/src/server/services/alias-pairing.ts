@@ -1,4 +1,5 @@
 import 'server-only';
+import { aiAllowed } from '../lib/ai-guard';
 import { IngredientAlias } from '../models/ingredient-alias';
 import { normalizeIngredientName } from '../lib/ingredient-matcher';
 import { logger } from '../logger';
@@ -36,6 +37,9 @@ export async function lookupPairing(
   const cacheKey = `${userId}:${nameKey}`;
   const hit = cache.get(cacheKey);
   if (hit && hit.expiresAt > Date.now()) return hit.value;
+  // FR-AD-026: this service is already documented fail-open — null means "no learned
+  // pairing", and grounding falls back to its deterministic tiers.
+  if (!(await aiAllowed('alias-pairing'))) return null;
 
   try {
     const value = await resolveUncached(userId, nameKey, inventoryNames);

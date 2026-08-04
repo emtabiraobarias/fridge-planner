@@ -14,7 +14,11 @@ export async function PUT(request: Request, ctx: RouteContext): Promise<NextResp
     const userId = await authenticate(request);
     const rl = rateLimit(`quick-add-aliases:${userId}`, 100, 60_000);
     if (!rl.allowed) {
-      return problemResponse(429, 'Rate Limit Exceeded', 'Too many alias requests. Try again in a minute.');
+      return problemResponse(
+        429,
+        'Rate Limit Exceeded',
+        'Too many alias requests. Try again in a minute.',
+      );
     }
     await connectDb();
     const { nameKey } = await ctx.params;

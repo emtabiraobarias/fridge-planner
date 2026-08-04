@@ -43,11 +43,7 @@ function putCtx(nameKey: string): { params: Promise<{ nameKey: string }> } {
   return { params: Promise.resolve({ nameKey }) };
 }
 
-async function putAlias(
-  nameKey: string,
-  body: unknown,
-  userId = 'u1',
-): Promise<Response> {
+async function putAlias(nameKey: string, body: unknown, userId = 'u1'): Promise<Response> {
   return PUT(req({ method: 'PUT', body, userId }), putCtx(nameKey));
 }
 

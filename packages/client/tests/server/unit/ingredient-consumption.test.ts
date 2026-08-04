@@ -103,7 +103,13 @@ describe('consumeConfirmed (spec 006 FR-MC-009/012)', () => {
     ]);
     expect(await qty('Eggs')).toBeNull();
     const snap = receipt[0]!.depletedSnapshot!;
-    expect(snap).toMatchObject({ name: 'Eggs', quantity: 6, unit: 'count', category: 'Meat', location: 'fridge' });
+    expect(snap).toMatchObject({
+      name: 'Eggs',
+      quantity: 6,
+      unit: 'count',
+      category: 'Meat',
+      location: 'fridge',
+    });
     expect(snap.expiresAt).toBeInstanceOf(Date);
     expect('expirationStatus' in (snap as Record<string, unknown>)).toBe(false);
   });
@@ -178,7 +184,12 @@ describe('restoreFromReceipt (spec 006 FR-MC-013)', () => {
     const { restoreFromReceipt } = await import('@server/lib/ingredient-consumption');
     await restoreFromReceipt(USER, [
       { name: 'dragon fruit', quantityConsumed: 0, unit: 'count' },
-      { inventoryItemId: '000000000000000000000000', name: 'Ghost', quantityConsumed: 5, unit: 'g' },
+      {
+        inventoryItemId: '000000000000000000000000',
+        name: 'Ghost',
+        quantityConsumed: 5,
+        unit: 'g',
+      },
     ]);
     expect(await qty('Chicken Thighs')).toBe(500);
     expect(await InventoryItem.countDocuments({ userId: USER })).toBe(1);

@@ -18,6 +18,13 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     // Playwright specs under e2e/ are driven by playwright.config.ts, not Vitest.
     exclude: [...configDefaults.exclude, 'e2e/**'],
+    // Every `tests/server/**` suite spins up `mongodb-memory-server` in `beforeAll`.
+    // Whichever suite happens to sort FIRST pays mongod's cold start (binary resolve
+    // + boot), which exceeds Vitest's 10s default hook timeout on a cold CI runner —
+    // a latent flake that has always been one filename away, and that surfaced when
+    // `admin-authorization.test.ts` became the alphabetically-first server suite.
+    // Raised globally rather than per-file so the next new suite cannot re-trip it.
+    hookTimeout: 60_000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}', 'app/**/*.{ts,tsx}'],

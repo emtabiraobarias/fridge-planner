@@ -23,7 +23,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Replaces the Express recommendationsLimiter (10 requests / minute).
     const rl = rateLimit(`recommendations:${userId}`, 10, 60_000);
     if (!rl.allowed) {
-      return problemResponse(429, 'Rate Limit Exceeded', 'Too many recommendation requests. Try again in a minute.');
+      return problemResponse(
+        429,
+        'Rate Limit Exceeded',
+        'Too many recommendation requests. Try again in a minute.',
+      );
     }
     // Spec 009 IR2 (T021): parse the optional ingredient scope and pass it to the
     // controller. A malformed field is ignored (safeParse failure → undefined) so

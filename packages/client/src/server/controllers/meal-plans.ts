@@ -55,7 +55,10 @@ function invalidInput(error: z.ZodError): ControllerResult {
 }
 
 // GET /api/v1/meal-plans?weekStart=<ISO>
-export async function getMealPlan(userId: string, weekStartStr: string | null): Promise<ControllerResult> {
+export async function getMealPlan(
+  userId: string,
+  weekStartStr: string | null,
+): Promise<ControllerResult> {
   if (!weekStartStr) return problem(400, 'Bad Request', 'weekStart query parameter is required');
   const parsed = parseWeekStart(weekStartStr);
   if ('error' in parsed) return parsed.error;
@@ -206,7 +209,11 @@ async function cookEntry(
   return { status: 200, body: { plan, receipt } };
 }
 
-async function uncookEntry(userId: string, weekStart: Date, slotId: string): Promise<ControllerResult> {
+async function uncookEntry(
+  userId: string,
+  weekStart: Date,
+  slotId: string,
+): Promise<ControllerResult> {
   // Guard mirrors cook: only a cooked entry WITH a receipt reverses — legacy cooked
   // entries (no receipt) cannot be un-cooked (FR-MC-011/013). {new:false} returns the
   // pre-image so the receipt is read exactly as it was when this call won the transition.
@@ -221,7 +228,9 @@ async function uncookEntry(userId: string, weekStart: Date, slotId: string): Pro
       $unset: { 'entries.$[e].cookedAt': '', 'entries.$[e].consumedItems': '' },
     },
     {
-      arrayFilters: [{ 'e.slotId': slotId, 'e.status': 'cooked', 'e.consumedItems': { $exists: true } }],
+      arrayFilters: [
+        { 'e.slotId': slotId, 'e.status': 'cooked', 'e.consumedItems': { $exists: true } },
+      ],
       new: false,
     },
   );

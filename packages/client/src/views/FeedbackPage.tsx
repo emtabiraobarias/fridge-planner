@@ -1,4 +1,6 @@
 'use client';
+import Link from 'next/link';
+import { useIsAdmin } from '../hooks/useIsAdmin';
 import { useEffect, useRef } from 'react';
 import { useFeedback } from '../context/FeedbackContext';
 import { ChatMessageList } from '../components/feedback/ChatMessageList';
@@ -8,6 +10,7 @@ import { FeedbackHistory } from '../components/feedback/FeedbackHistory';
 import { PipelineStatusView } from '../components/feedback/PipelineStatusView';
 
 export function FeedbackPage(): React.JSX.Element {
+  const isAdmin = useIsAdmin();
   const { chatState, messages, completedRecord, error, send, reset, resume } = useFeedback();
   const sending = chatState === 'sending';
   const complete = chatState === 'complete';
@@ -35,6 +38,20 @@ export function FeedbackPage(): React.JSX.Element {
           Spotted a bug, or wishing for something? Tell us — the assistant asks a couple of
           questions and files a tidy report.
         </p>
+        {/* Spec 011 US2: the maintainer's way in to cross-user triage. Deliberately NOT
+            a fifth item in the primary nav — that pill/rail/sidebar is a four-item
+            layout tuned across five viewport classes, and this app has already shipped
+            real clipping defects from exactly that pressure. Feedback is where a
+            maintainer is already standing, so the entry costs nothing here.
+            Hiding it is a courtesy only; `/admin` is guarded server-side (FR-AD-002). */}
+        {isAdmin === true && (
+          <Link
+            href="/admin"
+            className="mt-3 inline-block rounded-full bg-accent-100 px-4 py-2 text-[13px] font-semibold text-accent-800 hover:bg-accent-200"
+          >
+            Open administration →
+          </Link>
+        )}
       </header>
 
       <ChatMessageList messages={messages} pending={sending} />

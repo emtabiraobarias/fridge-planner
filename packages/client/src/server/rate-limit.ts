@@ -38,3 +38,29 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
     resetAt: existing.resetAt,
   };
 }
+
+/**
+ * Spec 011 FR-AD-029 — administrator visibility and reset for the in-memory limiter.
+ *
+ * These are additive: `rateLimit()` above is untouched. The store is per-instance and
+ * resets on deploy (the Phase E5 caveat is unchanged) — that is exactly why an operator
+ * needs to *see* it rather than infer it.
+ */
+export interface LimiterBucketView {
+  key: string;
+  count: number;
+  resetsAt: number;
+}
+
+export function inspectLimiter(): LimiterBucketView[] {
+  return [...buckets.entries()].map(([key, state]) => ({
+    key,
+    count: state.count,
+    resetsAt: state.resetAt,
+  }));
+}
+
+/** Clear one bucket (a user throttled in error). Returns whether anything was cleared. */
+export function resetLimiterKey(key: string): boolean {
+  return buckets.delete(key);
+}

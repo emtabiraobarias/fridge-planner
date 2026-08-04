@@ -43,7 +43,12 @@ function problemSection(record: IFeedbackRecord): string {
 function scenariosSection(record: IFeedbackRecord): string {
   const title = record.title ?? 'Untitled feedback';
   const priority = record.priority ?? 'P3';
-  const lines = ['## User Scenarios & Testing', '', `### User Story 1 - ${title} (Priority: ${priority})`, ''];
+  const lines = [
+    '## User Scenarios & Testing',
+    '',
+    `### User Story 1 - ${title} (Priority: ${priority})`,
+    '',
+  ];
   if (record.userStory) lines.push(record.userStory, '');
   lines.push('**Acceptance Scenarios**:', '');
 
@@ -51,7 +56,9 @@ function scenariosSection(record: IFeedbackRecord): string {
   if (criteria.length === 0) {
     lines.push('1. _No acceptance scenarios captured._');
   } else {
-    criteria.forEach((c, i) => lines.push(`${i + 1}. **Given** ${c.given}, **When** ${c.when}, **Then** ${c.then}`));
+    criteria.forEach((c, i) =>
+      lines.push(`${i + 1}. **Given** ${c.given}, **When** ${c.when}, **Then** ${c.then}`),
+    );
   }
   lines.push('');
   return lines.join('\n');

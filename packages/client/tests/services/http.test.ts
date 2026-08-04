@@ -20,7 +20,10 @@ describe('apiFetch — Bearer token attachment (E0)', () => {
     const f = vi.fn().mockResolvedValue({});
     vi.stubGlobal('fetch', f);
     setAuthToken('tok123');
-    await apiFetch('/api/v1/inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    await apiFetch('/api/v1/inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
     const headers = new Headers((f.mock.calls[0]?.[1] as RequestInit).headers);
     expect(headers.get('Authorization')).toBe('Bearer tok123');
     expect(headers.get('Content-Type')).toBe('application/json');
@@ -46,7 +49,8 @@ describe('apiFetch — transparent token refresh (FR-D-010)', () => {
   });
 
   it('renews on 401 and retries the request once with the new token', async () => {
-    const f = vi.fn()
+    const f = vi
+      .fn()
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ access_token: 'fresh-token', refresh_token: 'refresh-2' }), {
@@ -73,7 +77,8 @@ describe('apiFetch — transparent token refresh (FR-D-010)', () => {
   });
 
   it('returns the original 401 and clears tokens when the refresh grant fails', async () => {
-    const f = vi.fn()
+    const f = vi
+      .fn()
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
       .mockResolvedValueOnce(new Response('{}', { status: 400 }));
     vi.stubGlobal('fetch', f);
@@ -94,13 +99,18 @@ describe('apiFetch — transparent token refresh (FR-D-010)', () => {
           new Response(JSON.stringify({ access_token: 'fresh-token' }), { status: 200 }),
         );
       }
-      const headers = new Headers((f.mock.calls[f.mock.calls.length - 1] as [string, RequestInit])[1]?.headers);
+      const headers = new Headers(
+        (f.mock.calls[f.mock.calls.length - 1] as [string, RequestInit])[1]?.headers,
+      );
       const status = headers.get('Authorization') === 'Bearer fresh-token' ? 200 : 401;
       return Promise.resolve(new Response(null, { status }));
     });
     vi.stubGlobal('fetch', f);
 
-    const [a, b] = await Promise.all([apiFetch('/api/v1/inventory'), apiFetch('/api/v1/meal-plans')]);
+    const [a, b] = await Promise.all([
+      apiFetch('/api/v1/inventory'),
+      apiFetch('/api/v1/meal-plans'),
+    ]);
 
     expect(refreshCalls).toBe(1);
     expect(a.status).toBe(200);
@@ -116,5 +126,45 @@ describe('apiFetch — transparent token refresh (FR-D-010)', () => {
 
     expect(res.status).toBe(401);
     expect(f).toHaveBeenCalledTimes(1);
+  });
+});
+
+// T022 (spec 011, research D3) — the reason ForbiddenError maps to 403 and not 401.
+// `apiFetch` renews-and-retries on 401 (FR-D-010). If an authenticated-but-unprivileged
+// caller were answered with 401, every admin-only refusal would burn a refresh round
+// trip and retry a request that can never succeed. 403 must be inert here.
+describe('apiFetch — a 403 must NOT trigger the FR-D-010 refresh/retry (spec 011 FR-AD-003)', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_OIDC_ISSUER', 'https://auth.example.com:8443/realms/fridge-planner');
+    vi.stubEnv('NEXT_PUBLIC_OIDC_CLIENT_ID', 'fridge-planner-app');
+    setAuthToken('good-token');
+    setRefreshToken('refresh-1');
+  });
+
+  afterEach(() => {
+    setAuthToken(null);
+    setRefreshToken(null);
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('returns the 403 straight through — exactly one fetch, no token exchange', async () => {
+    const f = vi.fn().mockResolvedValue({ status: 403 });
+    vi.stubGlobal('fetch', f);
+
+    const res = await apiFetch('/api/v1/pipeline/abc', { method: 'PATCH' });
+
+    expect(res.status).toBe(403);
+    expect(f).toHaveBeenCalledTimes(1); // no retry
+    // and nothing was posted to the token endpoint
+    expect(
+      f.mock.calls.every((c) => !String(c[0]).includes('/protocol/openid-connect/token')),
+    ).toBe(true);
+  });
+
+  it('leaves the access token untouched (a refusal is not a stale session)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 403 }));
+    await apiFetch('/api/v1/admin/feedback');
+    expect(getAuthToken()).toBe('good-token');
   });
 });
