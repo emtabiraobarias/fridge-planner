@@ -59,7 +59,9 @@ done
 [ "$ready" = 1 ] || { echo "❌ app did not become ready (see /tmp/e2e-app.log)"; exit 1; }
 
 echo "[4/4] run shared smoke (scripts/smoke-test.sh)"
-BASE="http://localhost:$PORT/api/v1" bash scripts/smoke-test.sh $AGENT_FLAG
+# --require-admin: this implementation HAS spec 011, so a missing admin surface must be
+# a hard failure here rather than the graceful skip the shared script offers impl/vite.
+BASE="http://localhost:$PORT/api/v1" bash scripts/smoke-test.sh $AGENT_FLAG --require-admin
 RC=$?
 
 echo ""
