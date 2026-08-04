@@ -163,6 +163,11 @@ AI recommendations within the timeout, data persists across app restart, no leak
   git history (pre `nextjs-v4.1.1`) if the topology ever changes to a host compose dir or Portainer BE.
 - **Post-deploy smoke (run by hand, after the poll interval elapses):** `GET /api/health` → 200; `GET
   /api/v1/inventory` (no token) → **401** (confirms oidc enforced); a token-bearing request → 2xx.
+  Since spec `011`: `GET /api/health/ready` → 200 with every dependency `ok` (a **new sibling** of
+  `/api/health`, which is deliberately unchanged — three consumers depend on its exact shape);
+  `GET /api/v1/me` with the operator's token → `{"isAdmin": true}`; the same call with a
+  non-admin token → `{"isAdmin": false}`; and `GET /api/v1/admin/feedback` as a non-admin → **403**
+  (not 401 — see `specs/011-admin-capabilities/research.md` D3).
   GitHub Actions can't reach the internal-LAN Portainer instance to do this itself.
 
 ### E3 — Infra prerequisites
@@ -184,6 +189,19 @@ stack on one host reachable only over the LAN. Artifacts committed for this:
   `auth.fridgeplanner.lan` to the host; distribute Caddy's internal-CA root to clients (Stage 1).
 - **Keycloak setup:** create the `fridge-planner` realm + a public SPA client (PKCE), redirect URI
   `https://fridgeplanner.lan/auth/callback`, and an audience mapper matching `OIDC_AUDIENCE`.
+- **Keycloak admin role (spec `011`, MANUAL — realm admin).** Administration capabilities are gated
+  on a **verified token claim**, so they are inert until the role exists and is assigned:
+  1. Realm `fridge-planner` (**not** `master`) → **Realm roles → Create role** → `admin` → Save.
+  2. **Users →** the operator → **Role mapping → Assign role** → filter *realm roles* → tick `admin`.
+  3. **Sign out and back in** — an already-issued token will not carry the new role.
+  4. Decode the access token and confirm `realm_access.roles` contains `admin`. If the roles live at
+     a different path (e.g. client roles at `resource_access.<client>.roles`), set **`AUTH_ROLES_CLAIM`**
+     to that dotted path — this is **configuration, not a code change**.
+
+  > ⚠️ **Sequencing matters at the 011 release.** Before spec `011`, every authenticated user was
+  > treated as the maintainer, so the operator could promote / approve / export. The moment `011`
+  > ships **without** the role assigned, **nobody** can — including the operator. End users are
+  > unaffected (FR-AD-006) and assigning the role fixes it, but do the role first.
 
 ### E4 — Secrets & prod env
 Load the prod env (checklist) into the secret manager + GH `production` Environment secrets. For the
@@ -307,6 +325,16 @@ interaction**.
    BRAVE_SEARCH_API_KEY=…      # recipe-URL verification — at least one of these two is
    SPOONACULAR_API_KEY=…       # REQUIRED for recommendations (FR-037: 503 without)
    ```
+   **Spec `011` adds no REQUIRED env key.** Both are optional overrides whose defaults suit the
+   deployed Keycloak, so an existing stack needs no change:
+   ```
+   AUTH_ADMIN_ROLE=admin                  # only if the role is named something else
+   AUTH_ROLES_CLAIM=realm_access.roles    # only if roles live at a different claim path
+   ```
+   ⛔ **`AUTH_DEV_USER_ID` / `AUTH_DEV_ROLES` are LOCAL-DEV ONLY** and must never be set in
+   production. They exist because a browser cannot send the `x-user-id` / `x-user-roles` headers, and
+   they are read **only** on the dev branch of `resolveMode()` — which already refuses the dev seam in
+   production (FR-AD-004). `AUTH_ALLOW_DEV` likewise stays absent.
 
 3. **Confirm the rollout actually happened — never assume it.** From the LAN:
    ```sh
