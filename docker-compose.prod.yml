@@ -69,7 +69,7 @@ services:
 
   # ── The app: pulled image (never built on the host) ───────────────────────
   app:
-    image: ${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client:4.12.0}
+    image: ${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client:4.13.0}
     restart: unless-stopped
     environment:
       NODE_ENV: production
