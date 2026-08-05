@@ -72,7 +72,10 @@ test('plan is inventory-neutral; cook deducts the adjusted amount; un-cook resto
   const place = page.getByRole('button', { name: /place on calendar/i }).first();
   await expect(place).toBeVisible({ timeout: 30_000 });
   await place.click();
-  await page.getByRole('button', { name: /place here/i }).first().click();
+  await page
+    .getByRole('button', { name: /place here/i })
+    .first()
+    .click();
   await expect(page.getByText('E2E Chicken Adobo').first()).toBeVisible();
 
   // Planning never touches inventory (FR-MC-006).

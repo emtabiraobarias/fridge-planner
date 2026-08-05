@@ -18,10 +18,7 @@ export function GroceryRunCard({ items }: GroceryRunCardProps): React.JSX.Elemen
   const empty = hasNoGroceryItems(total);
 
   return (
-    <Link
-      href="/grocery"
-      className="block rounded-[22px] bg-surface p-[17px] hover:bg-neutral-100"
-    >
+    <Link href="/grocery" className="block rounded-[22px] bg-surface p-[17px] hover:bg-neutral-100">
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-[19px] text-ink">Grocery run</h2>
         {!empty && (
@@ -32,14 +29,13 @@ export function GroceryRunCard({ items }: GroceryRunCardProps): React.JSX.Elemen
       </div>
 
       {empty ? (
-        <p className="text-muted mt-3 text-[13px]">No grocery items yet — plan a meal to start a list.</p>
+        <p className="text-muted mt-3 text-[13px]">
+          No grocery items yet — plan a meal to start a list.
+        </p>
       ) : (
         <>
           <div className="mt-3 h-[10px] w-full rounded-full bg-neutral-200">
-            <div
-              className="h-[10px] rounded-full bg-accent2-500"
-              style={{ width: `${pct}%` }}
-            />
+            <div className="h-[10px] rounded-full bg-accent2-500" style={{ width: `${pct}%` }} />
           </div>
           <p className="text-muted mt-2 text-[13px]">Built from this week&rsquo;s meals</p>
         </>

@@ -41,7 +41,9 @@ function groundedReview(meal: MealRecommendation, inventory: InventoryItem[]): C
 
     seen.add(item._id);
     const quantity =
-      ingredient.quantityToConsume !== undefined ? clamp(ingredient.quantityToConsume, item.quantity) : 1;
+      ingredient.quantityToConsume !== undefined
+        ? clamp(ingredient.quantityToConsume, item.quantity)
+        : 1;
     lines.push({
       inventoryItemId: item._id,
       name: item.name,
@@ -72,6 +74,9 @@ function legacyReview(meal: MealRecommendation, inventory: InventoryItem[]): Con
   return { lines, unresolved };
 }
 
-export function buildReviewLines(meal: MealRecommendation, inventory: InventoryItem[]): ConsumptionReview {
+export function buildReviewLines(
+  meal: MealRecommendation,
+  inventory: InventoryItem[],
+): ConsumptionReview {
   return meal.groundedIngredients ? groundedReview(meal, inventory) : legacyReview(meal, inventory);
 }

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { usePathname } from 'next/navigation';
@@ -194,5 +194,22 @@ describe('Nav — sidebar collapse persistence (FR-RS-003, SC-RS-009)', () => {
     const wordmark = screen.getByText('Fridge Planner');
     expect(wordmark).toBeInTheDocument();
     expect(wordmark.className).not.toContain('truncate');
+  });
+});
+
+// T110 — spec 002 FR-D-017: the account controls must NOT become a fifth primary
+// navigation destination. That layout is tuned for four items across five viewport
+// classes (spec 010 FR-RS-002) and has already shipped clipping defects under exactly
+// this pressure, so this is a constraint with a guard, not a style preference.
+describe('primary navigation stays four destinations (FR-D-017)', () => {
+  it('renders exactly Home / Fridge / Plan / List — the account panel is not among them', () => {
+    render(<Nav />);
+    const nav = screen.getByRole('navigation', { name: 'Main navigation' });
+    const labels = within(nav)
+      .getAllByRole('link')
+      .map((a) => a.textContent?.trim());
+
+    expect(labels).toEqual(['Home', 'Fridge', 'Plan', 'List']);
+    expect(within(nav).queryByRole('link', { name: /account|sign/i })).not.toBeInTheDocument();
   });
 });

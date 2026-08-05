@@ -33,7 +33,10 @@ describe('AuthBanner (FR-D-009 / E0)', () => {
     process.env['NEXT_PUBLIC_OIDC_ISSUER'] = 'https://auth.example.com:8443/realms/fridge-planner';
     process.env['NEXT_PUBLIC_OIDC_CLIENT_ID'] = 'fridge-planner-app';
     const assign = vi.fn();
-    Object.defineProperty(window, 'location', { value: { origin: 'http://localhost:3000', assign }, writable: true });
+    Object.defineProperty(window, 'location', {
+      value: { origin: 'http://localhost:3000', assign },
+      writable: true,
+    });
     renderBanner();
     act(() => {
       expect(() => ensureOk(res(401), 'fetch inventory')).toThrow(AuthRequiredError);

@@ -13,8 +13,12 @@ function parse(text: string): ReturnType<typeof parseQuickAll> {
 describe('ParsePreview (spec 005 US2, FR-IQ-010..013)', () => {
   it('marks guessed fields tentative and parsed fields confident', () => {
     render(<ParsePreview items={parse('spinach')} onCorrect={() => {}} />);
-    expect(screen.getByRole('button', { name: /category: Produce \(guessed\)/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /location: fridge \(guessed\)/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /category: Produce \(guessed\)/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /location: fridge \(guessed\)/i }),
+    ).toBeInTheDocument();
   });
 
   it('does not mark explicitly parsed values as guessed', () => {
@@ -63,7 +67,12 @@ describe('ParsePreview (spec 005 US2, FR-IQ-010..013)', () => {
 
   it('hides location/expiry chips when the entry point does not use them', () => {
     render(
-      <ParsePreview items={parse('spinach')} onCorrect={() => {}} showLocation={false} showExpiry={false} />,
+      <ParsePreview
+        items={parse('spinach')}
+        onCorrect={() => {}}
+        showLocation={false}
+        showExpiry={false}
+      />,
     );
     expect(screen.queryByRole('button', { name: /location/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /expiry/i })).not.toBeInTheDocument();

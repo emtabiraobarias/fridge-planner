@@ -48,12 +48,18 @@ function itemNameKey(name: string): string {
   return name.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
-function hasSameNameAvailableInventory(item: GroceryListItem, inventoryItems: InventoryItem[]): boolean {
+function hasSameNameAvailableInventory(
+  item: GroceryListItem,
+  inventoryItems: InventoryItem[],
+): boolean {
   const displayKey = itemNameKey(item.displayName);
   const ingredientKey = itemNameKey(item.ingredientName);
   return inventoryItems.some((inventoryItem) => {
     const inventoryKey = itemNameKey(inventoryItem.name);
-    return inventoryItem.expirationStatus !== 'expired' && [displayKey, ingredientKey].includes(inventoryKey);
+    return (
+      inventoryItem.expirationStatus !== 'expired' &&
+      [displayKey, ingredientKey].includes(inventoryKey)
+    );
   });
 }
 
@@ -116,8 +122,17 @@ function PurchasePromptOverlay({
 }
 
 export function GroceryListPage(): React.JSX.Element {
-  const { groceryList, loading, error, generate, addItem, removeItem, purchaseItem, togglePurchased, completeSession } =
-    useGroceryList();
+  const {
+    groceryList,
+    loading,
+    error,
+    generate,
+    addItem,
+    removeItem,
+    purchaseItem,
+    togglePurchased,
+    completeSession,
+  } = useGroceryList();
   const { items: inventoryItems, refresh: refreshInventory } = useInventory();
   const { currentWeekStart } = useMealPlan();
   const { showToast } = useToast();
@@ -132,7 +147,9 @@ export function GroceryListPage(): React.JSX.Element {
 
   // AI assist for uncategorised names — debounced + fail-open in the context (US4).
   useEffect(() => {
-    const target = enhanced.find((i) => i.category === 'Other' && i.provenance.category === 'guess');
+    const target = enhanced.find(
+      (i) => i.category === 'Other' && i.provenance.category === 'guess',
+    );
     if (target) requestAssist(target);
   }, [enhanced, requestAssist]);
 
@@ -223,7 +240,10 @@ export function GroceryListPage(): React.JSX.Element {
 
   if (error) {
     return (
-      <p role="alert" className="mx-auto max-w-[720px] rounded-lg bg-accent-100 p-4 text-sm text-accent-800">
+      <p
+        role="alert"
+        className="mx-auto max-w-[720px] rounded-lg bg-accent-100 p-4 text-sm text-accent-800"
+      >
         {error}
       </p>
     );
@@ -280,7 +300,9 @@ export function GroceryListPage(): React.JSX.Element {
           const rows = items.filter((i) => i.category === cat) as GroceryListItem[];
           return (
             <div key={cat}>
-              <h2 className="text-h6 mb-1.5 font-body font-bold uppercase text-accent-700">{cat}</h2>
+              <h2 className="text-h6 mb-1.5 font-body font-bold uppercase text-accent-700">
+                {cat}
+              </h2>
               <ul className="rounded-[20px] bg-surface px-1.5 py-[5px]">
                 {rows.map((item, i) => (
                   <GroceryListItemRow
@@ -320,7 +342,12 @@ export function GroceryListPage(): React.JSX.Element {
       </div>
 
       {/* Tap-to-correct parse preview (spec 005 US2) — grocery items carry no location/expiry */}
-      <ParsePreview items={parsedPreview} onCorrect={handleCorrect} showLocation={false} showExpiry={false} />
+      <ParsePreview
+        items={parsedPreview}
+        onCorrect={handleCorrect}
+        showLocation={false}
+        showExpiry={false}
+      />
 
       {/* Inline checkout */}
       {receiptless.length > 0 && (
@@ -329,7 +356,8 @@ export function GroceryListPage(): React.JSX.Element {
           onClick={() => void handleCheckout()}
           className="min-h-[48px] w-full rounded-full bg-accent text-[15px] font-semibold text-bg hover:bg-accent-600"
         >
-          Done shopping — move {receiptless.length} item{pluralS(receiptless.length)} into my kitchen
+          Done shopping — move {receiptless.length} item{pluralS(receiptless.length)} into my
+          kitchen
         </button>
       )}
 

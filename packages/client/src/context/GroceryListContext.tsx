@@ -126,7 +126,10 @@ export function GroceryListProvider({ children }: { children: ReactNode }): Reac
         // wrong state (409, unchanged 007 case) or because it already shed off the
         // rolling list (404 — the row is gone). Both are "cannot reverse, refetch" with
         // no distinct UI branch, so they're handled identically here.
-        if (err instanceof Error && (err.message.includes(': 409') || err.message.includes(': 404'))) {
+        if (
+          err instanceof Error &&
+          (err.message.includes(': 409') || err.message.includes(': 404'))
+        ) {
           await refresh();
           return;
         }

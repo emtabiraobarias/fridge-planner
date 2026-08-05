@@ -69,7 +69,11 @@ export function CompletionCard({ record, onStartAnother }: CompletionCardProps):
         <dt className="font-semibold">Area</dt>
         <dd>{record.affectedArea}</dd>
       </dl>
-      {error && <p className="mt-2 text-sm text-accent-700" role="alert">{error}</p>}
+      {error && (
+        <p className="mt-2 text-sm text-accent-700" role="alert">
+          {error}
+        </p>
+      )}
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           onClick={() => void copy()}

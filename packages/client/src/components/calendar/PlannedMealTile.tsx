@@ -15,7 +15,11 @@ interface PlannedMealTileProps {
  * slot (FR-022 — drag-and-drop rearrangement; optional enhancement over tap-to-place
  * per spec 004 FR-UI-026).
  */
-export function PlannedMealTile({ entry, onOpen, onClear }: PlannedMealTileProps): React.JSX.Element {
+export function PlannedMealTile({
+  entry,
+  onOpen,
+  onClear,
+}: PlannedMealTileProps): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `entry::${entry.slotId}`,
     data: { entry },
@@ -39,7 +43,10 @@ export function PlannedMealTile({ entry, onOpen, onClear }: PlannedMealTileProps
       </div>
       <div className="text-[11px] text-accent2-700">{entry.meal.prepTimeMinutes} min</div>
       {cooked && (
-        <div className="mt-1 text-[10px] font-semibold uppercase text-accent2-800" aria-label="Cooked meal">
+        <div
+          className="mt-1 text-[10px] font-semibold uppercase text-accent2-800"
+          aria-label="Cooked meal"
+        >
           Cooked
         </div>
       )}

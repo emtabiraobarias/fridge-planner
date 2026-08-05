@@ -215,8 +215,16 @@ describe('trailing quantity (FR-IQ-005)', () => {
   });
 
   it('extracts x-notation counts ("eggs x6", "6x eggs")', () => {
-    expect(parseQuick('eggs x6', TODAY)).toMatchObject({ name: 'Eggs', quantity: 6, unit: 'count' });
-    expect(parseQuick('6x eggs', TODAY)).toMatchObject({ name: 'Eggs', quantity: 6, unit: 'count' });
+    expect(parseQuick('eggs x6', TODAY)).toMatchObject({
+      name: 'Eggs',
+      quantity: 6,
+      unit: 'count',
+    });
+    expect(parseQuick('6x eggs', TODAY)).toMatchObject({
+      name: 'Eggs',
+      quantity: 6,
+      unit: 'count',
+    });
   });
 
   it('leading quantity wins over trailing', () => {

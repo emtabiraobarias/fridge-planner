@@ -52,24 +52,35 @@ export function InventoryProvider({ children }: { children: ReactNode }): React.
     void refresh();
   }, [refresh]);
 
-  const addItem = useCallback(async (data: CreateItemPayload): Promise<CreateItemResult> => {
-    const result = await createItem(data);
-    await refresh();
-    return result;
-  }, [refresh]);
+  const addItem = useCallback(
+    async (data: CreateItemPayload): Promise<CreateItemResult> => {
+      const result = await createItem(data);
+      await refresh();
+      return result;
+    },
+    [refresh],
+  );
 
-  const editItem = useCallback(async (id: string, data: InventoryItemUpdate): Promise<void> => {
-    await updateItem(id, data);
-    await refresh();
-  }, [refresh]);
+  const editItem = useCallback(
+    async (id: string, data: InventoryItemUpdate): Promise<void> => {
+      await updateItem(id, data);
+      await refresh();
+    },
+    [refresh],
+  );
 
-  const removeItem = useCallback(async (id: string): Promise<void> => {
-    await deleteItem(id);
-    await refresh();
-  }, [refresh]);
+  const removeItem = useCallback(
+    async (id: string): Promise<void> => {
+      await deleteItem(id);
+      await refresh();
+    },
+    [refresh],
+  );
 
   return (
-    <InventoryContext.Provider value={{ items, summary, loading, error, refresh, addItem, editItem, removeItem }}>
+    <InventoryContext.Provider
+      value={{ items, summary, loading, error, refresh, addItem, editItem, removeItem }}
+    >
       {children}
     </InventoryContext.Provider>
   );

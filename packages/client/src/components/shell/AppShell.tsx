@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Nav } from '../../../app/nav';
+import { AccountPanel } from '../account/AccountPanel';
 import { FeedbackAffordance } from './FeedbackAffordance';
 
 /**
@@ -40,7 +41,7 @@ const CONTENT_CLASS = [
 export function AppShell({ children }: { children: ReactNode }): React.JSX.Element {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-bg xl:flex-row">
-      <Nav />
+      <Nav footer={<AccountPanel variant="compact" />} />
       <main className="min-h-0 min-w-0 flex-1 overflow-auto">
         <div className={CONTENT_CLASS}>{children}</div>
       </main>

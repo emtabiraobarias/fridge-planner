@@ -36,7 +36,8 @@ function defaultSelectedDate(days: string[], todayIso: string): string {
 }
 
 export function CalendarPage(): React.JSX.Element {
-  const { plan, currentWeekStart, setWeekOffset, assignMeal, unassignMeal, moveMeal, cookMeal } = useMealPlan();
+  const { plan, currentWeekStart, setWeekOffset, assignMeal, unassignMeal, moveMeal, cookMeal } =
+    useMealPlan();
   const { placing, clearPlacing } = usePlacement();
   const { showToast } = useToast();
   const inventory = useInventoryOptional();
@@ -54,7 +55,10 @@ export function CalendarPage(): React.JSX.Element {
   const [cookingEntry, setCookingEntry] = useState<MealPlanEntry | null>(null);
   const [cookSubmitting, setCookSubmitting] = useState(false);
   const cookReview = useMemo(
-    () => (cookingEntry ? buildReviewLines(cookingEntry.meal, inventory?.items ?? []) : { lines: [], unresolved: [] }),
+    () =>
+      cookingEntry
+        ? buildReviewLines(cookingEntry.meal, inventory?.items ?? [])
+        : { lines: [], unresolved: [] },
     [cookingEntry, inventory?.items],
   );
 

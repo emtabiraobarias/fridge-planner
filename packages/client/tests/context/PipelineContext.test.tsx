@@ -9,7 +9,11 @@ vi.mock('../../src/services/pipeline', () => ({
   transitionPipelineItem: vi.fn(),
 }));
 
-import { fetchPipeline, promoteFeedback, transitionPipelineItem } from '../../src/services/pipeline';
+import {
+  fetchPipeline,
+  promoteFeedback,
+  transitionPipelineItem,
+} from '../../src/services/pipeline';
 
 const mockFetch = vi.mocked(fetchPipeline);
 const mockPromote = vi.mocked(promoteFeedback);
@@ -32,8 +36,20 @@ const fullItem: PipelineItem = {
   stage: 'in-spec',
   promotedBy: 'u1',
   transitions: [
-    { from: null, to: 'approved', actor: 'human', at: '2026-07-23T10:00:00Z', isGateApproval: true },
-    { from: 'approved', to: 'in-spec', actor: 'session', at: '2026-07-23T10:05:00Z', isGateApproval: false },
+    {
+      from: null,
+      to: 'approved',
+      actor: 'human',
+      at: '2026-07-23T10:00:00Z',
+      isGateApproval: true,
+    },
+    {
+      from: 'approved',
+      to: 'in-spec',
+      actor: 'session',
+      at: '2026-07-23T10:05:00Z',
+      isGateApproval: false,
+    },
   ],
   createdAt: '2026-07-23T10:00:00Z',
 };

@@ -23,7 +23,9 @@ function wrapper({ children }: { children: React.ReactNode }): React.JSX.Element
   return <QuickAddProvider>{children}</QuickAddProvider>;
 }
 
-async function ready(): Promise<ReturnType<typeof renderHook<ReturnType<typeof useQuickAdd>, unknown>>> {
+async function ready(): Promise<
+  ReturnType<typeof renderHook<ReturnType<typeof useQuickAdd>, unknown>>
+> {
   const hook = renderHook(() => useQuickAdd(), { wrapper });
   // Aliases load lazily on the first enhance() call.
   hook.result.current.enhance(parse('anything'), TODAY);

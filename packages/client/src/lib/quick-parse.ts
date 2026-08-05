@@ -106,7 +106,11 @@ function canonicalUnit(word: string): string | null {
 const LOCATION_WORDS = ['fridge', 'freezer', 'pantry'] as const;
 
 const CAT_GUESS: readonly (readonly [RegExp, Category, Location])[] = [
-  [/milk|yogurt|yoghurt|cheese|butter|cream|feta|egg/i, 'Dairy', defaultLocationForCategory('Dairy')],
+  [
+    /milk|yogurt|yoghurt|cheese|butter|cream|feta|egg/i,
+    'Dairy',
+    defaultLocationForCategory('Dairy'),
+  ],
   [/chicken|beef|pork|mince|lamb|bacon|sausage/i, 'Meat', defaultLocationForCategory('Meat')],
   [/salmon|fish|prawn|shrimp|tuna/i, 'Seafood', defaultLocationForCategory('Seafood')],
   [
@@ -116,7 +120,11 @@ const CAT_GUESS: readonly (readonly [RegExp, Category, Location])[] = [
   ],
   [/rice|pasta|bread|oat|flour|noodle|quinoa/i, 'Grains', defaultLocationForCategory('Grains')],
   [/frozen|ice cream|peas/i, 'Frozen', defaultLocationForCategory('Frozen')],
-  [/oil|sauce|ketchup|mayo|mustard|vinegar|honey|jam/i, 'Condiments', defaultLocationForCategory('Condiments')],
+  [
+    /oil|sauce|ketchup|mayo|mustard|vinegar|honey|jam/i,
+    'Condiments',
+    defaultLocationForCategory('Condiments'),
+  ],
 ];
 
 function midnight(d: Date): Date {
@@ -244,7 +252,13 @@ function extractLeadingQuantity(t: string): QuantityResult | null {
   const u = m[2] ?? '';
   const unit = u ? canonicalUnit(u) : null;
   if (unit) {
-    return { text: t.slice(m[0].length), quantity, unit, quantityExplicit: true, unitExplicit: true };
+    return {
+      text: t.slice(m[0].length),
+      quantity,
+      unit,
+      quantityExplicit: true,
+      unitExplicit: true,
+    };
   }
   if (!u) {
     return {

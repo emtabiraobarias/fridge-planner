@@ -198,6 +198,14 @@ stack on one host reachable only over the LAN. Artifacts committed for this:
      a different path (e.g. client roles at `resource_access.<client>.roles`), set **`AUTH_ROLES_CLAIM`**
      to that dotted path — this is **configuration, not a code change**.
 
+- **Keycloak post-logout redirect (spec `002` US4, MANUAL — realm admin).** RP-initiated
+  sign-out redirects the browser to the realm's end-session endpoint and back; Keycloak
+  **refuses a redirect it has not been told about**. Realm `fridge-planner` → the SPA
+  client → **Valid post logout redirect URIs** → add the app origin
+  (`https://fridgeplanner.lan:8443/*`, plus `http://localhost:3000/*` for local dev).
+  Until it is registered the local session still clears (FR-D-014), so the failure is
+  graceful and visible rather than a silent half-logout.
+
   > ⚠️ **Sequencing matters at the 011 release.** Before spec `011`, every authenticated user was
   > treated as the maintainer, so the operator could promote / approve / export. The moment `011`
   > ships **without** the role assigned, **nobody** can — including the operator. End users are

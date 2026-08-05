@@ -27,12 +27,16 @@ export function FreshPicksCard({ items }: FreshPicksCardProps): React.JSX.Elemen
       <h2 className="font-heading text-[19px] text-ink">Fresh picks</h2>
 
       {picks.length === 0 ? (
-        <p className="text-muted mt-3 text-[13px]">No items tracked yet — add something to your fridge.</p>
+        <p className="text-muted mt-3 text-[13px]">
+          No items tracked yet — add something to your fridge.
+        </p>
       ) : (
         <ul className="mt-3 flex flex-col gap-2">
           {picks.map((item) => {
             const isZero = item.quantity <= 0;
-            const dotClass = isZero ? ZERO_DOT_CLASS : DOT_CLASS[expiryStatus(daysLeft(item.expiresAt))];
+            const dotClass = isZero
+              ? ZERO_DOT_CLASS
+              : DOT_CLASS[expiryStatus(daysLeft(item.expiresAt))];
             return (
               <li key={item._id} className="flex items-center gap-2">
                 <span className={`h-2 w-2 shrink-0 rounded-full ${dotClass}`} aria-hidden />

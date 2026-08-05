@@ -28,7 +28,9 @@ describe('createAuthorizationRequest (E0b — PKCE)', () => {
   it('targets the Keycloak authorization endpoint with a PKCE S256 challenge', async () => {
     process.env['NEXT_PUBLIC_OIDC_ISSUER'] = 'https://auth.example.com:8443/realms/fridge-planner/';
     process.env['NEXT_PUBLIC_OIDC_CLIENT_ID'] = 'fridge-planner-app';
-    const { url, verifier, state } = await createAuthorizationRequest('https://app.example.com:8443');
+    const { url, verifier, state } = await createAuthorizationRequest(
+      'https://app.example.com:8443',
+    );
     const parsed = new URL(url);
     expect(parsed.origin + parsed.pathname).toBe(
       'https://auth.example.com:8443/realms/fridge-planner/protocol/openid-connect/auth',
@@ -37,7 +39,9 @@ describe('createAuthorizationRequest (E0b — PKCE)', () => {
     expect(parsed.searchParams.get('response_type')).toBe('code');
     expect(parsed.searchParams.get('code_challenge_method')).toBe('S256');
     expect(parsed.searchParams.get('code_challenge')).toBeTruthy();
-    expect(parsed.searchParams.get('redirect_uri')).toBe('https://app.example.com:8443/auth/callback');
+    expect(parsed.searchParams.get('redirect_uri')).toBe(
+      'https://app.example.com:8443/auth/callback',
+    );
     expect(parsed.searchParams.get('state')).toBe(state);
     expect(verifier.length).toBeGreaterThanOrEqual(43); // 32 bytes → 43 base64url chars
   });

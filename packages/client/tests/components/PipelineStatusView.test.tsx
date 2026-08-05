@@ -68,13 +68,20 @@ describe('PipelineStatusView', () => {
         stage: 'in-review',
         artifacts: [
           { type: 'draft-spec', ref: 'specs/010-foo/spec.md', at: '2026-07-23T10:00:00Z' },
-          { type: 'pull-request', ref: 'https://github.com/org/repo/pull/42', at: '2026-07-23T10:00:00Z' },
+          {
+            type: 'pull-request',
+            ref: 'https://github.com/org/repo/pull/42',
+            at: '2026-07-23T10:00:00Z',
+          },
         ],
       }),
     ]);
     setup();
     await waitFor(() =>
-      expect(screen.getByRole('link', { name: /draft spec/i })).toHaveAttribute('href', 'specs/010-foo/spec.md'),
+      expect(screen.getByRole('link', { name: /draft spec/i })).toHaveAttribute(
+        'href',
+        'specs/010-foo/spec.md',
+      ),
     );
     expect(screen.getByRole('link', { name: /pull request/i })).toHaveAttribute(
       'href',
@@ -88,7 +95,9 @@ describe('PipelineStatusView', () => {
     setup();
     const btn = await screen.findByRole('button', { name: /approve spec/i });
     fireEvent.click(btn);
-    await waitFor(() => expect(mockTransition).toHaveBeenCalledWith('p1', { action: 'approve-spec' }));
+    await waitFor(() =>
+      expect(mockTransition).toHaveBeenCalledWith('p1', { action: 'approve-spec' }),
+    );
   });
 
   it('the Approve release control calls transition with approve-release for an in-review item', async () => {
@@ -97,7 +106,9 @@ describe('PipelineStatusView', () => {
     setup();
     const btn = await screen.findByRole('button', { name: /approve release/i });
     fireEvent.click(btn);
-    await waitFor(() => expect(mockTransition).toHaveBeenCalledWith('p1', { action: 'approve-release' }));
+    await waitFor(() =>
+      expect(mockTransition).toHaveBeenCalledWith('p1', { action: 'approve-release' }),
+    );
   });
 
   it('the Park control calls transition with park', async () => {

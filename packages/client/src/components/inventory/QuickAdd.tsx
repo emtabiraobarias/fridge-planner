@@ -42,7 +42,9 @@ export function QuickAdd({ onAdd }: Props): React.JSX.Element {
 
   // AI assist for the low-confidence long tail — debounced + fail-open in the context (US4).
   useEffect(() => {
-    const target = enhanced.find((i) => i.category === 'Other' && i.provenance.category === 'guess');
+    const target = enhanced.find(
+      (i) => i.category === 'Other' && i.provenance.category === 'guess',
+    );
     if (target) requestAssist(target);
   }, [enhanced, requestAssist]);
 
@@ -110,7 +112,11 @@ export function QuickAdd({ onAdd }: Props): React.JSX.Element {
         </button>
       </div>
 
-      <ParsePreview items={parsed} onCorrect={handleCorrect} onAcceptSuggestion={handleAcceptSuggestion} />
+      <ParsePreview
+        items={parsed}
+        onCorrect={handleCorrect}
+        onAcceptSuggestion={handleAcceptSuggestion}
+      />
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="text-muted text-xs">Staples:</span>

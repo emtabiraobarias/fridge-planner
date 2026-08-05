@@ -85,7 +85,13 @@ describe('InventoryPage (organic redesign)', () => {
       expect(inventoryService.createItem).toHaveBeenCalledTimes(1);
     });
     expect(inventoryService.createItem).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Milk', quantity: 2, unit: 'L', category: 'Dairy', location: 'fridge' }),
+      expect.objectContaining({
+        name: 'Milk',
+        quantity: 2,
+        unit: 'L',
+        category: 'Dairy',
+        location: 'fridge',
+      }),
     );
   });
 
@@ -176,7 +182,9 @@ describe('InventoryPage (organic redesign)', () => {
       renderWithProviders();
       await waitFor(() => expect(screen.getByText('Chicken Breast')).toBeInTheDocument());
       expect(screen.getByRole('button', { name: /get recommendations/i })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /find recipes with selected/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /find recipes with selected/i }),
+      ).not.toBeInTheDocument();
     });
   });
 

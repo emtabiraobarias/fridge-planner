@@ -63,18 +63,50 @@ const mockList: GroceryList = {
 };
 
 function TestConsumer(): React.JSX.Element {
-  const { groceryList, loading, error, refresh, generate, togglePurchased, purchaseItem, removeItem } =
-    useGroceryList();
+  const {
+    groceryList,
+    loading,
+    error,
+    refresh,
+    generate,
+    togglePurchased,
+    purchaseItem,
+    removeItem,
+  } = useGroceryList();
 
   return (
     <div>
       <span data-testid="loading">{loading ? 'loading' : 'idle'}</span>
       <span data-testid="error">{error}</span>
       <span data-testid="count">{groceryList?.items.length ?? 0}</span>
-      <button onClick={() => { void refresh(); }}>Refresh</button>
-      <button onClick={() => { void generate(); }}>Generate</button>
-      <button onClick={() => { void togglePurchased('item-1', false); }}>Toggle</button>
-      <button onClick={() => { void togglePurchased('item-1', true); }}>Uncheck</button>
+      <button
+        onClick={() => {
+          void refresh();
+        }}
+      >
+        Refresh
+      </button>
+      <button
+        onClick={() => {
+          void generate();
+        }}
+      >
+        Generate
+      </button>
+      <button
+        onClick={() => {
+          void togglePurchased('item-1', false);
+        }}
+      >
+        Toggle
+      </button>
+      <button
+        onClick={() => {
+          void togglePurchased('item-1', true);
+        }}
+      >
+        Uncheck
+      </button>
       <button
         onClick={() => {
           void purchaseItem('item-1', { quantity: 2, unit: 'pack', location: 'pantry' });
@@ -82,7 +114,13 @@ function TestConsumer(): React.JSX.Element {
       >
         Resolve
       </button>
-      <button onClick={() => { void removeItem('item-1'); }}>Remove</button>
+      <button
+        onClick={() => {
+          void removeItem('item-1');
+        }}
+      >
+        Remove
+      </button>
     </div>
   );
 }

@@ -2,7 +2,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Home, Refrigerator, Calendar, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Home,
+  Refrigerator,
+  Calendar,
+  ShoppingCart,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useInventoryOptional } from '../src/context/InventoryContext';
 import { daysLeft, isUrgent } from '../src/lib/quick-parse';
@@ -177,7 +184,20 @@ function NavItem({
   );
 }
 
-export function Nav(): React.JSX.Element {
+interface NavProps {
+  /**
+   * Rendered pinned to the bottom of the DESKTOP SIDEBAR only (spec 002 FR-D-012).
+   *
+   * A slot rather than a direct import, deliberately: the account panel needs auth
+   * context, and wiring that into `Nav` would give this component — a four-item layout
+   * tuned across five viewport classes, with a history of clipping defects — an auth
+   * dependency, and force every existing nav test to mount an AuthProvider. Composition
+   * happens in `AppShell`, so the navigation stays presentational.
+   */
+  footer?: React.ReactNode;
+}
+
+export function Nav({ footer }: NavProps = {}): React.JSX.Element {
   const pathname = usePathname();
   const inventory = useInventoryOptional();
   const mode = modeFor(useViewportClass());
@@ -228,6 +248,12 @@ export function Nav(): React.JSX.Element {
           badge={tab.href === '/' ? urgentCount : 0}
         />
       ))}
+
+      {/* Spec 002 FR-D-012/017: the account controls sit in the sidebar FOOTER, never
+          in TABS — a fifth destination would push a layout tuned for four. `mt-auto`
+          pins it to the bottom; hidden outside sidebar mode, where the pill and rail
+          have no room and Home carries the same control. */}
+      {footer && <div className="mt-auto hidden xl:block">{footer}</div>}
     </nav>
   );
 }

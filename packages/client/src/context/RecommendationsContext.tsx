@@ -32,7 +32,11 @@ const UNAVAILABLE_MSG =
 const NONE_VERIFIED_MSG =
   'No recipe link could be verified for any suggested meal — try requesting suggestions again.';
 
-export function RecommendationsProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+export function RecommendationsProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.JSX.Element {
   const [state, setState] = useState<RecommendationsState>('idle');
   const [meals, setMealsState] = useState<MealRecommendation[]>([]);
   const [error, setErrorState] = useState('');
@@ -87,7 +91,18 @@ export function RecommendationsProvider({ children }: { children: React.ReactNod
 
   return (
     <RecommendationsContext.Provider
-      value={{ state, meals, error, cachedAt, fallback, linksPending, setLoading, setMeals, setError, checkLinks }}
+      value={{
+        state,
+        meals,
+        error,
+        cachedAt,
+        fallback,
+        linksPending,
+        setLoading,
+        setMeals,
+        setError,
+        checkLinks,
+      }}
     >
       {children}
     </RecommendationsContext.Provider>

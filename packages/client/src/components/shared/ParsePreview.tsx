@@ -35,7 +35,11 @@ const UNIT_OPTIONS: readonly string[] = [
 
 interface Props {
   items: ParsedQuickItem[];
-  onCorrect: (item: ParsedQuickItem, field: OverridableField, value: string | number | null) => void;
+  onCorrect: (
+    item: ParsedQuickItem,
+    field: OverridableField,
+    value: string | number | null,
+  ) => void;
   /** One-tap expiry suggestion accept (spec 005 US3/T023 — populated later). */
   onAcceptSuggestion?: (item: ParsedQuickItem) => void;
   showLocation?: boolean;
@@ -73,7 +77,15 @@ interface ChipProps {
   onToggle: () => void;
 }
 
-function Chip({ field, label, display, provenance, palette, open, onToggle }: ChipProps): React.JSX.Element {
+function Chip({
+  field,
+  label,
+  display,
+  provenance,
+  palette,
+  open,
+  onToggle,
+}: ChipProps): React.JSX.Element {
   void field;
   return (
     <button
@@ -173,7 +185,11 @@ function PreviewRow({
   const expiryDisplay = item.expiresAt ? `expires ${formatExpiry(item.expiresAt)}` : 'no expiry';
 
   return (
-    <div role="group" aria-label={`Parsed item ${item.name}`} className="flex flex-wrap items-center gap-1.5">
+    <div
+      role="group"
+      aria-label={`Parsed item ${item.name}`}
+      className="flex flex-wrap items-center gap-1.5"
+    >
       <span className="text-muted text-xs">{leadIn}</span>
       <span className="min-h-[32px] rounded-full bg-accent-100 px-3 py-1 text-[11px] font-semibold leading-[22px] text-accent-800">
         {item.name}
@@ -243,24 +259,42 @@ interface FieldEditorProps {
 function FieldEditor({ openField, correct }: FieldEditorProps): React.JSX.Element | null {
   if (openField === 'category') {
     return (
-      <OptionPicker label="Correct category" options={CATEGORY_OPTIONS} onPick={(v) => correct('category', v)} />
+      <OptionPicker
+        label="Correct category"
+        options={CATEGORY_OPTIONS}
+        onPick={(v) => correct('category', v)}
+      />
     );
   }
   if (openField === 'location') {
     return (
-      <OptionPicker label="Correct location" options={LOCATION_OPTIONS} onPick={(v) => correct('location', v)} />
+      <OptionPicker
+        label="Correct location"
+        options={LOCATION_OPTIONS}
+        onPick={(v) => correct('location', v)}
+      />
     );
   }
   if (openField === 'quantity') {
     return (
       <>
-        <OptionPicker label="Correct unit" options={UNIT_OPTIONS} onPick={(v) => correct('unit', v)} />
-        <ValueInput label="Correct quantity" type="number" onSet={(raw) => correct('quantity', Number(raw))} />
+        <OptionPicker
+          label="Correct unit"
+          options={UNIT_OPTIONS}
+          onPick={(v) => correct('unit', v)}
+        />
+        <ValueInput
+          label="Correct quantity"
+          type="number"
+          onSet={(raw) => correct('quantity', Number(raw))}
+        />
       </>
     );
   }
   if (openField === 'expiresAt') {
-    return <ValueInput label="Correct expiry" type="date" onSet={(raw) => correct('expiresAt', raw)} />;
+    return (
+      <ValueInput label="Correct expiry" type="date" onSet={(raw) => correct('expiresAt', raw)} />
+    );
   }
   return null;
 }

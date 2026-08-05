@@ -26,7 +26,9 @@ export function ConsumptionReviewSheet({
   function updateQuantity(inventoryItemId: string, quantity: number): void {
     setDraft((current) =>
       current.map((line) =>
-        line.inventoryItemId === inventoryItemId ? { ...line, quantity: Math.max(0, quantity) } : line,
+        line.inventoryItemId === inventoryItemId
+          ? { ...line, quantity: Math.max(0, quantity) }
+          : line,
       ),
     );
   }
@@ -55,7 +57,9 @@ export function ConsumptionReviewSheet({
                   min="0"
                   step="0.01"
                   value={line.quantity}
-                  onChange={(e) => updateQuantity(line.inventoryItemId, Number(e.currentTarget.value))}
+                  onChange={(e) =>
+                    updateQuantity(line.inventoryItemId, Number(e.currentTarget.value))
+                  }
                   className="h-11 w-24 rounded-md border border-divider bg-bg px-3 text-right text-sm"
                 />
                 <span className="min-w-10 text-xs text-muted">{line.unit}</span>
