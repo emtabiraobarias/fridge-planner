@@ -10,14 +10,18 @@ import type { InventoryItem, RecommendationsResult } from '../../src/services/in
 vi.mock('../../src/services/inventory', async (importOriginal) => ({
   // Keep the real recommendationsErrorMessage — the error-detail tests depend on it.
   ...(await importOriginal<typeof import('../../src/services/inventory')>()),
-  fetchInventory: vi.fn().mockResolvedValue({ items: [], summary: { total: 0, expired: 0, expiringSoon: 0 } }),
+  fetchInventory: vi
+    .fn()
+    .mockResolvedValue({ items: [], summary: { total: 0, expired: 0, expiringSoon: 0 } }),
   fetchRecommendations: vi.fn(),
   // FR-037 lazy phase default: verify every requested name so no meal gets removed
   // out from under the render-oriented tests. Overridden in the lazy-phase tests.
   fetchRecipeLinks: vi.fn((names: string[]) =>
     Promise.resolve({
       available: true,
-      links: Object.fromEntries(names.map((n) => [n, { recipeUrl: `https://example.test/${encodeURIComponent(n)}` }])),
+      links: Object.fromEntries(
+        names.map((n) => [n, { recipeUrl: `https://example.test/${encodeURIComponent(n)}` }]),
+      ),
     }),
   ),
   createItem: vi.fn(),
@@ -63,7 +67,9 @@ describe('RecommendationsPanel', () => {
       items: [nonEmptyItem],
       summary: { total: 1, expired: 0, expiringSoon: 0 },
     });
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({ recommendations: [mockMeal] });
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
+      .mockResolvedValue({ recommendations: [mockMeal] });
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
 
     // Let InventoryProvider's mount-time fetch resolve so items.length transitions
@@ -82,7 +88,9 @@ describe('RecommendationsPanel', () => {
       items: [nonEmptyItem],
       summary: { total: 1, expired: 0, expiringSoon: 0 },
     });
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({ recommendations: [mockMeal] });
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
+      .mockResolvedValue({ recommendations: [mockMeal] });
 
     function Wrapper({ showPanel }: { showPanel: boolean }): React.JSX.Element {
       return (
@@ -120,18 +128,24 @@ describe('RecommendationsPanel', () => {
     const slowFetch = vi.fn(() => new Promise<RecommendationsResult>(() => {})); // never resolves
     renderWithProviders(<RecommendationsPanel fetchRecommendations={slowFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
-    expect(await screen.findByRole('list', { name: /loading meal recommendations/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('list', { name: /loading meal recommendations/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders a meal card with meal name after successful fetch', async () => {
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({ recommendations: [mockMeal] });
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
+      .mockResolvedValue({ recommendations: [mockMeal] });
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     expect(await screen.findByText('Chicken Stir-fry')).toBeInTheDocument();
   });
 
   it('renders cuisine badge and prep time on meal card', async () => {
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({ recommendations: [mockMeal] });
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
+      .mockResolvedValue({ recommendations: [mockMeal] });
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     await screen.findByText('Chicken Stir-fry');
@@ -139,7 +153,9 @@ describe('RecommendationsPanel', () => {
   });
 
   it('renders expiring ingredient with warning indicator', async () => {
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({ recommendations: [mockMeal] });
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
+      .mockResolvedValue({ recommendations: [mockMeal] });
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     await screen.findByText('Chicken Stir-fry');
@@ -147,7 +163,9 @@ describe('RecommendationsPanel', () => {
   });
 
   it('renders missing ingredients with "Need:" prefix', async () => {
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({ recommendations: [mockMeal] });
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
+      .mockResolvedValue({ recommendations: [mockMeal] });
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     await screen.findByText('Chicken Stir-fry');
@@ -155,14 +173,18 @@ describe('RecommendationsPanel', () => {
   });
 
   it('shows empty state message when no meals returned', async () => {
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockResolvedValue({ recommendations: [] });
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
+      .mockResolvedValue({ recommendations: [] });
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     expect(await screen.findByText(/no suggestions.*ingredient/i)).toBeInTheDocument();
   });
 
   it('shows an error message on fetch failure', async () => {
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockRejectedValue(new Error('Service unavailable'));
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
+      .mockRejectedValue(new Error('Service unavailable'));
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
@@ -171,10 +193,14 @@ describe('RecommendationsPanel', () => {
   it('surfaces the server Problem JSON detail on failure instead of the generic message (FR-037)', async () => {
     const detail =
       'No recipe link could be verified for any recommended meal. The verification providers may be unavailable — try again shortly.';
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>().mockRejectedValue(new Error(detail));
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
+      .mockRejectedValue(new Error(detail));
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/verification providers may be unavailable/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /verification providers may be unavailable/i,
+    );
   });
 
   it('lazy-loads recipe links: link appears after results render, unlinked meals are removed (FR-037)', async () => {
@@ -197,7 +223,8 @@ describe('RecommendationsPanel', () => {
   });
 
   it('shows a fallback notice + the meals when the server returns a fallback (SG-02)', async () => {
-    const mockFetch = vi.fn<() => Promise<RecommendationsResult>>()
+    const mockFetch = vi
+      .fn<() => Promise<RecommendationsResult>>()
       .mockResolvedValue({ recommendations: [mockMeal], fallback: 'popular' });
     renderWithProviders(<RecommendationsPanel fetchRecommendations={mockFetch} />);
     fireEvent.click(screen.getByRole('button', { name: /get.*recommendation/i }));

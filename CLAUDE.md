@@ -380,6 +380,15 @@ Copy `.env.example` to `.env` before running locally.
 
 > Single Next process on `:3000`, same-origin — so **no `PORT`/`CORS_ORIGIN`/`BACKEND_URL`** (removed with Express in Phase C-bis). For local `next dev`, put `MONGODB_URI` + `HOLODECK_URL` in `packages/client/.env.local`.
 
+> **Session note (spec 002 US4, 2026-08-05):** sign-out is **RP-initiated** — it clears the local
+> session *and* redirects to the IdP end-session endpoint, so the next sign-in prompts rather than
+> silently restoring the same user. The redirect doubles as the mechanism for FR-D-016 (no
+> previous-user data readable afterwards): six data-holding providers sit under `AuthProvider`, and
+> a page load destroys their state by construction where per-context resets would not. The IdP must
+> have the **post-logout redirect URI registered** (a manual step — see `docs/deployment.md`); when
+> it is not, the local session still clears. The account surface lives on **Home + the desktop
+> sidebar footer** and **must not** become a fifth nav item (FR-D-017).
+
 > **Auth note (spec 002 / Phase D):** client-side, `services/http.ts` transparently renews expired access tokens via the OIDC refresh grant (single-flight + one retry, FR-D-010) — the 12h idle window is a Keycloak realm setting (SSO Session Idle/Max), see docs/deployment.md. Server-side, `src/server/auth.ts` `authenticate(request)` validates an OIDC Bearer JWT (`jose`: JWKS signature + `iss`/`aud`/`exp`) and returns the `sub` claim as `userId`. `AUTH_MODE=dev` (default off-production) keeps the `X-User-Id` seam for local dev + tests; `AUTH_MODE=oidc` is required in production (the dev seam is refused there). Handlers call `await authenticate(request)`; a failure throws `AuthError` → `withRoute` returns 401 Problem JSON.
 
 ---

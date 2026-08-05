@@ -42,3 +42,36 @@ FR-D-001→T007 · FR-D-002→T004/T005 · FR-D-003→T005 · FR-D-004(FR-036)�
 
 ## Next
 `/speckit.analyze` ✅ 2026-06-27 (spec ↔ plan ↔ tasks; A1 added T011/FR-D-009, A2 tightened T009, A3 added clock-skew/rotation — see ROADMAP). → **implement TDD**. Shared-spec edits stay on `main`; this file + code stay on `impl/nextjs`.
+
+---
+
+## Session control (2026-08-05, backlog #16 — spec `002` US4 / FR-D-011..017)
+
+**Tests**: INCLUDED — every phase starts with failing tests citing FR-D numbers.
+
+### S1 — RP-initiated sign-out (FR-D-011/014/015/016)
+
+- [x] T101 [P] Failing test: `endSessionUrl()` builds `${issuer}/protocol/openid-connect/logout` with `post_logout_redirect_uri` = the app origin, and `id_token_hint` when an id token is held (FR-D-011)
+- [x] T102 [P] Failing test: `logout()` clears BOTH storage keys and then navigates — asserted as a navigation, since that is what makes FR-D-016 true rather than six context resets (plan D-S1)
+- [x] T103 [P] Failing test: when the provider URL cannot be built (unconfigured/unreachable), `logout()` STILL clears local state and hard-navigates to the origin (FR-D-014) — the failure path must not be the only one that leaks
+- [x] T104 Implement `logout()` in `src/context/AuthContext.tsx`: clear tokens → redirect to the end-session endpoint; on any failure, `window.location.replace('/')`. No confirmation (FR-D-015)
+- [x] T105 [P] Test: no previous-user data survives — render a provider tree with seeded state, sign out, assert the app navigated (the state cannot outlive a page load) (FR-D-016)
+
+### S2 — Account surface (FR-D-012/017)
+
+- [x] T106 [P] Generalise `hooks/useIsAdmin` → `useMe()` returning `{userId, isAdmin} | null`; keep `useIsAdmin` as a thin wrapper so spec 011's callers are untouched (plan D-S3)
+- [x] T107 [P] Failing tests for `components/account/AccountPanel.tsx`: shows the signed-in id; shows an **Admin** badge only when `isAdmin`; renders a Sign out control; renders nothing while identity is unknown (no flash of the wrong state)
+- [x] T108 Build `AccountPanel` and mount it on **Home** (`views/HomePage`)
+- [x] T109 Mount `AccountPanel` in the **desktop sidebar footer** only (`app/nav.tsx`, sidebar mode) — NOT a nav item (FR-D-017)
+- [x] T110 [P] Regression test: the primary nav still renders exactly its four destinations at every viewport class (FR-D-017 / spec 010 FR-RS-002)
+
+### S3 — Proactive sign-in (FR-D-013)
+
+- [x] T111 [P] Failing test: a signed-out user is offered sign-in **without** a prior failed request — `AccountPanel` shows Sign in when unauthenticated
+- [x] T112 Implement the signed-out branch of `AccountPanel`; leave `AuthBanner`'s post-401 prompt (FR-D-009) untouched
+
+### S4 — Verify + cascade
+
+- [x] T113 [P] Playwright `e2e/session.e2e.ts`: identity visible on Home; admin badge for an admin; sign-out clears the session; the nav still has four items
+- [x] T114 Full gate: lint · `npm test` · `test:e2e` · `validate-e2e --no-agent`
+- [x] T115 [P] Cascade `CLAUDE.md` (§6 note on the post-logout redirect) + `docs/deployment.md` (the MANUAL Keycloak post-logout redirect URI registration)

@@ -76,3 +76,49 @@ packages/client/
 
 ## Next Workflow Steps
 `tasks.md` (mimic `/speckit.tasks`) → `/speckit.analyze` cross-check (spec ↔ this plan ↔ tasks) → implement TDD. Shared-spec changes go on `main`; this plan + code stay on `impl/nextjs`.
+
+---
+
+## Session control revision (2026-08-05, backlog #16 — spec `002` US4 / FR-D-011..017)
+
+**Summary.** Four increments, all client-side: **S1** RP-initiated sign-out, **S2** the account surface (identity + admin badge + sign-out) on Home and the desktop sidebar, **S3** a proactive sign-in for signed-out users, **S4** verify + docs. **No server change and no new endpoint** — spec `011` already ships `GET /api/v1/me` returning exactly `{userId, isAdmin}`, which is the whole of FR-D-012's data need.
+
+### D-S1 — RP-initiated sign-out, and why a hard navigation is the design
+
+`logout()` today clears two `sessionStorage` keys (`AuthContext.tsx:156-159`). Two things are missing, and one solution covers both:
+
+1. **End the IdP session** (FR-D-011) — redirect to the provider's end-session endpoint (`${issuer()}/protocol/openid-connect/logout`) with a `post_logout_redirect_uri` back to the app origin. The endpoint is derivable from the existing `issuer()` helper, so no new configuration is introduced.
+2. **Leave no previous-user data readable** (FR-D-016) — **six** data-holding providers sit under `AuthProvider` (`Inventory`, `MealPlan`, `Pipeline`, `Placement`, `QuickAdd`, `Recommendations`). Their React state survives a token clear, so a signed-out screen would still be showing the previous user's kitchen.
+
+**Decision: satisfy FR-D-016 with a full page navigation, not per-context reset methods.** The RP-initiated redirect *is* a page load, so it destroys all client state by construction. Adding a `reset()` to each of six contexts would be six files, six chances to forget the seventh, and no test that catches the omission — the guarantee would decay the first time someone adds a provider. A navigation cannot be partially applied.
+
+**The fallback path must navigate too.** FR-D-014 requires the local session to be cleared even when the provider is unreachable — and that path has no redirect to ride on, so it performs an explicit hard navigation to the app origin. Without that, the failure path would be the *only* one leaking state, which is exactly the case nobody would test by hand.
+
+### D-S2 — The account surface is a component, mounted twice; never a nav item
+
+One `AccountPanel` presentational component, rendered in two places (FR-D-012/013, and FR-D-017's constraint):
+- **Home** (`views/HomePage`) — the landing surface, so the control is where a user arrives.
+- **Desktop sidebar footer** (`app/nav.tsx` sidebar mode only) — where a desktop user expects account controls, and where there is genuinely spare vertical space.
+
+**Not** a fifth nav item (FR-D-017 forbids it) and **not** a second floating affordance: the existing `FeedbackAffordance` sits at `bottom-[124px] right-4` with a comment recording a CI failure over nav overlap. Stacking a second bubble would re-enter exactly that fight for no gain.
+
+### D-S3 — Identity comes from `/api/v1/me`; `useIsAdmin` generalises
+
+`hooks/useIsAdmin` already calls `fetchMe()` and discards `userId`. It becomes `useMe()` returning `{userId, isAdmin} | null`, with `useIsAdmin` kept as a thin wrapper so spec `011`'s callers are untouched — the same non-breaking-seam reasoning as `authenticate()`/`authenticatePrincipal()` in `011` research D1.
+
+### D-S4 — What is NOT built
+
+No confirmation dialog (FR-D-015). No "switch user" affordance — sign-out followed by sign-in *is* the switch, and the IdP prompt (FR-D-011) is what makes it work. No server change: the `401`/refresh machinery (FR-D-009/010) is untouched.
+
+### Manual step (human-only, `CLAUDE.md` §15)
+
+The IdP must accept the post-logout redirect: Keycloak → realm `fridge-planner` → the SPA client → **Valid post logout redirect URIs** → the app origin (`https://fridgeplanner.lan:8443/*`, and `http://localhost:3000/*` for dev). Until that is registered, Keycloak refuses the logout redirect — the local session still clears (FR-D-014), so the failure is graceful and visible rather than silent.
+
+### Phase breakdown
+
+| Phase | Delivers | Shippable alone |
+|---|---|---|
+| **S1** | `logout()` ends the IdP session; both paths hard-navigate (FR-D-011/014/016) | Yes — but unreachable until S2 |
+| **S2** | `AccountPanel` on Home + sidebar footer; identity + admin badge (FR-D-012/017) | Yes — this is the user-visible payload |
+| **S3** | Proactive sign-in for signed-out users (FR-D-013) | Yes |
+| **S4** | Playwright journey, docs cascade, verification log | — |

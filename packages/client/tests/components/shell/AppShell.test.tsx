@@ -1,10 +1,18 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { AppShell } from '../../../src/components/shell/AppShell';
+// Spec 002 US4: AppShell now composes `AccountPanel`, which reads auth context — so
+// these mount inside AuthProvider, exactly as the shell does in the real app
+// (`app/providers.tsx`).
+import { AuthProvider } from '../../../src/context/AuthContext';
 
 describe('AppShell (FR-RS-004/005, SC-RS-001/002)', () => {
   it('fills the viewport and cannot itself scroll', () => {
-    const { container } = render(<AppShell>content</AppShell>);
+    const { container } = render(
+      <AuthProvider>
+        <AppShell>content</AppShell>
+      </AuthProvider>,
+    );
     const root = container.firstElementChild;
     expect(root).not.toBeNull();
     // 100dvh, not 100vh: mobile browser chrome makes 100vh taller than the
@@ -16,19 +24,29 @@ describe('AppShell (FR-RS-004/005, SC-RS-001/002)', () => {
   });
 
   it('makes the content region the only scroll container', () => {
-    const { container } = render(<AppShell>content</AppShell>);
+    const { container } = render(
+      <AuthProvider>
+        <AppShell>content</AppShell>
+      </AuthProvider>,
+    );
     const main = screen.getByRole('main');
     expect(main.className).toContain('flex-1');
     expect(main.className).toContain('min-h-0');
     expect(main.className).toContain('overflow-auto');
 
-    const scrollers = container.querySelectorAll('[class*="overflow-auto"], [class*="overflow-y-auto"]');
+    const scrollers = container.querySelectorAll(
+      '[class*="overflow-auto"], [class*="overflow-y-auto"]',
+    );
     expect(scrollers).toHaveLength(1);
     expect(scrollers[0]).toBe(main);
   });
 
   it('keeps the nav and the feedback affordance outside the scroll container', () => {
-    render(<AppShell>content</AppShell>);
+    render(
+      <AuthProvider>
+        <AppShell>content</AppShell>
+      </AuthProvider>,
+    );
     const main = screen.getByRole('main');
     const nav = screen.getByRole('navigation', { name: 'Main navigation' });
     const affordance = screen.getByRole('button', { name: /tell us/i });
@@ -40,9 +58,11 @@ describe('AppShell (FR-RS-004/005, SC-RS-001/002)', () => {
 
   it('wraps children in exactly one border-box padded wrapper', () => {
     render(
-      <AppShell>
-        <p>child</p>
-      </AppShell>,
+      <AuthProvider>
+        <AppShell>
+          <p>child</p>
+        </AppShell>
+      </AuthProvider>,
     );
     const wrapper = screen.getByText('child').parentElement;
     expect(wrapper?.className).toContain('box-border');
@@ -53,9 +73,11 @@ describe('AppShell (FR-RS-004/005, SC-RS-001/002)', () => {
 
   it('carries the per-viewport padding and the desktop content cap on that wrapper', () => {
     render(
-      <AppShell>
-        <p>child</p>
-      </AppShell>,
+      <AuthProvider>
+        <AppShell>
+          <p>child</p>
+        </AppShell>
+      </AuthProvider>,
     );
     const cls = screen.getByText('child').parentElement?.className ?? '';
     // design §1.3 — phone portrait 54/16/116

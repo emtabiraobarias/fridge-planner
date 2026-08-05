@@ -71,6 +71,8 @@ describe('PromoteButton', () => {
 
   it('is absent for a draft record', () => {
     setup(draftRecord);
-    expect(screen.queryByRole('button', { name: /promote to development/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /promote to development/i }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -16,7 +16,11 @@ interface EditItemSheetProps {
  * clearable — and location. Quantity stays on the row stepper; other fields are
  * not editable in place.
  */
-export function EditItemSheet({ item, onClose, onSave }: EditItemSheetProps): React.JSX.Element | null {
+export function EditItemSheet({
+  item,
+  onClose,
+  onSave,
+}: EditItemSheetProps): React.JSX.Element | null {
   const [date, setDate] = useState('');
   const [location, setLocation] = useState<Location>('fridge');
   const [saving, setSaving] = useState(false);

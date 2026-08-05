@@ -55,7 +55,9 @@ beforeEach(() => {
   fetchRecipeLinks.mockImplementation((names: string[]) =>
     Promise.resolve({
       available: true,
-      links: Object.fromEntries(names.map((n) => [n, { recipeUrl: `https://example.test/${encodeURIComponent(n)}` }])),
+      links: Object.fromEntries(
+        names.map((n) => [n, { recipeUrl: `https://example.test/${encodeURIComponent(n)}` }]),
+      ),
     }),
   );
 });
@@ -73,14 +75,19 @@ describe('SuggestionsRail', () => {
     await userEvent.click(screen.getByRole('button', { name: /get suggestions/i }));
 
     const link = await screen.findByRole('link', { name: /view recipe/i });
-    expect(link).toHaveAttribute('href', 'https://panlasangpinoy.com/filipino-chicken-adobo-recipe/');
+    expect(link).toHaveAttribute(
+      'href',
+      'https://panlasangpinoy.com/filipino-chicken-adobo-recipe/',
+    );
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
   });
 
   it('surfaces the server Problem JSON detail when the fetch fails (FR-037 503)', async () => {
     fetchRecommendations.mockRejectedValueOnce(
-      new Error('Recipe-link verification is not configured (BRAVE_SEARCH_API_KEY / SPOONACULAR_API_KEY unset), so no recommendation can carry the required recipe link.'),
+      new Error(
+        'Recipe-link verification is not configured (BRAVE_SEARCH_API_KEY / SPOONACULAR_API_KEY unset), so no recommendation can carry the required recipe link.',
+      ),
     );
     renderRail();
 

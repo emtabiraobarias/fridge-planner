@@ -20,7 +20,12 @@ describe('QuickAdd', () => {
     const input = screen.getByLabelText(/quick add item/i) as HTMLInputElement;
     await userEvent.type(input, '6 eggs{Enter}');
     expect(onAdd).toHaveBeenCalledTimes(1);
-    expect(onAdd.mock.calls[0]![0]).toMatchObject({ name: 'Eggs', quantity: 6, unit: 'count', category: 'Dairy' });
+    expect(onAdd.mock.calls[0]![0]).toMatchObject({
+      name: 'Eggs',
+      quantity: 6,
+      unit: 'count',
+      category: 'Dairy',
+    });
     expect(input.value).toBe('');
   });
 
@@ -87,7 +92,10 @@ describe('QuickAdd', () => {
   it('parses spelled-out units and explicit locations (FR-IQ-001/002)', async () => {
     const onAdd = vi.fn();
     render(<QuickAdd onAdd={onAdd} />);
-    await userEvent.type(screen.getByLabelText(/quick add item/i), '500 grams mince in the freezer{Enter}');
+    await userEvent.type(
+      screen.getByLabelText(/quick add item/i),
+      '500 grams mince in the freezer{Enter}',
+    );
     expect(onAdd.mock.calls[0]![0]).toMatchObject({
       name: 'Mince',
       quantity: 500,

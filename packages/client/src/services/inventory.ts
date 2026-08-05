@@ -2,7 +2,16 @@ import type { MealRecommendation } from '../types/meal-recommendation';
 import { ensureOk, apiFetch } from './http';
 export type { MealRecommendation };
 export type ExpirationStatus = 'expired' | 'expiring-soon' | 'normal' | 'none';
-export type Category = 'Produce' | 'Dairy' | 'Meat' | 'Seafood' | 'Grains' | 'Pantry' | 'Condiments' | 'Frozen' | 'Other';
+export type Category =
+  | 'Produce'
+  | 'Dairy'
+  | 'Meat'
+  | 'Seafood'
+  | 'Grains'
+  | 'Pantry'
+  | 'Condiments'
+  | 'Frozen'
+  | 'Other';
 export type Location = 'fridge' | 'freezer' | 'pantry';
 
 export interface InventoryItem {
@@ -37,14 +46,19 @@ export interface InventoryResponse {
 
 const BASE = '/api/v1';
 
-export async function fetchInventory(params?: { category?: string; status?: string; page?: number; limit?: number }): Promise<InventoryResponse> {
+export async function fetchInventory(params?: {
+  category?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+}): Promise<InventoryResponse> {
   const query = new URLSearchParams();
   if (params?.category) query.set('category', params.category);
   if (params?.status) query.set('status', params.status);
   if (params?.page) query.set('page', String(params.page));
   if (params?.limit) query.set('limit', String(params.limit));
   const res = await apiFetch(`${BASE}/inventory?${query}`);
-  ensureOk(res, "fetch inventory");
+  ensureOk(res, 'fetch inventory');
   return res.json() as Promise<InventoryResponse>;
 }
 
@@ -72,7 +86,7 @@ export async function createItem(data: CreateItemPayload): Promise<CreateItemRes
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  ensureOk(res, "create item");
+  ensureOk(res, 'create item');
   const json = (await res.json()) as
     | (InventoryItem & { merged?: undefined })
     | { merged: true; item: InventoryItem; mergedItemId: string; addedQuantity: number };
@@ -81,7 +95,9 @@ export async function createItem(data: CreateItemPayload): Promise<CreateItemRes
 }
 
 /** Updatable fields — expiresAt accepts null to CLEAR the expiry (FR-UI-019 revised). */
-export type InventoryItemUpdate = Partial<Omit<InventoryItem, '_id' | 'expirationStatus' | 'expiresAt'>> & {
+export type InventoryItemUpdate = Partial<
+  Omit<InventoryItem, '_id' | 'expirationStatus' | 'expiresAt'>
+> & {
   expiresAt?: string | null;
 };
 
@@ -91,13 +107,13 @@ export async function updateItem(id: string, data: InventoryItemUpdate): Promise
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  ensureOk(res, "update item");
+  ensureOk(res, 'update item');
   return res.json() as Promise<InventoryItem>;
 }
 
 export async function deleteItem(id: string): Promise<void> {
   const res = await apiFetch(`${BASE}/inventory/${id}`, { method: 'DELETE' });
-  ensureOk(res, "delete item");
+  ensureOk(res, 'delete item');
 }
 
 /** `fallback` is set by the server when these aren't personalised AI results: */
@@ -139,11 +155,15 @@ export function recommendationsErrorMessage(err: unknown, generic: string): stri
  * inventory `_id`s — sent ONLY when non-empty, so an empty/absent selection is a
  * whole-inventory request byte-identical to today (FR-IR-004/007).
  */
-export async function fetchRecommendations(ingredientItemIds?: string[]): Promise<RecommendationsResult> {
+export async function fetchRecommendations(
+  ingredientItemIds?: string[],
+): Promise<RecommendationsResult> {
   const res = await apiFetch(`${BASE}/recommendations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(ingredientItemIds && ingredientItemIds.length > 0 ? { ingredientItemIds } : {}),
+    body: JSON.stringify(
+      ingredientItemIds && ingredientItemIds.length > 0 ? { ingredientItemIds } : {},
+    ),
   });
   // Surface the server's Problem JSON `detail` (e.g. FR-037's 503 "recipe verification
   // unavailable") so the UI can explain the failure instead of a generic message.
@@ -157,7 +177,10 @@ export async function fetchRecommendations(ingredientItemIds?: string[]): Promis
     }
     throw new Error(detail || `Failed to fetch recommendations: ${res.status}`);
   }
-  ensureOk(res, "fetch recommendations");
-  const data = await res.json() as RecommendationsResult;
-  return { recommendations: data.recommendations, ...(data.fallback ? { fallback: data.fallback } : {}) };
+  ensureOk(res, 'fetch recommendations');
+  const data = (await res.json()) as RecommendationsResult;
+  return {
+    recommendations: data.recommendations,
+    ...(data.fallback ? { fallback: data.fallback } : {}),
+  };
 }

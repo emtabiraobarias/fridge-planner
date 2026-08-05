@@ -2,15 +2,7 @@
 import { dayNumber, dowIndex } from '../../lib/date-utils';
 
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const DOW_FULL = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-];
+const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 interface DayStripProps {
   /** The 7 ISO date strings of the visible week, from `getWeekDays()` — same

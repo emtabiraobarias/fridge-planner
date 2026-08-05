@@ -2,7 +2,11 @@
 import { createContext, useCallback, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { PipelineItem, PipelineItemSummary, TransitionRequest } from '../services/pipeline';
-import { fetchPipeline, promoteFeedback, transitionPipelineItem as sendTransition } from '../services/pipeline';
+import {
+  fetchPipeline,
+  promoteFeedback,
+  transitionPipelineItem as sendTransition,
+} from '../services/pipeline';
 
 interface PipelineContextValue {
   items: PipelineItemSummary[];

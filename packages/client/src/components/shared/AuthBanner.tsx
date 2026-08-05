@@ -17,7 +17,10 @@ export function AuthBanner(): React.JSX.Element | null {
   if (!needsAuth) return null;
 
   return (
-    <div role="alert" className="flex items-center justify-between gap-4 bg-accent-100 border-b border-accent-300 px-4 py-2 text-sm text-accent-800">
+    <div
+      role="alert"
+      className="flex items-center justify-between gap-4 bg-accent-100 border-b border-accent-300 px-4 py-2 text-sm text-accent-800"
+    >
       <span>Your session has expired — please sign in to continue.</span>
       <button
         type="button"

@@ -44,7 +44,12 @@ const PANEL_CLASS = [
  * semantics. `createPortal`s to `document.body` so stacking context never
  * fights a scroll-clipped ancestor.
  */
-export function Overlay({ open, onClose, titleId, children }: OverlayProps): React.JSX.Element | null {
+export function Overlay({
+  open,
+  onClose,
+  titleId,
+  children,
+}: OverlayProps): React.JSX.Element | null {
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef, open);
 

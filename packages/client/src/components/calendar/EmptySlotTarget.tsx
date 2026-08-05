@@ -36,13 +36,13 @@ export function EmptySlotTarget({
       aria-label={`${mealType} slot ${dayNumber}${placingMode ? ', place here' : ', empty'}`}
       onClick={() => onPlace(date, mealType)}
       className={`flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-md border-[1.5px] border-dashed text-[10px] uppercase transition-colors ${
-        highlight
-          ? 'border-accent bg-accent-100 text-accent'
-          : 'border-divider text-ink/50'
+        highlight ? 'border-accent bg-accent-100 text-accent' : 'border-divider text-ink/50'
       } ${placingMode ? 'cursor-pointer hover:bg-accent-200' : ''}`}
     >
       <span>{mealType}</span>
-      <span className={highlight ? 'text-base font-bold text-accent' : 'text-base text-ink/25'}>+</span>
+      <span className={highlight ? 'text-base font-bold text-accent' : 'text-base text-ink/25'}>
+        +
+      </span>
     </button>
   );
 }

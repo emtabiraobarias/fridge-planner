@@ -12,14 +12,14 @@ const BASE = '/api/v1/grocery-lists';
 
 export async function fetchGroceryList(weekStart: string): Promise<GroceryList | null> {
   const res = await apiFetch(`${BASE}/${weekStart}`);
-  ensureOk(res, "fetch grocery list");
+  ensureOk(res, 'fetch grocery list');
   const data = (await res.json()) as { groceryList: GroceryList | null };
   return data.groceryList;
 }
 
 export async function generateGroceryList(weekStart: string): Promise<GroceryList> {
   const res = await apiFetch(`${BASE}/${weekStart}/generate`, { method: 'POST' });
-  ensureOk(res, "generate grocery list");
+  ensureOk(res, 'generate grocery list');
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
 }
@@ -33,7 +33,7 @@ export async function addGroceryItem(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  ensureOk(res, "add grocery item");
+  ensureOk(res, 'add grocery item');
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
 }
@@ -48,7 +48,7 @@ export async function patchGroceryItem(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  ensureOk(res, "update grocery item");
+  ensureOk(res, 'update grocery item');
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
 }
@@ -66,7 +66,7 @@ export async function checkOffGroceryItem(
 
 export async function deleteGroceryItem(weekStart: string, itemId: string): Promise<GroceryList> {
   const res = await apiFetch(`${BASE}/${weekStart}/items/${itemId}`, { method: 'DELETE' });
-  ensureOk(res, "delete grocery item");
+  ensureOk(res, 'delete grocery item');
   const data = (await res.json()) as { groceryList: GroceryList };
   return data.groceryList;
 }
@@ -80,6 +80,6 @@ export async function completeGroceryList(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items }),
   });
-  ensureOk(res, "complete grocery list");
+  ensureOk(res, 'complete grocery list');
   return (await res.json()) as CompleteResult;
 }

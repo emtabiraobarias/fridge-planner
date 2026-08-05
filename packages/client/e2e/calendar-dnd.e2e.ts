@@ -17,7 +17,10 @@ test('clicking a planned meal opens details with a recipe link (FR-024)', async 
   const place = page.getByRole('button', { name: /place on calendar/i }).first();
   await expect(place).toBeVisible({ timeout: 30_000 });
   await place.click();
-  await page.getByRole('button', { name: /place here/i }).first().click();
+  await page
+    .getByRole('button', { name: /place here/i })
+    .first()
+    .click();
 
   const tile = page.getByLabel(TILE).first();
   await expect(tile).toBeVisible();

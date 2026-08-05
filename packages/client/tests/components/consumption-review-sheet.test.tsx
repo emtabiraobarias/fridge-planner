@@ -15,7 +15,13 @@ const meal: MealRecommendation = {
   expiringIngredients: [],
   missingIngredients: ['Soy Sauce'],
   groundedIngredients: [
-    { inventoryItemId: 'i1', name: 'Chicken Thighs', quantityToConsume: 500, unit: 'g', resolution: 'direct' },
+    {
+      inventoryItemId: 'i1',
+      name: 'Chicken Thighs',
+      quantityToConsume: 500,
+      unit: 'g',
+      resolution: 'direct',
+    },
     { inventoryItemId: 'i2', name: 'Onion', resolution: 'fuzzy' },
     { name: 'Galangal', resolution: 'unresolved' },
   ],
@@ -41,8 +47,18 @@ describe('buildReviewLines (spec 006 FR-MC-009)', () => {
       inv('i2', 'Onion', 3, 'count'),
     ]);
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatchObject({ inventoryItemId: 'i1', name: 'Chicken Thighs', quantity: 500, unit: 'g' });
-    expect(lines[1]).toMatchObject({ inventoryItemId: 'i2', name: 'Onion', quantity: 1, unit: 'count' });
+    expect(lines[0]).toMatchObject({
+      inventoryItemId: 'i1',
+      name: 'Chicken Thighs',
+      quantity: 500,
+      unit: 'g',
+    });
+    expect(lines[1]).toMatchObject({
+      inventoryItemId: 'i2',
+      name: 'Onion',
+      quantity: 1,
+      unit: 'count',
+    });
     expect(unresolved).toEqual(['Galangal']);
   });
 
@@ -54,8 +70,13 @@ describe('buildReviewLines (spec 006 FR-MC-009)', () => {
   it('falls back to name-matched one-unit lines for a legacy meal without grounding', () => {
     const legacy = { ...meal };
     delete (legacy as Partial<MealRecommendation>).groundedIngredients;
-    const { lines, unresolved } = buildReviewLines(legacy, [inv('i1', 'Chicken Thighs', 1000, 'g')]);
-    expect(lines.find((l) => l.name === 'Chicken Thighs')).toMatchObject({ quantity: 1, unit: 'g' });
+    const { lines, unresolved } = buildReviewLines(legacy, [
+      inv('i1', 'Chicken Thighs', 1000, 'g'),
+    ]);
+    expect(lines.find((l) => l.name === 'Chicken Thighs')).toMatchObject({
+      quantity: 1,
+      unit: 'g',
+    });
     // an unmatched legacy name is surfaced read-only, not silently dropped (FR-MC-009)
     expect(unresolved).toContain('Onion');
   });

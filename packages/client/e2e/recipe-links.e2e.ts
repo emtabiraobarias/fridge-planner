@@ -22,13 +22,17 @@ async function expectRecipeLinks(page: import('@playwright/test').Page): Promise
   }
 }
 
-test('Kitchen: every recommended meal shows a recipe link that opens a new tab (FR-037)', async ({ page }) => {
+test('Kitchen: every recommended meal shows a recipe link that opens a new tab (FR-037)', async ({
+  page,
+}) => {
   await page.goto('/');
   await page.getByRole('button', { name: /get recommendations/i }).click();
   await expectRecipeLinks(page);
 });
 
-test('Calendar rail: every suggestion shows a recipe link (FR-037 — SuggestionsRail regression)', async ({ page }) => {
+test('Calendar rail: every suggestion shows a recipe link (FR-037 — SuggestionsRail regression)', async ({
+  page,
+}) => {
   await page.goto('/calendar');
   // Fresh page → empty client context → the "Get suggestions" button is present.
   await page.getByRole('button', { name: /get suggestions/i }).click();

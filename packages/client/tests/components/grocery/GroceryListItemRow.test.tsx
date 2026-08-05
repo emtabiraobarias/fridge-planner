@@ -19,7 +19,12 @@ const mockItem: GroceryListItem = {
 function renderRow(overrides: Partial<Parameters<typeof GroceryListItemRow>[0]> = {}): void {
   render(
     <ul>
-      <GroceryListItemRow item={mockItem} onTogglePurchased={vi.fn()} onRemove={vi.fn()} {...overrides} />
+      <GroceryListItemRow
+        item={mockItem}
+        onTogglePurchased={vi.fn()}
+        onRemove={vi.fn()}
+        {...overrides}
+      />
     </ul>,
   );
 }

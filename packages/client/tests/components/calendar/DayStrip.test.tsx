@@ -13,12 +13,7 @@ describe('DayStrip', () => {
 
   it('renders a 7-column tablist with exactly one selected day', () => {
     render(
-      <DayStrip
-        days={days}
-        selectedDate={days[2]!}
-        hasMeals={() => false}
-        onSelect={vi.fn()}
-      />,
+      <DayStrip days={days} selectedDate={days[2]!} hasMeals={() => false} onSelect={vi.fn()} />,
     );
 
     expect(screen.getByRole('tablist')).toBeInTheDocument();

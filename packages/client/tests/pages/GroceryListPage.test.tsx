@@ -188,7 +188,9 @@ describe('GroceryListPage (organic redesign)', () => {
     mockFetch.mockResolvedValue(mockListWithItems);
     render(<Wrapper />);
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Done shopping — move 2 items into my kitchen/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Done shopping — move 2 items into my kitchen/i }),
+      ).toBeInTheDocument();
     });
     // No modal dialog in the redesign.
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -196,7 +198,12 @@ describe('GroceryListPage (organic redesign)', () => {
 
   it('completes checkout inline and shows a toast', async () => {
     mockFetch.mockResolvedValue(mockListWithItems);
-    mockComplete.mockResolvedValue({ created: [{ _id: 'inv-1', name: 'Soy Sauce' }], updated: [], skipped: 0, errors: [] });
+    mockComplete.mockResolvedValue({
+      created: [{ _id: 'inv-1', name: 'Soy Sauce' }],
+      updated: [],
+      skipped: 0,
+      errors: [],
+    });
     render(<Wrapper />);
     await waitFor(() => screen.getByRole('button', { name: /Done shopping/i }));
     fireEvent.click(screen.getByRole('button', { name: /Done shopping/i }));
@@ -224,7 +231,12 @@ describe('GroceryListPage (organic redesign)', () => {
           isManuallyAdded: false,
           sourceMealNames: [],
           notes: '',
-          purchaseReceipt: { inventoryItemId: 'inv-a', quantityAdded: 1, unit: 'bag', merged: false },
+          purchaseReceipt: {
+            inventoryItemId: 'inv-a',
+            quantityAdded: 1,
+            unit: 'bag',
+            merged: false,
+          },
         },
         // Purchased but receipt-less (legacy pre-007 row) — checked, yet still
         // counted by the finish-shopping action.
@@ -263,7 +275,9 @@ describe('GroceryListPage (organic redesign)', () => {
     expect(
       screen.getByRole('button', { name: /Done shopping — move 2 items into my kitchen/i }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /move 1 item into my kitchen/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /move 1 item into my kitchen/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('ticking adds to the kitchen immediately and unticking reverses exactly, via the unchanged handleTogglePurchased path (FR-RS-017 regression pin)', async () => {
@@ -305,7 +319,12 @@ describe('GroceryListPage (organic redesign)', () => {
       isManuallyAdded: false,
       sourceMealNames: [],
       notes: '',
-      purchaseReceipt: { inventoryItemId: 'inv-eggs', quantityAdded: 1, unit: 'dozen', merged: false },
+      purchaseReceipt: {
+        inventoryItemId: 'inv-eggs',
+        quantityAdded: 1,
+        unit: 'dozen',
+        merged: false,
+      },
     };
     mockFetch.mockResolvedValue({ ...mockListWithItems, items: [milkItem, eggsItem] });
     // Both items stay on the list across each toggle (checkout never clears it —
@@ -332,14 +351,21 @@ describe('GroceryListPage (organic redesign)', () => {
     // shipped patch endpoint (isPurchased: false), not a new/different call shape.
     fireEvent.click(screen.getByRole('checkbox', { name: /mark eggs as purchased/i }));
     await waitFor(() =>
-      expect(mockPatch).toHaveBeenCalledWith(expect.any(String), 'item-eggs', { isPurchased: false }),
+      expect(mockPatch).toHaveBeenCalledWith(expect.any(String), 'item-eggs', {
+        isPurchased: false,
+      }),
     );
     expect(mockFetchInventory).toHaveBeenCalled();
   });
 
   it('completing checkout never clears the list (FR-RS-018 regression pin — reconciliation item 13)', async () => {
     mockFetch.mockResolvedValue(mockListWithItems);
-    mockComplete.mockResolvedValue({ created: [{ _id: 'inv-1', name: 'Soy Sauce' }], updated: [], skipped: 0, errors: [] });
+    mockComplete.mockResolvedValue({
+      created: [{ _id: 'inv-1', name: 'Soy Sauce' }],
+      updated: [],
+      skipped: 0,
+      errors: [],
+    });
     render(<Wrapper />);
     await waitFor(() => screen.getByRole('button', { name: /Done shopping/i }));
     fireEvent.click(screen.getByRole('button', { name: /Done shopping/i }));
@@ -383,7 +409,10 @@ describe('GroceryListPage (organic redesign)', () => {
     fireEvent.keyDown(screen.getByLabelText(/add grocery item/i), { key: 'Enter' });
     await waitFor(() => expect(mockAdd).toHaveBeenCalledTimes(2));
     expect(mockAdd.mock.calls[0]![1]).toMatchObject({ displayName: 'Lemons', quantity: 2 });
-    expect(mockAdd.mock.calls[1]![1]).toMatchObject({ displayName: 'Olive Oil', category: 'Condiments' });
+    expect(mockAdd.mock.calls[1]![1]).toMatchObject({
+      displayName: 'Olive Oil',
+      category: 'Condiments',
+    });
   });
 
   it('opens a prompt for ambiguous servings lines and cancel leaves inventory untouched (FR-GC-009)', async () => {

@@ -76,7 +76,11 @@ function CookedReceipt({
     <section className="mt-4">
       <h3 className="text-sm font-semibold text-ink mb-1">
         Consumed when cooked
-        {cookedAt && <span className="ml-2 font-normal text-muted">({new Date(cookedAt).toLocaleString()})</span>}
+        {cookedAt && (
+          <span className="ml-2 font-normal text-muted">
+            ({new Date(cookedAt).toLocaleString()})
+          </span>
+        )}
       </h3>
       <ul className="text-xs text-muted">
         {consumedItems.map((line) => (
@@ -108,7 +112,10 @@ export function MealDetailModal({
   const inventory = useInventoryOptional();
   const mealPlan = useContext(MealPlanContext);
   const [submitting, setSubmitting] = useState(false);
-  const amounts = useMemo(() => (entry ? groundedAmounts(entry.meal) : new Map<string, string>()), [entry]);
+  const amounts = useMemo(
+    () => (entry ? groundedAmounts(entry.meal) : new Map<string, string>()),
+    [entry],
+  );
 
   if (!entry) return null;
 
@@ -145,9 +152,15 @@ export function MealDetailModal({
         </h2>
 
         <div className="mt-2 flex flex-wrap gap-2 text-sm">
-          <span className="rounded-full bg-accent2-100 px-2 py-0.5 text-accent2-800">{meal.cuisine}</span>
-          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-ink">{meal.prepTimeMinutes} min</span>
-          {cooked && <span className="rounded-full bg-accent2-100 px-2 py-0.5 text-accent2-800">Cooked</span>}
+          <span className="rounded-full bg-accent2-100 px-2 py-0.5 text-accent2-800">
+            {meal.cuisine}
+          </span>
+          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-ink">
+            {meal.prepTimeMinutes} min
+          </span>
+          {cooked && (
+            <span className="rounded-full bg-accent2-100 px-2 py-0.5 text-accent2-800">Cooked</span>
+          )}
         </div>
 
         <p className="mt-3 text-sm text-muted">{meal.description}</p>
@@ -157,7 +170,10 @@ export function MealDetailModal({
             <h3 className="text-sm font-semibold text-ink mb-1">You have</h3>
             <ul className="flex flex-wrap gap-1">
               {meal.usesIngredients.map((ing) => (
-                <li key={ing} className="rounded-full bg-accent2-100 px-2 py-0.5 text-xs text-accent2-800">
+                <li
+                  key={ing}
+                  className="rounded-full bg-accent2-100 px-2 py-0.5 text-xs text-accent2-800"
+                >
                   {withGroundedAmount(ing, amounts)}
                 </li>
               ))}
@@ -165,9 +181,17 @@ export function MealDetailModal({
           </section>
         )}
 
-        <ChipSection title="Expiring soon" names={meal.expiringIngredients} chipClass="bg-accent-100 text-accent-800" />
+        <ChipSection
+          title="Expiring soon"
+          names={meal.expiringIngredients}
+          chipClass="bg-accent-100 text-accent-800"
+        />
 
-        <ChipSection title="Need to buy" names={meal.missingIngredients} chipClass="bg-accent-100 text-accent-800" />
+        <ChipSection
+          title="Need to buy"
+          names={meal.missingIngredients}
+          chipClass="bg-accent-100 text-accent-800"
+        />
 
         <RecipeLink url={meal.recipeUrl} />
 

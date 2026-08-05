@@ -14,7 +14,10 @@ describe('FeedbackAffordance (FR-RS-006)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /tell us/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /open full feedback/i })).toHaveAttribute('href', '/feedback');
+    expect(screen.getByRole('link', { name: /open full feedback/i })).toHaveAttribute(
+      'href',
+      '/feedback',
+    );
   });
 
   it('renders a round bubble at the touch viewport classes', () => {

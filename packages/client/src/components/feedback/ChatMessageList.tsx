@@ -40,7 +40,9 @@ export function ChatMessageList({ messages, pending }: ChatMessageListProps): Re
       {pending && (
         <div className="self-start text-left" aria-label="Assistant is typing">
           <span className="text-muted mb-0.5 block text-[11px]">Assistant</span>
-          <span className="inline-block rounded-[20px] bg-bg px-4 py-[9px] text-sm text-ink/60">…</span>
+          <span className="inline-block rounded-[20px] bg-bg px-4 py-[9px] text-sm text-ink/60">
+            …
+          </span>
         </div>
       )}
     </div>

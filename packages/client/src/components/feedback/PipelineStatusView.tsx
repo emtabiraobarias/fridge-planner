@@ -1,7 +1,13 @@
 'use client';
 import { useEffect } from 'react';
 import { usePipeline } from '../../context/PipelineContext';
-import type { ArtifactType, PipelineItemSummary, PipelineStage, TransitionAction, TransitionRequest } from '../../services/pipeline';
+import type {
+  ArtifactType,
+  PipelineItemSummary,
+  PipelineStage,
+  TransitionAction,
+  TransitionRequest,
+} from '../../services/pipeline';
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   approved: 'Approved',
@@ -29,7 +35,13 @@ const STAGE_ICON_PATH: Record<PipelineStage, string> = {
   parked: 'M4 2 v8 M8 2 v8',
 };
 
-function StageBadge({ stage, itemId }: { stage: PipelineStage; itemId: string }): React.JSX.Element {
+function StageBadge({
+  stage,
+  itemId,
+}: {
+  stage: PipelineStage;
+  itemId: string;
+}): React.JSX.Element {
   return (
     <span
       data-testid={`stage-badge-${itemId}`}
@@ -158,13 +170,18 @@ export function PipelineStatusView(): React.JSX.Element {
     <section className="mt-8" aria-label="Development pipeline">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-heading text-h5 text-ink">Development pipeline</h2>
-        <button onClick={() => void refresh()} className="text-sm font-semibold text-accent hover:text-accent-600">
+        <button
+          onClick={() => void refresh()}
+          className="text-sm font-semibold text-accent hover:text-accent-600"
+        >
           Refresh
         </button>
       </div>
 
       {loading && <p className="text-muted text-sm">Loading…</p>}
-      {!loading && items.length === 0 && <p className="text-muted text-sm">No promoted records yet.</p>}
+      {!loading && items.length === 0 && (
+        <p className="text-muted text-sm">No promoted records yet.</p>
+      )}
 
       <ul className="flex flex-col gap-2">
         {items.map((item) => (

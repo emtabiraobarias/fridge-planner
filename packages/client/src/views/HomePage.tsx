@@ -1,4 +1,5 @@
 'use client';
+import { AccountPanel } from '../components/account/AccountPanel';
 import { useInventory } from '../context/InventoryContext';
 import { useMealPlan } from '../context/MealPlanContext';
 import { useGroceryList } from '../context/GroceryListContext';
@@ -10,9 +11,7 @@ import { FreshPicksCard } from '../components/home/FreshPicksCard';
 import { soonestExpiring, groceryProgress } from '../lib/home-summary';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function todayMeta(): string {
   const now = new Date();
@@ -42,6 +41,10 @@ export function HomePage(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
+      {/* Spec 002 FR-D-012/013: identity + sign-out live here because Home is the
+          landing surface — and explicitly NOT in the nav (FR-D-017). */}
+      <AccountPanel />
+
       <div>
         <p className="text-muted text-[13px]">{todayMeta()}</p>
         <h1 className="font-heading text-[30px] leading-[1.06] text-ink sm:text-[38px] xl:text-[40px]">

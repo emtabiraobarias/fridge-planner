@@ -10,6 +10,7 @@ import { GroceryListProvider } from '../../src/context/GroceryListContext';
 import { RecommendationsProvider } from '../../src/context/RecommendationsContext';
 import { PlacementProvider } from '../../src/context/PlacementContext';
 import { todayUtcDate } from '../../src/lib/date-utils';
+import { AuthProvider } from '../../src/context/AuthContext';
 
 vi.mock('../../src/services/inventory', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/services/inventory')>()),
@@ -145,17 +146,20 @@ const groceryListPartial: GroceryList = {
 
 function renderHome(): ReturnType<typeof render> {
   return render(
-    <InventoryProvider>
-      <MealPlanProvider>
-        <GroceryListProvider>
-          <RecommendationsProvider>
-            <PlacementProvider>
-              <HomePage />
-            </PlacementProvider>
-          </RecommendationsProvider>
-        </GroceryListProvider>
-      </MealPlanProvider>
-    </InventoryProvider>,
+    <AuthProvider>
+      <InventoryProvider>
+        <MealPlanProvider>
+          <GroceryListProvider>
+            <RecommendationsProvider>
+              <PlacementProvider>
+                <HomePage />
+              </PlacementProvider>
+            </RecommendationsProvider>
+          </GroceryListProvider>
+        </MealPlanProvider>
+      </InventoryProvider>
+      ,
+    </AuthProvider>,
   );
 }
 

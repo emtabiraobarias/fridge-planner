@@ -129,7 +129,9 @@ describe('MealPlanContext', () => {
     mockReplaceEntries.mockResolvedValue(mockPlan);
     mockCookEntry.mockResolvedValue({
       plan: { ...mockPlan, entries: [{ ...mockEntry, status: 'cooked' }] },
-      receipt: [{ inventoryItemId: 'inv-1', name: 'chicken breast', quantityConsumed: 1, unit: 'units' }],
+      receipt: [
+        { inventoryItemId: 'inv-1', name: 'chicken breast', quantityConsumed: 1, unit: 'units' },
+      ],
     });
   });
 
@@ -164,9 +166,7 @@ describe('MealPlanContext', () => {
     expect(entry.mealType).toBe('dinner');
     expect(entry.meal.mealName).toBe('Chicken Fried Rice');
     // slotId should be a UUID
-    expect(entry.slotId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    );
+    expect(entry.slotId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
   });
 
   it('unassignMeal calls removeEntry and refreshes', async () => {
@@ -177,10 +177,7 @@ describe('MealPlanContext', () => {
       screen.getByRole('button', { name: 'Unassign' }).click();
     });
 
-    expect(mockRemoveEntry).toHaveBeenCalledWith(
-      expect.any(String),
-      mockEntry.slotId,
-    );
+    expect(mockRemoveEntry).toHaveBeenCalledWith(expect.any(String), mockEntry.slotId);
   });
 
   it('moveMeal calls replaceEntries with updated entry', async () => {

@@ -1,11 +1,7 @@
 import '@testing-library/jest-dom';
 import { createElement } from 'react';
 import { afterEach, vi } from 'vitest';
-import {
-  DEFAULT_VIEWPORT_CLASS,
-  VIEWPORT_QUERIES,
-  type ViewportClass,
-} from '../src/lib/viewport';
+import { DEFAULT_VIEWPORT_CLASS, VIEWPORT_QUERIES, type ViewportClass } from '../src/lib/viewport';
 
 vi.mock('next/navigation', () => ({
   usePathname: vi.fn(() => '/'),

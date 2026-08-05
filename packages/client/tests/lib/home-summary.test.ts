@@ -23,7 +23,10 @@ describe('soonestExpiring (FR-RS-020)', () => {
   });
 
   it('ignores items with no expiry date when picking the soonest', () => {
-    const items = [{ _id: 'a', expiresAt: undefined }, { _id: 'b', expiresAt: '2026-07-22' }];
+    const items = [
+      { _id: 'a', expiresAt: undefined },
+      { _id: 'b', expiresAt: '2026-07-22' },
+    ];
     expect(soonestExpiring(items, TODAY)?.['_id']).toBe('b');
   });
 

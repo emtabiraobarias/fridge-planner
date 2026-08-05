@@ -55,7 +55,8 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
     const container = containerRef.current;
     if (!container) return;
 
-    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    openerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const [first] = getTabbable(container);
     // Focus the panel rather than a text-entry control: auto-focusing an input
     // on a phone springs the on-screen keyboard unbidden and — because iOS zooms

@@ -9,7 +9,11 @@ export function getWeekStart(offsetWeeks = 0): string {
   // Days to subtract to reach Monday (if day=0/Sun, subtract 6; otherwise day-1)
   const daysToMonday = day === 0 ? 6 : day - 1;
   const monday = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysToMonday + offsetWeeks * 7),
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - daysToMonday + offsetWeeks * 7,
+    ),
   );
   return monday.toISOString();
 }
@@ -29,8 +33,18 @@ export function getWeekDays(weekStart: string): string[] {
 
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SHORT_MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 /** Returns a label like "Mon 6 Apr" for a given ISO date string. */

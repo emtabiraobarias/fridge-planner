@@ -1,7 +1,13 @@
 import { ensureOk, apiFetch } from './http';
 
 export type PipelineStage = 'approved' | 'in-spec' | 'in-review' | 'shipped' | 'parked';
-export type TransitionAction = 'advance' | 'approve-spec' | 'approve-release' | 'park' | 'reopen' | 'attach-artifact';
+export type TransitionAction =
+  | 'advance'
+  | 'approve-spec'
+  | 'approve-release'
+  | 'park'
+  | 'reopen'
+  | 'attach-artifact';
 export type TransitionActor = 'human' | 'session';
 export type ArtifactType = 'draft-spec' | 'pull-request';
 
@@ -79,7 +85,10 @@ export async function fetchPipelineItem(id: string): Promise<PipelineItem> {
 }
 
 /** PATCH /pipeline/:id — a guarded transition or an artifact attach (FR-F-014/015/016). */
-export async function transitionPipelineItem(id: string, body: TransitionRequest): Promise<PipelineItem> {
+export async function transitionPipelineItem(
+  id: string,
+  body: TransitionRequest,
+): Promise<PipelineItem> {
   const res = await apiFetch(`${PIPELINE_BASE}/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

@@ -42,8 +42,14 @@ describe('Shelf (spec 010 US2, FR-RS-008/010)', () => {
   });
 
   it('renders a fallback shelf for a location outside the known enum, never dropping it', () => {
-    const garage = { ...chicken, _id: '2', location: 'garage' as unknown as InventoryItem['location'] };
-    render(<Shelf location="garage" items={[garage]} onStep={noop} onDelete={noop} onEdit={noop} />);
+    const garage = {
+      ...chicken,
+      _id: '2',
+      location: 'garage' as unknown as InventoryItem['location'],
+    };
+    render(
+      <Shelf location="garage" items={[garage]} onStep={noop} onDelete={noop} onEdit={noop} />,
+    );
     const card = screen.getByRole('region', { name: /garage shelf/i });
     expect(card.className).toMatch(/neutral-100/);
     expect(screen.getByText('Garage')).toBeInTheDocument();
@@ -60,7 +66,13 @@ describe('Shelf (spec 010 US2, FR-RS-008/010)', () => {
     const onEdit = vi.fn();
     const onDelete = vi.fn();
     render(
-      <Shelf location="fridge" items={[chicken]} onStep={noop} onDelete={onDelete} onEdit={onEdit} />,
+      <Shelf
+        location="fridge"
+        items={[chicken]}
+        onStep={noop}
+        onDelete={onDelete}
+        onEdit={onEdit}
+      />,
     );
     await userEvent.click(screen.getByRole('button', { name: /edit chicken breast/i }));
     expect(onEdit).toHaveBeenCalledWith(chicken);

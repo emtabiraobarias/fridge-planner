@@ -28,6 +28,27 @@ function authorizationEndpoint(): string {
 function tokenEndpoint(): string {
   return `${issuer()}/protocol/openid-connect/token`;
 }
+function endSessionEndpoint(): string {
+  return `${issuer()}/protocol/openid-connect/logout`;
+}
+
+/**
+ * RP-initiated logout URL (spec 002 FR-D-011). Returns null when the issuer is not
+ * configured, which is the signal for the caller to take the FR-D-014 local-only path
+ * rather than navigate somewhere meaningless.
+ *
+ * ⚠️ The IdP must have this `post_logout_redirect_uri` registered (Keycloak: the SPA
+ * client's "Valid post logout redirect URIs") or it refuses the redirect. That is a
+ * MANUAL step — see docs/deployment.md.
+ */
+export function endSessionUrl(origin: string): string | null {
+  if (!issuer()) return null;
+  const params = new URLSearchParams({
+    post_logout_redirect_uri: origin,
+    client_id: clientId(),
+  });
+  return `${endSessionEndpoint()}?${params.toString()}`;
+}
 
 function base64UrlEncode(bytes: Uint8Array): string {
   let str = '';
@@ -153,9 +174,32 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     setToken(pair.accessToken);
   }
 
+  /**
+   * Sign out (spec 002 FR-D-011/014/015/016).
+   *
+   * Clears the local session, then **navigates** — either to the IdP's end-session
+   * endpoint (which returns here signed out), or, if that URL cannot be built, straight
+   * to the app origin.
+   *
+   * The navigation is not incidental: it is how FR-D-016 ("no previous-user data
+   * readable after sign-out") is satisfied. Six data-holding providers sit under this
+   * one — Inventory, MealPlan, Pipeline, Placement, QuickAdd, Recommendations — and
+   * their React state survives a token clear, so without a page load a signed-out screen
+   * would still be showing the previous user's kitchen. Resetting each context instead
+   * would be six files and six chances to forget the seventh; a page load cannot be
+   * partially applied. The fallback path navigates for exactly the same reason — if it
+   * did not, the failure path would be the only one that leaks (plan D-S1).
+   *
+   * No confirmation (FR-D-015): sign-out is reversible and cheap.
+   */
   function logout(): void {
     setRefreshToken(null);
     setToken(null);
+    if (typeof window === 'undefined') return;
+    const url = endSessionUrl(window.location.origin);
+    // `replace`, not `assign`: the signed-out user must not be able to press Back into
+    // a rendered view of the previous session.
+    window.location.replace(url ?? '/');
   }
 
   return (

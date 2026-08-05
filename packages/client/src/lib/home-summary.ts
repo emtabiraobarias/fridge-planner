@@ -61,7 +61,10 @@ export function groceryProgress(items: readonly PurchasableLike[]): GroceryProgr
 
 /** Empty-state predicates, one per Home figure (FR-RS-021/022). */
 
-export function hasNoExpiringItem<T extends ExpiringLike>(items: readonly T[], today: Date = new Date()): boolean {
+export function hasNoExpiringItem<T extends ExpiringLike>(
+  items: readonly T[],
+  today: Date = new Date(),
+): boolean {
   return soonestExpiring(items, today) === null;
 }
 

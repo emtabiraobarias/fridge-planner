@@ -46,8 +46,18 @@ export function RecommendationsPanel({
   ingredientItemIds,
   autoFetch = false,
 }: Props): React.JSX.Element {
-  const { state, meals, error, cachedAt, fallback, linksPending, setLoading, setMeals, setError, checkLinks } =
-    useRecommendations();
+  const {
+    state,
+    meals,
+    error,
+    cachedAt,
+    fallback,
+    linksPending,
+    setLoading,
+    setMeals,
+    setError,
+    checkLinks,
+  } = useRecommendations();
   const { items } = useInventory();
   const { startPlacing } = usePlacement();
   const router = useRouter();
@@ -89,7 +99,9 @@ export function RecommendationsPanel({
     } catch (err) {
       // Prefer the server's Problem JSON detail (e.g. FR-037's "recipe verification
       // unavailable") over a generic message, so the user knows what actually failed.
-      setError(recommendationsErrorMessage(err, 'Could not load recommendations. Please try again.'));
+      setError(
+        recommendationsErrorMessage(err, 'Could not load recommendations. Please try again.'),
+      );
     }
   }
 
@@ -121,7 +133,8 @@ export function RecommendationsPanel({
     if (state === 'idle' && meals.length === 0) {
       return (
         <p className="text-muted mt-4 text-sm">
-          Ready when you are — tap Get Recommendations for meal ideas using what&rsquo;s in your fridge.
+          Ready when you are — tap Get Recommendations for meal ideas using what&rsquo;s in your
+          fridge.
         </p>
       );
     }
@@ -150,7 +163,9 @@ export function RecommendationsPanel({
           </p>
         )}
         {meals.length === 0 && (
-          <p className="text-muted mt-4 text-sm">No suggestions returned — try adding more ingredients.</p>
+          <p className="text-muted mt-4 text-sm">
+            No suggestions returned — try adding more ingredients.
+          </p>
         )}
         {meals.length > 0 && (
           <ul className="mt-4 space-y-3">
@@ -177,7 +192,11 @@ export function RecommendationsPanel({
         disabled={state === 'loading'}
         className="w-full rounded-full bg-accent px-4 py-2.5 font-semibold text-bg hover:bg-accent-600 disabled:opacity-60"
       >
-        {state === 'loading' ? 'Thinking…' : scoped ? 'Find recipes with selected' : 'Get Recommendations'}
+        {state === 'loading'
+          ? 'Thinking…'
+          : scoped
+            ? 'Find recipes with selected'
+            : 'Get Recommendations'}
       </button>
 
       {renderResults()}

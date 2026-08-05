@@ -1,11 +1,5 @@
 'use client';
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import type { MealPlanEntry, MealType } from '../../types/meal-plan';
 import type { MealRecommendation } from '../../types/meal-recommendation';
 import { dayNumber, dowIndex } from '../../lib/date-utils';

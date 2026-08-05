@@ -1,7 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RecommendationsProvider, useRecommendations } from '../../src/context/RecommendationsContext';
+import {
+  RecommendationsProvider,
+  useRecommendations,
+} from '../../src/context/RecommendationsContext';
 import type { MealRecommendation } from '../../src/types/meal-recommendation';
 
 const { fetchRecipeLinks } = vi.hoisted(() => ({ fetchRecipeLinks: vi.fn() }));
