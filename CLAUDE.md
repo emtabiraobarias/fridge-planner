@@ -389,6 +389,11 @@ interactions and rendered output, not implementation details.
 **Playwright — `e2e/*.e2e.ts`:**
 - **Every new user-facing feature MUST add or extend Playwright coverage of its primary
   journey, as part of the story tasks. A feature is not done without it.**
+- **Drive the real controls, not `page.request`.** An e2e that only calls the API proves
+  the server works, never that anyone can *reach* it. Spec 011 shipped in 4.12.0 with three
+  panels unbuilt (one with its task box already ticked): every server test passed, the smoke
+  gate stayed green, and two user stories were curl-only for a whole release. Click the
+  button, then assert the **server's** answer changed.
 - Stay deterministic: seed through the real API/UI, mock Holodeck-dependent calls at the
   network edge, never hit external services, and **never hardcode a date** — compute
   expiries relative to run time or the test becomes a time bomb.

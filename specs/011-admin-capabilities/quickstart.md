@@ -169,10 +169,28 @@ npm -w packages/client run test:e2e            # incl. e2e/admin.e2e.ts
 bash scripts/validate-e2e.sh --no-agent
 ```
 
-- [ ] `tests/server/admin-authorization.test.ts` enumerates **every** admin route × method (SC-AD-001)
-- [ ] A test asserts `AUDIT_RETENTION_DAYS > ERASURE_WINDOW_DAYS` from the constants (FR-AD-023)
-- [ ] A test asserts the dev seam cannot confer admin in production (FR-AD-004)
-- [ ] A test asserts a 403 does **not** trigger the client's token refresh (research D3)
+- [x] `tests/server/admin-authorization.test.ts` enumerates **every** admin route × method (SC-AD-001)
+      — 17 rows against 14 exported admin methods + the 3 shipped maintainer actions put
+      behind the guard. Re-counted 2026-08-07; the numbers still match exactly.
+- [x] A test asserts `AUDIT_RETENTION_DAYS > ERASURE_WINDOW_DAYS` from the constants (FR-AD-023)
+      — `tests/server/unit/admin-audit.test.ts`
+- [x] A test asserts the dev seam cannot confer admin in production (FR-AD-004)
+      — `tests/server/unit/auth.test.ts`, `tests/server/unit/auth-principal.test.ts`
+- [x] A test asserts a 403 does **not** trigger the client's token refresh (research D3)
+      — `tests/services/http.test.ts:151` — one fetch, no token exchange
+
+### The five criteria that are demonstrated rather than unit-asserted (T068a)
+
+Walked 2026-08-07. Each names the artefact that demonstrates it, so a later reader can
+re-run the evidence instead of taking this table's word for it.
+
+| Criterion | Demonstrated by | Result |
+|---|---|---|
+| **SC-AD-002** — a report reaches the maintainer in-app, zero out-of-band relay | `e2e/admin.e2e.ts:16` (user submits → admin sees it, attributed) + smoke §13 | ✅ |
+| **SC-AD-004** — purge leaves zero records | `tests/server/admin-accounts.test.ts:173` "leaves ZERO documents in every user-keyed collection" + `:218` audit entry survives | ✅ |
+| **SC-AD-005** — readiness names the down dependency, app keeps serving | `tests/server/admin-ops.test.ts:92` (unreachable agent ⇒ 503, request still served) + `tests/components/admin/OpsPanel.test.tsx` renders it as data + smoke §16 | ✅ |
+| **SC-AD-006** — kill switch ⇒ zero model calls, journeys still complete | `tests/server/admin-ops.test.ts:165` (fallback, not an error) + `:175` (a blocked call is an uncounted call) + `e2e/admin.e2e.ts:129` pulls the real switch | ✅ |
+| **SC-AD-007** — 100% of cross-user accesses audited | `tests/server/admin-user-data.test.ts:143` (records admin + subject), `:152` (records nothing when refused) + smoke §14 | ✅ |
 
 ## Before production (manual — CLAUDE.md §15 boundary)
 
@@ -194,4 +212,5 @@ are unaffected (FR-AD-006) and it is fixed by assigning the role, but do not dis
 
 | Date | Version | Who | Result |
 |---|---|---|---|
-| _(fill before tagging)_ | | | |
+| 2026-08-04 | 4.12.0 | maintainer | Released. API complete — but **US4, US6 and US7 had no UI at all**: T050/T059/T063 were never built (T063 was ticked in error). Not discovered until the roadmap was reconciled against `tasks.md` on 2026-08-07. |
+| 2026-08-07 | *(pending tag)* | Claude | **Residual closed.** OpsPanel/AccountsPanel/SettingsPanel built; T023a–d guard invariants added. Gate green: `lint` 0 warnings · **976 unit** (92 files, 94.09% lines) · **65 e2e** (9 skipped by viewport project) · smoke **49 pass / 0 fail**. Five demonstrated criteria walked — table above. **T002 still open**: needs a real Keycloak token, which cannot be obtained from the repo. |
