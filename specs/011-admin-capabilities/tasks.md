@@ -59,10 +59,10 @@
 
 *(Added by `/speckit.analyze`: FR-AD-002/005/006/007 are non-regression guarantees that had no explicit task. They are cheap to assert and expensive to discover broken.)*
 
-- [ ] T023a [P] [US1] Add a failing test asserting enforcement is **server-side and UI-independent** (FR-AD-002): the refusal matrix invokes handlers **directly** with a non-admin principal — never through a component — so a rendered-or-not control can never be the thing under test (SC-AD-008)
-- [ ] T023b [P] [US1] Add a failing test asserting an **administrator's ordinary experience is unchanged** (FR-AD-005): with an admin principal, inventory/meal-plan/grocery/own-feedback requests return exactly what the same requests return for a non-admin — admin capability is strictly additive, never a different app
-- [ ] T023c [P] [US1] Add a failing test asserting the system **never fails open when no administrator exists** (FR-AD-006): with zero admin-role holders, every end-user route still works **and** every admin-only route returns 403 — the "everyone is admin" default this whole spec exists to remove
-- [ ] T023d [P] [US1] Add a failing test asserting **end-user feedback is untouched** (FR-AD-007/008): submission, conversation, own-list, and own-delete behave exactly as before the guard, including the existing pipeline-protected delete refusal
+- [x] T023a [P] [US1] Add a failing test asserting enforcement is **server-side and UI-independent** (FR-AD-002): the refusal matrix invokes handlers **directly** with a non-admin principal — never through a component — so a rendered-or-not control can never be the thing under test (SC-AD-008)
+- [x] T023b [P] [US1] Add a failing test asserting an **administrator's ordinary experience is unchanged** (FR-AD-005): with an admin principal, inventory/meal-plan/grocery/own-feedback requests return exactly what the same requests return for a non-admin — admin capability is strictly additive, never a different app
+- [x] T023c [P] [US1] Add a failing test asserting the system **never fails open when no administrator exists** (FR-AD-006): with zero admin-role holders, every end-user route still works **and** every admin-only route returns 403 — the "everyone is admin" default this whole spec exists to remove
+- [x] T023d [P] [US1] Add a failing test asserting **end-user feedback is untouched** (FR-AD-007/008): submission, conversation, own-list, and own-delete behave exactly as before the guard, including the existing pipeline-protected delete refusal
 - [x] T023 [US1] Run `npm run lint && npm test` — green
 
 **Checkpoint**: 🎯 **Recommended first release with AD0.** The privilege hole is closed; no UI required.
@@ -111,7 +111,7 @@
 - [x] T047 [US4] Add the kill-switch check at the **service** boundary (`services/meal-recommender.ts`, `parse-assist.ts`, `recipe-verifier.ts`, `alias-pairing.ts`) so every caller inherits it (D9)
 - [x] T048 [P] [US4] Add `models/ai-usage-counter.ts` + an atomic `$inc` upsert at the **same** boundary as the kill switch, so a blocked call is an uncounted call (FR-AD-027, D10) — with a test asserting exactly that
 - [x] T049 [P] [US4] Add `app/api/v1/admin/{settings,usage,cache,limits}` routes + controllers: settings GET/PATCH (FR-AD-026/030), usage GET (FR-AD-027), cache DELETE with optional `?userId=` (FR-AD-028), limits GET + `DELETE /limits/:key` (FR-AD-029). Rate-limit the destructive ones
-- [ ] T050 [US4] Add `src/components/admin/OpsPanel.tsx` (readiness, usage, kill switch toggle, cache flush, limit reset)
+- [x] T050 [US4] Add `src/components/admin/OpsPanel.tsx` (readiness, usage, kill switch toggle, cache flush, limit reset)
 - [x] T051 [US4] Append to the refusal matrix; run lint + tests
 
 ---
@@ -125,7 +125,7 @@
 - [x] T056 [US6] Enforce active-erasure refusal **inside `authenticatePrincipal()`** so no controller can forget it (D7) — one indexed lookup, cached per request
 - [x] T057 [US6] Add `src/server/lib/account-purge.ts` — the six-collection table as **one tested constant** iterated once (keeps complexity ≤10), returning per-collection deleted counts
 - [x] T058 [US6] Add `controllers/admin-accounts.ts` + routes `export`, `erase`, `restore`, `users/purge`; run the sweep opportunistically on accounts routes **and** on explicit trigger (no scheduler exists — D7). Rate-limit + audit every one
-- [ ] T059 [US6] Add `src/components/admin/AccountsPanel.tsx` with an explicit confirmation on erase (destructive, mirrors `003` FR-F-020's confirmable-delete precedent)
+- [x] T059 [US6] Add `src/components/admin/AccountsPanel.tsx` with an explicit confirmation on erase (destructive, mirrors `003` FR-F-020's confirmable-delete precedent)
 - [x] T060 [US6] Append to the refusal matrix; run lint + tests
 
 ---
@@ -135,6 +135,10 @@
 - [x] T061 [P] [US7] Add failing tests: changing approved recipe domains / popular fallbacks / the recommendations limit takes effect **without a restart**; an invalid value is rejected with the prior value in force (FR-AD-030)
 - [x] T062 [US7] Route `services/recipe-verifier.ts`'s approved-domain list, `lib/popular-recipes.ts`'s fallback set, and the recommendations rate limit through `runtime-settings` **with their current hardcoded values as the code defaults** — so an empty collection is a no-op change
 - [x] T063 [US7] Add `src/components/admin/SettingsPanel.tsx`; run lint + tests
+      ⚠️ **This box was ticked on 2026-08-04 while the file did not exist.** It shipped in
+      4.12.0 unbuilt alongside T050/T059 and was only caught on 2026-08-07 by checking the
+      tree instead of the checkbox. Actually built 2026-08-07. *A ticked box is a claim,
+      not evidence — verify against the tree.*
 
 ---
 
@@ -145,8 +149,8 @@
 - [x] T066 [P] Cascade `CLAUDE.md`: §4 (new admin endpoints + `/api/health/ready`), §5 (four new collections), §6 (`AUTH_ADMIN_ROLE`, `AUTH_ROLES_CLAIM`), §7 (the 403 mapping + admin-guard handler pattern)
 - [x] T067 [P] Cascade `docs/deployment.md`: the **manual** Keycloak realm-role step, the two new env vars, and the reminder that `AUTH_ALLOW_DEV` must stay absent in production
 - [x] T068 Full gate: `npm run lint` (0 warnings) · `npm test` · `npm -w packages/client run test:e2e` · `bash scripts/validate-e2e.sh --no-agent`; fill the quickstart verification log
-- [ ] T068a Walk the quickstart end to end and tick each success criterion explicitly: **SC-AD-002** (a report reaches the maintainer in-app, zero out-of-band relay), **SC-AD-004** (purge leaves zero records), **SC-AD-005** (readiness names the down dependency, app keeps serving), **SC-AD-006** (kill switch ⇒ zero model calls, journeys still complete), **SC-AD-007** (100% of cross-user accesses audited) — the five criteria that are demonstrated rather than unit-asserted
-- [ ] T069 *(owed on `main` — shared file, never edited on this branch)* Update `ROADMAP_PROGRESS.md` backlog #15 + the two top lines **on `main`** (shared file — never edited on this branch)
+- [x] T068a Walk the quickstart end to end and tick each success criterion explicitly: **SC-AD-002** (a report reaches the maintainer in-app, zero out-of-band relay), **SC-AD-004** (purge leaves zero records), **SC-AD-005** (readiness names the down dependency, app keeps serving), **SC-AD-006** (kill switch ⇒ zero model calls, journeys still complete), **SC-AD-007** (100% of cross-user accesses audited) — the five criteria that are demonstrated rather than unit-asserted
+- [x] T069 *(owed on `main` — shared file, never edited on this branch)* Update `ROADMAP_PROGRESS.md` backlog #15 + the two top lines **on `main`** (shared file — never edited on this branch)
 
 ---
 
@@ -185,3 +189,40 @@ Decode the access token (jwt.io, or the app's dev tools) and confirm `realm_acce
 
 **5. Production env (at release, not now)**
 Add `AUTH_ADMIN_ROLE=admin` to the Portainer stack env only if you use a different role name; leave both new vars unset to accept the defaults. **`AUTH_ALLOW_DEV` must remain absent** (FR-AD-004).
+
+---
+
+## Residual closure — 2026-08-07
+
+Spec 011 released as `nextjs-v4.12.0` on 2026-08-04 with **68 of 69 boxes ticked** and
+three of its components never written. The API was complete and enforced throughout, so
+every server test passed and the smoke gate stayed green — **US4, US6 and US7 were simply
+unreachable without hand-writing curl.** Nothing in the gate could see that, because
+nothing in the gate drove a control.
+
+Closed in this pass:
+
+| Task | Was | Now |
+|---|---|---|
+| T023a–d | No test cited FR-AD-002/005/006/007/008 | `tests/server/admin-guard-invariants.test.ts` — 12 cases |
+| T050 | `OpsPanel.tsx` absent | Built + 8 component tests + e2e |
+| T059 | `AccountsPanel.tsx` absent | Built + 9 component tests + e2e |
+| T063 | Ticked, file absent | Built + 5 component tests + e2e |
+| T068a | Not walked | Walked; five demonstrated criteria tabled in `quickstart.md` |
+| T069 | Owed on `main` | Done — PR #70, merged 2026-08-07 |
+
+Gate: `lint` 0 warnings · **976 unit** across 92 files (94.09% lines, up from 90.19%) ·
+**65 e2e** · smoke **49 pass / 0 fail**.
+
+**T002 remains open and is the one thing that cannot be closed from the repo.** It needs an
+operator token from the LAN Keycloak. Note what it does and does not block: the guard is
+claim-agnostic (`AUTH_ROLES_CLAIM`, default `realm_access.roles`), so a different claim
+layout is configuration, not code — but until Keycloak actually issues the role, **nobody
+holds it**, and every surface built here answers 403 to everyone. End users are unaffected
+(FR-AD-006, now tested).
+
+**The lesson worth keeping:** the release gate proves the server refuses the wrong caller.
+It never proved a right caller could *reach* the feature. That is why the e2e added here
+drives the real controls and asserts the server's answer changed, rather than calling the
+API directly — an API-only test would have passed for the entire time the feature was
+unusable.
