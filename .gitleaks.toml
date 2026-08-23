@@ -1,0 +1,16 @@
+# Gitleaks configuration — fridge-planner
+#
+# Full-history secret scan 2026-07-22 (pattern sweep across 397 commits / 77 refs / 241
+# dangling blobs + gitleaks 8.30.1): NO real secrets found. The allowlists below suppress
+# the two confirmed false-positive classes so future scans run clean.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Next.js build artifacts committed once in the 08c9e47 migration commit — contain per-build preview/server-action keys for a build that no longer exists anywhere; .next/ is untracked at HEAD"
+paths = ['''packages/client/\.next/.*''']
+
+[[allowlists]]
+description = "Route-handler config snippets quoted in spec task lists (e.g. specs/003-feedback-agent/tasks.md: '…rate-limit key, `maxDuration=120`' trips the generic-api-key keyword+token heuristic)"
+regexes = ['''maxDuration=\d+''']

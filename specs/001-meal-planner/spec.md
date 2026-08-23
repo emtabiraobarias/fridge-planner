@@ -81,13 +81,13 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 
 1. **Given** I have planned 3 meals that each require onions (1 onion each), **When** I view my grocery list, **Then** I see "Onions: 3 total" aggregated as a single line item
 
-2. **Given** I have planned 3 meals that each require milk, **When** I view my grocery list, **Then** milk appears as a single aggregated line item with a servings count ("Milk ×3"). *(Quantity/unit normalization — e.g. summing 1 cup + 500 ml — is deferred to Phase 2+; see FR-028.)*
+2. **Given** I have planned 3 meals that each require milk, **When** I view my grocery list, **Then** milk appears as a single aggregated line item — with real summed amounts where the meals carry grounded quantities (spec `006` FR-MC-016/017), or a servings count ("Milk ×3") as the fallback.
 
-3. **Given** my planned meals require eggs and I have eggs in inventory, **When** I view my grocery list, **Then** eggs appear as a needed line item. *(Net-amount deduction of owned quantities — "4 needed (6−2)" — is deferred to Phase 2+; see FR-027.)*
+3. **Given** my planned meals require eggs and I have eggs in inventory, **When** I view my grocery list, **Then** where grounded quantities exist my owned, non-expired eggs are netted off and only the shortfall is listed — "4 needed (6−2)" — per spec `006` FR-MC-016 (FR-027); ungrounded lines still appear as a whole needed line item (fallback).
 
 4. **Given** I view my grocery list, **When** I look at the categorized sections, **Then** ingredients are grouped by category (Produce, Dairy, Meat, Pantry, etc.) for easier shopping
 
-5. **Given** I am at the store with my grocery list, **When** I tap/check off an item, **Then** it is marked as purchased and visually crossed out or moved to a "completed" section
+5. **Given** I am at the store with my grocery list, **When** I tap/check off an item, **Then** it is marked as purchased, visually crossed out or moved to a "completed" section, **and its goods are added to my kitchen inventory immediately** (exact-reversal on un-check — spec `007` FR-GC-001..008)
 
 6. **Given** I have completed my grocery shopping, **When** I confirm purchased items, **Then** the system adds those items to my inventory with the purchased quantities
 
@@ -118,7 +118,7 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 - **FR-002**: Users MUST be able to edit or delete inventory items with immediate reflection in meal recommendations
 - **FR-003**: System MUST provide standard categories (Produce, Dairy, Meat, Seafood, Grains, Pantry, Condiments, Frozen, Other) for user selection when adding inventory items; keyword-based auto-categorization is applied to grocery list aggregation only
 - **FR-004**: Users MUST be able to search and filter their inventory by category, name, or expiration status
-- **FR-005**: System MUST track ingredient quantities and update them when ingredients are used in planned meals. Consumption is **reversible**: quantities are decremented when a meal is added to the plan and **restored when that meal is removed or replaced** (so a remove/move does not permanently over-decrement). *(Future model — consuming only at grocery-checkout / "mark cooked" time rather than at planning time — is deferred to Phase 2+; see ROADMAP.)*
+- **FR-005**: *(Revised 2026-07-18 — consumption semantics are now canonical in spec `006` FR-MC-006..015.)* System MUST track ingredient quantities and update them when meals are **cooked**, not when they are planned: planning activity never changes inventory; an explicit, idempotent cooked confirmation deducts the user-confirmed amounts via a consumption review, records a consumption receipt, and un-marking restores inventory exactly from that receipt. *(The original planning-time decrement/restore model is superseded.)*
 
 **Expiration Tracking and Visual Indicators**:
 - **FR-006**: System MUST visually highlight inventory items based on expiration status using midnight cutoff for date calculations:
@@ -131,9 +131,9 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 - **FR-011**: System MUST keep expired items visible in inventory with red flagging until user manually removes them (no automatic deletion)
 
 **AI-Powered Meal Recommendations**:
-- **FR-012**: System MUST integrate with an LLM agent via API to generate meal recommendations based on current inventory (excluding expired items); recommendation generation is performed **asynchronously** (the request returns immediately with a pending/loading state and results are delivered when ready) — it is not a synchronous <200ms endpoint (see SC-002, CR-008)
+- **FR-012**: System MUST integrate with an LLM agent via API to generate meal recommendations based on current inventory (excluding expired items); recommendation generation is performed **asynchronously** (the request returns immediately with a pending/loading state and results are delivered when ready) — it is not a synchronous <200ms endpoint (see SC-002, CR-008). *(Revised 2026-07-23: generation is **user-triggered** — it MUST NOT auto-load on screen entry; and it MAY be scoped to a user-selected **subset** of inventory items instead of the whole inventory. Both canonical in spec `009` FR-IR-001..011.)*
 - ~~**FR-013**~~: *(removed — consolidated into FR-012 prior to implementation)*
-- **FR-014**: System MUST generate 5-10 candidate meal suggestions that prioritize using existing inventory items *(widened from 3-5 on 2026-07-15 so enough candidates survive recipe-link verification — see FR-037)*
+- **FR-014**: System MUST generate 5-10 candidate meal suggestions that prioritize using existing inventory items *(widened from 3-5 on 2026-07-15 so enough candidates survive recipe-link verification — see FR-037. 2026-07-23: when a request is scoped to a selected subset (spec `009`), "existing inventory items" means the selected subset, and expiry prioritisation applies within it — FR-IR-008/009.)*
 - **FR-015**: Each meal recommendation MUST include recipe name, description, estimated cooking time, difficulty level, complete ingredient list, and a link to a real, verified recipe page (the link is attached by the system from verified sources only — never authored by the LLM, never fabricated)
 - **FR-016**: System MUST clearly distinguish between ingredients the user has vs. ingredients they need to purchase in each recipe
 - **FR-017**: Users MUST be able to regenerate recommendations to get different meal options
@@ -149,14 +149,14 @@ As a shopper, I want an automatically generated grocery list that intelligently 
 - **FR-024**: Users MUST be able to view meal details (full recipe) by clicking on a planned meal card
 
 **Smart Grocery List**:
-- **FR-025**: System MUST automatically generate a grocery list based on all planned meals for the week
-- **FR-026**: System MUST aggregate the same ingredient across multiple planned meals into a single grocery line item, where the quantity is the **number of meals requiring it** (a "servings" count) — e.g. 3 meals needing onion → "Onion ×3". Precise per-recipe quantity summation is deferred (see FR-028)
-- **FR-027**: *(Deferred to Phase 2+ — net-amount deduction of owned inventory from grocery totals requires per-recipe ingredient quantities the recommendation model does not yet return; see FR-028. Expired-but-owned ingredients still appear as new purchases per FR-008.)*
-- **FR-028**: *(Deferred to Phase 2+ — unit normalization/conversion requires per-recipe ingredient quantities + units, which the meal recommendation model does not yet provide; grocery items currently use a "servings" count per FR-026. SI-unit display and the user-configurable metric/imperial toggle remain Phase 2+ — see Assumption 11.)*
+- **FR-025**: System MUST automatically generate a grocery list based on the week's planned meals. *(Revised 2026-07-21/22: generation is **date-scoped and rolling** — only uncooked (`planned`) entries dated today or later contribute needs; entries before today are ignored whether cooked or not; the list presents as a rolling rest-of-week view recomputed at every view; canonical in spec `008` FR-RG-001..003/008.)*
+- **FR-026**: System MUST aggregate the same ingredient across multiple planned meals into a single grocery line item, where the quantity is the **number of meals requiring it** (a "servings" count) — e.g. 3 meals needing onion → "Onion ×3". *(Revised 2026-07-18: this servings model is now the **fallback** — where meals carry grounded quantities, the quantity-aware model of spec `006` FR-MC-016/017 applies per line. Revised 2026-07-21: aggregation operates on the date-scoped meal set of spec `008` FR-RG-001.)*
+- **FR-027**: *(Un-deferred 2026-07-18 — superseded by spec `006` FR-MC-016.)* Where grounded quantities exist, grocery generation nets the user's owned, non-expired stock off the summed need and lists only the shortfall. Expired-but-owned ingredients still appear as new purchases per FR-008 (spec `006` FR-MC-018).
+- **FR-028**: *(Un-deferred 2026-07-18 — superseded by spec `006` FR-MC-017.)* Amounts in compatible units are aggregated in a single canonical unit per line; unreconcilable lines fall back to the FR-026 servings count. SI-unit display and the user-configurable metric/imperial toggle remain Phase 2+ — see Assumption 11.
 - **FR-029**: System MUST categorize grocery list items by department/category for efficient shopping
-- **FR-030**: Users MUST be able to manually add, edit, or remove items from the grocery list
-- **FR-031**: Users MUST be able to check off items as purchased during shopping
-- **FR-032**: System MUST offer to add purchased items to inventory when user completes grocery shopping
+- **FR-030**: Users MUST be able to manually add, edit, or remove items from the grocery list. *(Revised 2026-07-22 — manual items are day-scoped: they persist through refreshes during the day they were added, then shed from the rolling list at the next rollover; spec `008` FR-RG-004.)*
+- **FR-031**: Users MUST be able to check off items as purchased during shopping. *(Revised 2026-07-18 — checking off is no longer display-only: it adds the goods to inventory immediately, with an exact-reversal purchase receipt; canonical in spec `007` FR-GC-001..010. Revised 2026-07-22 — the un-tick reversal window is same-day: purchased rows shed from the rolling list at the next rollover and the purchase becomes final; spec `008` FR-RG-005/011.)*
+- **FR-032**: *(Revised 2026-07-18 — canonical in spec `007` FR-GC-011.)* Completing grocery shopping MUST add only the lines not already added at check-off (mark remaining + finalize) — never double-adding a line a mid-shop check-off already handled.
 
 **Data Persistence and Sync**:
 - **FR-033**: System MUST persist all user data (inventory, preferences, meal plans, grocery lists) with automatic saving
@@ -227,7 +227,7 @@ All features MUST comply with constitutional principles:
 
 - **SC-004**: Users can plan a full week of meals (21 meals across 7 days) in under 10 minutes using the drag-and-drop calendar
 
-- **SC-005**: Grocery list aggregation correctly groups every occurrence of the same ingredient across planned meals into one line item with an accurate meal/servings count (100% grouping accuracy). *(Quantity/unit-conversion accuracy is deferred with FR-028.)*
+- **SC-005**: Grocery list aggregation correctly groups every occurrence of the same ingredient across planned meals into one line item with an accurate meal/servings count (100% grouping accuracy). *(Quantity/unit-conversion accuracy for grounded lines is measured by spec `006` SC-MC-005.)*
 
 - **SC-006**: Users complete their first full workflow (add inventory → get recommendations → plan meals → generate grocery list) within 15 minutes on their first session
 
