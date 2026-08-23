@@ -40,9 +40,69 @@ env:
   IMAGE: ghcr.io/emtabiraobarias/fridge-planner-client
 
 jobs:
+  # ── Refuse to build a tag that isn't a real release point ────────────────────
+  # Added 2026-08-23 after 4.14.0 shipped two-month-old code to prod. The tag was
+  # LIGHTWEIGHT and sat on a commit 139 behind impl/nextjs (older than 4.9.0); every
+  # stage below then did its job perfectly and published that tree as :4.14.0. Nothing
+  # in the pipeline looked at WHICH commit the tag pointed at, so the first signal was
+  # verify-rollout.sh failing after the release was already live.
+  #
+  # scripts/cut-release.sh prevents this at the source; this job is the backstop for a
+  # tag pushed by hand from anywhere. An image that is never built cannot be deployed.
+  guard:
+    name: release tag sanity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need full history + all tags to test ancestry
+
+      - name: Assert the tag is a real release point
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#nextjs-v}"
+          git fetch --quiet origin 'refs/heads/impl/nextjs:refs/remotes/origin/impl/nextjs'
+
+          # 1. Annotated, not lightweight. Not cosmetic: `git tag -a` is what the release
+          #    path does, so a lightweight tag means the tag was made some other way —
+          #    which is precisely how 4.14.0 got onto the wrong commit.
+          if [ "$(git cat-file -t "$TAG")" != tag ]; then
+            echo "::error::$TAG is a LIGHTWEIGHT tag. Release tags must be annotated (git tag -a) — use scripts/cut-release.sh."
+            exit 1
+          fi
+          echo "✓ annotated"
+
+          # 2. The commit must actually be on impl/nextjs. A tag on a side branch would
+          #    build code that was never merged.
+          if ! git merge-base --is-ancestor "$TAG^{commit}" origin/impl/nextjs; then
+            echo "::error::$TAG is not contained in impl/nextjs. Release only from merged code."
+            exit 1
+          fi
+          echo "✓ contained in impl/nextjs"
+
+          # 3. The release must move forward: it has to contain the highest release below
+          #    it. This is the check 4.14.0 fails — its commit predates 4.13.0.
+          PREV_VERSION="$(
+            { git tag --list 'nextjs-v*' | sed 's/^nextjs-v//' | grep -vFx "$VERSION"; echo "$VERSION"; } \
+              | grep -v '^$' | sort -V | grep -B1 -Fx "$VERSION" | head -1
+          )"
+          if [ -z "$PREV_VERSION" ] || [ "$PREV_VERSION" = "$VERSION" ]; then
+            echo "✓ no earlier release tag — ancestry check skipped"
+          elif git merge-base --is-ancestor "nextjs-v${PREV_VERSION}^{commit}" "$TAG^{commit}"; then
+            echo "✓ contains nextjs-v${PREV_VERSION}"
+          else
+            echo "::error::$TAG does not contain nextjs-v${PREV_VERSION} — it is tagged on a commit older than the release it supersedes. This is the 4.14.0 failure; the tag is on the wrong commit."
+            exit 1
+          fi
+
+          echo "Release point: $(git log -1 --format='%H %s' "$TAG^{commit}")"
+
   # ── Build the standalone Next image and push it, pinned by digest ─────────────
   build-push:
     name: build & push image
+    needs: guard # never publish an image for a tag that failed the sanity check
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:

@@ -599,6 +599,18 @@ resolved tag isn't in the local cache, forcing a pull.
 > ship. (`scripts/deploy-release.sh <version>` forces an immediate redeploy but needs an API
 > token nobody is required to provide.)
 
+> **Always cut the tag with `scripts/cut-release.sh <version>` — never bare `git tag`.** It
+> resolves the target from `origin/impl/nextjs` **after fetching**, so the tag cannot land on
+> whatever an unrelated worktree has checked out, and it refuses a version that doesn't
+> contain the previous release. This exists because 4.14.0 was a *lightweight* tag on a commit
+> **139 behind** the branch: CI built that tree, published it as `:4.14.0`, and Portainer
+> deployed it faithfully — prod served two-month-old code while `/api/health` returned 200.
+> A second near-miss the same day (4.14.1, cut on a 4-commit-stale HEAD) silently dropped a
+> merged PR's admin panels. **The pin can be perfectly correct and the image still wrong.**
+> The `guard` job in `deploy-nextjs.yml` is the backstop — it rejects lightweight tags, tags
+> off `impl/nextjs`, and tags that don't contain the prior release, before any image is built.
+> It would have caught 4.14.0; only the script catches the 4.14.1 stale-HEAD case.
+
 **Rules:**
 - **Secrets never enter the repo** — only `deploy/prod.env.example` placeholders are
   committed. Real values go in Portainer stack env or a host `.env`.
