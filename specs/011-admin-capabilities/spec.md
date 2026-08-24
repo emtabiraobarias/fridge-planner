@@ -15,7 +15,16 @@
 
 ---
 
-## Current-state finding *(mandatory reading — this is a verified audit, not a proposal)*
+## Current-state finding *(HISTORICAL — audit of 2026-07-31, retained for provenance)*
+
+> **Marked historical by the 2026-08-24 feedback overhaul.** This section is a point-in-time
+> audit of the pre-`011` codebase, not a description of the system today: the administrator
+> role, verified-claim sourcing and the refusal semantics it argued for all shipped in 4.12.0
+> and 4.14.2. Retained because the reasoning still justifies the requirements below — but read
+> it as *why these requirements exist*, never as *what the code currently does*. One defect it
+> anticipated outlived it and was fixed separately on 2026-08-24: three maintainer controls
+> rendered for every authenticated user and reported their 403 as "Please try again".
+
 
 The application has exactly **one identity tier**. `authenticate()` resolves a request to a bare `userId` (the OIDC `sub`, or the `X-User-Id` dev seam) and every controller scopes its queries by `{ userId }` per `001` `FR-036`. There is **no role, no permission, and no administrator concept anywhere in the server layer** — the only `role` fields in the codebase are *message* roles (`user` / `agent`) inside feedback transcripts.
 
@@ -208,11 +217,11 @@ As the operator, I need to adjust operational content and limits without changin
 
 - **FR-AD-007**: Feedback **submission and conversation** MUST remain available to every authenticated user for their own records, unchanged (`003` `FR-F-001..004`).
 - **FR-AD-008**: An end user MUST continue to see, and act on, **only their own** feedback records (`003` `FR-F-005`).
-- **FR-AD-009**: An administrator MUST be able to list and read feedback records from **all** users, attributed to their authors, with filtering by status and pipeline stage.
-- **FR-AD-010**: **Promotion** of a feedback record into the development pipeline MUST be an administrator-only capability; this makes `003` `FR-F-013`'s "maintainer" enforceable.
-- **FR-AD-011**: Pipeline **stage transitions and gate approvals** MUST be administrator-only; no end user may advance a record, and in particular none may record a spec-approval or release-approval (`003` `FR-F-016`).
-- **FR-AD-012**: A promoted record MUST record the **promoting administrator** distinctly from the record's author, and every gate approval MUST record the **approving administrator's** identity — so an approval evidences *who* approved, not merely that approval occurred.
-- **FR-AD-013**: Specification **export** of a record MUST be an administrator-only capability, as it produces a maintainer artifact.
+- **FR-AD-009**: An administrator MUST be able to list and read feedback records from **all** users, attributed to their authors, with filtering by status and lifecycle stage. *(Cross-reference: the triage surface and its capabilities are defined by `012` — `FR-FL-023`, `FR-FL-052`, `FR-FL-056`. This spec asserts only that the capability is administrator-only.)*
+- **FR-AD-010**: **Acceptance** of a feedback record into the lifecycle MUST be an administrator-only capability. *(Cross-reference: the action itself is `012` `FR-FL-008` — gate 1. Supersedes the wording that referred to `003` `FR-F-013`, which moved to `012`.)*
+- **FR-AD-011**: Lifecycle **stage transitions and gate approvals** MUST be administrator-only; no end user may advance an item, and in particular none may record a spec-approval or release-approval. *(Cross-reference: the three gates are `012` `FR-FL-008`/`FR-FL-009`/`FR-FL-010`; server-derived approval status is `012` `FR-FL-013`.)*
+- **FR-AD-012**: An accepted item MUST record the **accepting administrator** distinctly from the record's author, and every gate approval MUST record the **approving administrator's** identity — so an approval evidences *who* approved, not merely that approval occurred. *(Cross-reference: `012` `FR-FL-005` and `FR-FL-012`.)*
+- **FR-AD-013**: **Brief assembly** from a record MUST be an administrator-only capability, as it produces a maintainer artifact. *(Cross-reference: `012` `FR-FL-032`/`FR-FL-033`. Formerly "specification export", which `012` replaced with brief assembly at `briefed`.)*
 - **FR-AD-014**: Feedback content displayed to an administrator MUST remain **inert data**; instruction-like text in a record MUST NOT influence system or agent behaviour, extending `003` `FR-F-011`/`FR-F-018` to the cross-user surface.
 
 **Support, accounts, and accountability**
@@ -221,6 +230,11 @@ As the operator, I need to adjust operational content and limits without changin
 - **FR-AD-016**: `001` `FR-036` per-user isolation MUST remain unchanged for non-administrators; cross-user access is available **solely** through administrator capabilities.
 - **FR-AD-017**: An administrator MUST be able to **export** all data held about a specified user, covering every store that keys records to that user, in a portable machine-readable form.
 - **FR-AD-018**: An administrator MUST be able to **erase** a user account. Erasure is **two-phase**: on request the account and all its data become **immediately inaccessible** to everyone — the user themselves and every administrator surface, including the US3 support view — and after a **30-day recovery window** the data MUST be **permanently purged** such that no record keyed to that user remains in any store. Purge MUST NOT leave orphaned records in any collection.
+  > **Erasure edge case resolved 2026-08-24 by `012` D15.** Work outlives an erased account: a
+  > lifecycle item whose reporter is erased **survives, detached** from reporter-identifying
+  > content, and stays advanceable and closable (`012` `FR-FL-059`..`FR-FL-061`). It is
+  > therefore *not* an orphan for the purposes of this requirement — detachment is the defined
+  > outcome, not a leak. Erasing a reporter must never destroy unrelated maintainer work.
 - **FR-AD-019**: During the recovery window an administrator MUST be able to **restore** an erased account to its pre-erasure state. After the window has elapsed, restoration MUST NOT be possible and MUST be reported as such rather than appearing to succeed.
 - **FR-AD-020**: Erasure MUST NOT be able to remove the last remaining administrator's ability to administer the system.
 - **FR-AD-021**: Every administrative action that reads another user's data or changes system/user state MUST be recorded in an **append-only audit trail** capturing the acting administrator, the action, the affected subject, and the time.
