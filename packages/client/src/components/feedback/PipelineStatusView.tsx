@@ -1,6 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 import { usePipeline } from '../../context/PipelineContext';
+import { useIsAdmin } from '../../hooks/useIsAdmin';
 import type {
   ArtifactType,
   PipelineItemSummary,
@@ -110,9 +111,11 @@ function buildRequest(action: TransitionAction): TransitionRequest {
 interface RowProps {
   item: PipelineItemSummary;
   onTransition: (id: string, action: TransitionAction) => void;
+  /** Whether to render the transition controls at all — administrators only. */
+  canAct: boolean;
 }
 
-function PipelineRow({ item, onTransition }: RowProps): React.JSX.Element {
+function PipelineRow({ item, onTransition, canAct }: RowProps): React.JSX.Element {
   return (
     <li className="flex flex-col gap-2 rounded-lg bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
@@ -139,16 +142,17 @@ function PipelineRow({ item, onTransition }: RowProps): React.JSX.Element {
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <StageBadge stage={item.stage} itemId={item._id} />
-        {actionsFor(item.stage).map((a) => (
-          <button
-            key={a.action}
-            type="button"
-            onClick={() => onTransition(item._id, a.action)}
-            className="rounded-full border border-divider px-3 py-1 text-xs font-semibold text-ink hover:bg-ink/[0.07]"
-          >
-            {a.label}
-          </button>
-        ))}
+        {canAct &&
+          actionsFor(item.stage).map((a) => (
+            <button
+              key={a.action}
+              type="button"
+              onClick={() => onTransition(item._id, a.action)}
+              className="rounded-full border border-divider px-3 py-1 text-xs font-semibold text-ink hover:bg-ink/[0.07]"
+            >
+              {a.label}
+            </button>
+          ))}
       </div>
     </li>
   );
@@ -157,6 +161,13 @@ function PipelineRow({ item, onTransition }: RowProps): React.JSX.Element {
 /** DL3 status view: the maintainer's promoted records with stage + artifact links (FR-F-015). */
 export function PipelineStatusView(): React.JSX.Element {
   const { items, loading, refresh, transition } = usePipeline();
+  // Only the TRANSITION CONTROLS are administrator-only, not this whole view: `GET
+  // /pipeline` is behind plain `authenticate()`, and a reporter seeing the stage their
+  // report reached is the point of the status view. It is `PATCH /pipeline/:id` that
+  // requires `requirePrincipalAdmin`, so every button below could only ever 403 for a
+  // reporter — and reported that as "Please try again". `=== true` because the hook is
+  // `null` until `/api/v1/me` answers. Hiding is courtesy, not enforcement (FR-AD-002).
+  const isAdmin = useIsAdmin();
 
   useEffect(() => {
     void refresh();
@@ -185,7 +196,12 @@ export function PipelineStatusView(): React.JSX.Element {
 
       <ul className="flex flex-col gap-2">
         {items.map((item) => (
-          <PipelineRow key={item._id} item={item} onTransition={handleTransition} />
+          <PipelineRow
+            key={item._id}
+            item={item}
+            onTransition={handleTransition}
+            canAct={isAdmin === true}
+          />
         ))}
       </ul>
     </section>
