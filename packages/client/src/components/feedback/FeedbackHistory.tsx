@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useFeedback } from '../../context/FeedbackContext';
+import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { fetchFeedbackExport } from '../../services/feedback';
 import type { FeedbackRecord } from '../../services/feedback';
 import { PromoteButton } from './PromoteButton';
@@ -25,6 +26,13 @@ async function exportRecord(record: FeedbackRecord): Promise<void> {
 /** P2/P3: a list of the user's own feedback records with status, export, and delete. */
 export function FeedbackHistory(): React.JSX.Element {
   const { records, listLoading, listError, refreshList, remove, resume } = useFeedback();
+  // Export is administrator-only: `GET /feedback/:id/export` is behind
+  // `requirePrincipalAdmin`, so for a reporter this control could only ever 403 — and it
+  // reported that refusal as "Please try again", which misstates the reason. `=== true`
+  // below because the hook is `null` until `/api/v1/me` answers; a pending answer must
+  // render nothing rather than flash a control the caller may not be allowed to use.
+  // Hiding is a courtesy, never the enforcement (FR-AD-002).
+  const isAdmin = useIsAdmin();
   // Export runs outside the context, so it needs its own slot — but shares one message
   // area, because two stacked error banners would be noise.
   const [exportError, setExportError] = useState('');
@@ -102,7 +110,7 @@ export function FeedbackHistory(): React.JSX.Element {
                   Continue
                 </button>
               )}
-              {r.status !== 'draft' && (
+              {r.status !== 'draft' && isAdmin === true && (
                 <button
                   onClick={() => {
                     setExportError('');

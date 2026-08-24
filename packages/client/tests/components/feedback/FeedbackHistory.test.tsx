@@ -21,16 +21,24 @@ vi.mock('../../../src/services/pipeline', () => ({
   patchPipelineItem: vi.fn(),
   fetchPipelineItem: vi.fn(),
 }));
+// Export and Promote are administrator-only, so `useIsAdmin()` -> `useMe()` -> this call
+// now decides whether they render at all. Default below is NON-admin: the reporter is the
+// common case, and it means a test must opt IN to seeing a maintainer control.
+vi.mock('../../../src/services/admin', () => ({
+  fetchMe: vi.fn(),
+}));
 
 import {
   fetchFeedbackList,
   fetchFeedbackRecord,
   deleteFeedbackRecord,
 } from '../../../src/services/feedback';
+import { fetchMe } from '../../../src/services/admin';
 
 const mockList = vi.mocked(fetchFeedbackList);
 const mockGet = vi.mocked(fetchFeedbackRecord);
 const mockDelete = vi.mocked(deleteFeedbackRecord);
+const mockMe = vi.mocked(fetchMe);
 
 function record(over: Partial<FeedbackRecord> = {}): FeedbackRecord {
   return {
@@ -56,6 +64,7 @@ function setup(): void {
 beforeEach(() => {
   vi.clearAllMocks();
   mockList.mockResolvedValue([]);
+  mockMe.mockResolvedValue({ userId: 'u1', isAdmin: false });
 });
 
 describe('FeedbackHistory', () => {
@@ -69,12 +78,61 @@ describe('FeedbackHistory', () => {
     await waitFor(() => expect(mockGet).toHaveBeenCalledWith('f1'));
   });
 
-  it('offers Export instead of Continue once a record is complete (FR-F-007)', async () => {
+  it('offers Export instead of Continue once a record is complete, for an admin (FR-F-007)', async () => {
+    mockMe.mockResolvedValue({ userId: 'u1', isAdmin: true });
     mockList.mockResolvedValue([record({ status: 'complete', title: 'Dupe rows' })]);
     setup();
 
     expect(await screen.findByRole('button', { name: /export/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /continue/i })).not.toBeInTheDocument();
+  });
+
+  // The regression these exist for: `GET /feedback/:id/export` and `POST
+  // /feedback/:id/promote` are both behind `requirePrincipalAdmin`, but the controls
+  // rendered for every authenticated user, so a reporter could click an action that could
+  // only ever 403 — and the failure was reported as "Please try again", which misstates
+  // the reason. Nothing covered it because no requirement had been written for it.
+  it('hides Export from a non-admin reporter — the route is admin-only (FR-AD-002)', async () => {
+    mockList.mockResolvedValue([record({ status: 'complete', title: 'Dupe rows' })]);
+    setup();
+
+    // Wait for the row itself, so this cannot pass merely because nothing rendered yet.
+    expect(await screen.findByText('Dupe rows')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
+  });
+
+  it('hides Promote to development from a non-admin reporter (FR-AD-002)', async () => {
+    mockList.mockResolvedValue([record({ status: 'complete', title: 'Dupe rows' })]);
+    setup();
+
+    expect(await screen.findByText('Dupe rows')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /promote to development/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows Promote to development to an admin (FR-F-013)', async () => {
+    mockMe.mockResolvedValue({ userId: 'u1', isAdmin: true });
+    mockList.mockResolvedValue([record({ status: 'complete', title: 'Dupe rows' })]);
+    setup();
+
+    expect(
+      await screen.findByRole('button', { name: /promote to development/i }),
+    ).toBeInTheDocument();
+  });
+
+  // `useIsAdmin()` is null until /api/v1/me answers. A control that renders during that
+  // window and vanishes is worse than one that arrives late, so nothing may flash.
+  it('renders no maintainer control while the privilege answer is still pending', async () => {
+    mockMe.mockReturnValue(new Promise(() => {})); // never settles
+    mockList.mockResolvedValue([record({ status: 'complete', title: 'Dupe rows' })]);
+    setup();
+
+    expect(await screen.findByText('Dupe rows')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /promote to development/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows a refused delete and keeps the row (FR-F-021)', async () => {
