@@ -1,13 +1,21 @@
-# Feature Specification: Conversational Feedback Collector
+# Feature Specification: Conversational Feedback Capture
 
 **Feature Branch**: `003-feedback-agent`
 **Created**: 2026-07-11
-**Status**: Draft
+**Status**: Implemented (shipped 4.8.0). Scope reduced to capture by the 2026-08-24 revision.
 **Input**: User description: "Conversational feedback collector agent that gathers bug reports and improvement suggestions via chat and saves structured spec-shaped records exportable as specification input"
 
 > **Shared contract (both implementations).** This spec is authored on `main` and inherited by both `impl/vite` and `impl/nextjs` per `BRANCHING_STRATEGY.md §5`. It is **topology-agnostic**: it defines *what* the feedback collector must do — never *how* (server architecture, agent runtime, storage engine are per-branch `plan.md` concerns). Per the roadmap (Phase F), implementation proceeds on `impl/nextjs` first; the `impl/vite` implementation is **deferred by decision**.
 >
 > **FR numbering:** Phase F requirements use the `FR-F-xxx` prefix to avoid collision with `001`'s `FR-0xx` and `002`'s `FR-D-xxx`.
+>
+> **Revision 2026-08-24 (feedback overhaul — scope reduced to capture).** This spec now owns
+> **producing a record and nothing more**. Everything that happens to a record *once it exists*
+> — triage, the stage model, the three gates, the maintainer reply, reporter-visible status,
+> closure — moved to **`012` Feedback Lifecycle**, which supersedes the development-pipeline
+> revision below. Requirements that moved are retained here as **pointers, not definitions**, so
+> that nothing silently loses its home and `FR-F-xxx` numbering stays stable. `011` continues to
+> own *who may act*. See `specs/012-feedback-lifecycle/spec.md`.
 >
 > **Revision 2026-07-23 (backlog #7 — feedback→feature development loop).** This spec is extended so an **approved** feedback record can be *promoted* into a tracked **development pipeline** that the project's existing spec-driven workflow (`/speckit.specify → clarify → plan → tasks → analyze → implement`) advances — **human-gated**. New requirements continue the `FR-F-xxx` sequence (FR-F-013+). The MVP is the **tracking layer** (promote + pipeline states + status view); the chain itself is Claude-orchestrated on top of it. Decisions are recorded under Clarifications.
 
@@ -32,6 +40,24 @@
 - Q: How should failures be shown? → A: **Never silently.** Every failed feedback operation surfaces a message; a failed list load MUST NOT render as the "no feedback yet" empty state.
 - Q: Should deleting a record be confirmed? → A: **Yes** — deletion discards a whole transcript and is irreversible; it needs an explicit confirmation (or an undo affordance consistent with the rest of the app).
 
+### Session 2026-08-24 (feedback overhaul; decisions FIXED — see `012` Clarifications D1–D20)
+
+- Q: What does this spec own after the overhaul? → A: **Capture only (D10).** A report is
+  produced here; everything afterwards is `012`. The boundary is deliberate: `003` proved a
+  report can be captured well, and the failure was never capture.
+- Q: Does the conversation itself change? → A: **No (D2).** The chat is untouched. Capture pain
+  was everything around it.
+- Q: Does quick capture still hand off unconditionally? → A: **No (D18).** The modal now asks
+  whether the reporter has a minute to elaborate. Yes → the conversation opens with the question
+  waiting. No → the note is recorded as it stands. FR-F-019 is revised accordingly.
+- Q: If the reporter declines to elaborate, is the record left a draft? → A: **Never.** Declining
+  routes to the **forced-finalize path** of FR-F-008: the assistant finalises on that single turn
+  and explicitly marks the fields it guessed. A draft whose only action is Delete is exactly the
+  dead end the 2026-07-28 revision removed, and re-creating it would undo SC-F-009.
+- Q: What happens to the "zero hand-maintained tracking" promise? → A: **Not inherited.** D4 keeps
+  stage advancement hand-driven, so SC-F-007 is retired here rather than carried into `012` as an
+  unmet criterion; `012` SC-FL-004 restates it honestly.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Report feedback conversationally (Priority: P1)
@@ -51,21 +77,12 @@ A user notices a bug or has an improvement idea. They open the in-app Feedback p
 
 ---
 
-### User Story 2 - Review my feedback and export it as specification input (Priority: P2)
+### User Story 2 - *(moved to `012`)*
 
-A user (acting as their own product owner) opens the Feedback page and sees a list of the feedback records they have submitted — status, type, title, date. Selecting one shows the full structured detail and the original conversation. From the detail view they can export the record as a formatted text document whose structure matches the project's feature-specification template, ready to be used verbatim as input for specification work.
-
-**Why this priority**: The saved records only pay off when they can be reviewed and turned into specification input — but collection (US1) must exist first.
-
-**Independent Test**: Can be tested by seeding completed records for two different users and verifying that each user sees only their own list, that detail view shows the structured fields and transcript, and that the export contains the specification-template sections.
-
-**Acceptance Scenarios**:
-
-1. **Given** completed records belonging to users A and B, **When** A opens the feedback list, **Then** A sees only A's records; any attempt by A to read, export, or delete one of B's records fails as "not found" without revealing that it exists.
-2. **Given** a completed bug record, **When** the user exports it, **Then** the export contains a user story, numbered Given/When/Then acceptance scenarios, the reproduction steps, and the expected-versus-actual behaviour, under headings that match the project's specification template.
-3. **Given** a record still in draft (conversation unfinished), **When** the user attempts to export it, **Then** the export is refused with a clear message that the conversation must be completed first.
-
----
+**Moved by the 2026-08-24 revision.** The review surface and export were the first things a
+record met *after* it existed, so they belong to the lifecycle, not to capture. Now specified as
+`012` US1 (maintainer triage) and `012` US2 (reporter visibility). `FR-F-006`/`FR-F-007` below
+are retained as pointers.
 
 ### User Story 3 - Resume or discard a draft (Priority: P3)
 
@@ -83,23 +100,12 @@ A user who abandoned a feedback conversation midway can come back later, see the
 
 ---
 
-### User Story 4 - Promote approved feedback into development and track its progress (Priority: P1 for this revision)
+### User Story 4 - *(moved to `012`)*
 
-A maintainer reviewing their completed feedback records decides one is worth building. They **promote** it into development — the record moves out of the "just collected" pool into a tracked pipeline. From a status view they can then see, at a glance, which promoted items are being specified, which are in review, and which have shipped, along with links to the draft spec and the pull request each produced — without leaving the app or hand-maintaining a separate tracker. The actual specification and implementation are carried out by the project's spec-driven workflow (a Claude-orchestrated session), which pauses for the maintainer's explicit approval before a spec is accepted and before anything is merged or released.
-
-**Why this priority**: This is the whole point of the revision — it turns collected feedback from a dead-end list into the front of an actionable, auditable delivery pipeline, while keeping a human firmly in control of what actually ships. It is the MVP "tracking layer"; the deeper automation of the chain layers on top of it.
-
-**Independent Test**: Promote a completed record → it appears in the status view at stage *approved*; advance it through the pipeline stages (as the orchestrated chain would) → the status view reflects each stage and surfaces the draft-spec and PR links; confirm the item cannot reach *shipped* without a recorded approval at the pre-merge/pre-release boundary.
-
-**Acceptance Scenarios**:
-
-1. **Given** a completed, schema-valid feedback record, **When** the maintainer promotes it, **Then** it transitions to pipeline stage *approved* with the approver and timestamp recorded, and appears in the development status view.
-2. **Given** a promoted record being specified, **When** a draft spec is produced for it, **Then** the record advances to *in-spec* and the status view links to that draft — but it does not advance further until the maintainer records a spec-approval.
-3. **Given** an in-review record whose work is on a branch/PR, **When** the maintainer has not yet approved the merge, **Then** the record cannot reach *shipped*, and no merge/tag/deploy has occurred on the strength of the feedback content alone.
-4. **Given** a promoted record that turns out not to be worth building, **When** the maintainer declines/parks it, **Then** it leaves the active pipeline into a terminal *parked* state and stops appearing as in-progress.
-5. **Given** a draft (incomplete) record, **When** the maintainer attempts to promote it, **Then** promotion is refused (only schema-valid completed records are promotable).
-
----
+**Moved by the 2026-08-24 revision.** The development pipeline is the lifecycle. Now specified
+across `012` US1/US3/US4/US5 with three gates rather than two, an explicit `briefed` stage where
+requirements are drafted and vetted, and explicit closure. `FR-F-013`..`FR-F-018` below are
+retained as pointers.
 
 ### User Story 5 - Capture a quick note and still end up with a usable report (Priority: P1)
 
@@ -142,28 +148,51 @@ A user notices something mid-task and jots it into the quick-capture affordance 
 - **FR-F-003**: A completed record MUST contain: type (*bug* or *improvement*), title, problem statement, a user story in "As a … I want … so that …" form, at least one Given/When/Then acceptance criterion, an affected area, and a priority (P1–P3). Bug records MUST additionally contain reproduction steps and expected-versus-actual behaviour.
 - **FR-F-004**: System MUST validate the assistant's structured output against the required-field schema before persisting a record as complete; output that fails validation MUST be treated as assistant failure (draft preserved, retryable error surfaced).
 - **FR-F-005**: All feedback operations MUST be scoped to the authenticated user (per `002` FR-D-004); attempts to access another user's record MUST fail as "not found" without revealing existence.
-- **FR-F-006**: Users MUST be able to list their own feedback records (filterable by status) and view a record's structured fields and transcript.
-- **FR-F-007**: Users MUST be able to export a completed record as a formatted text document whose section structure aligns with the project's feature-specification template (`.specify/templates/spec-template.md`), suitable as direct input to specification tooling. Draft records MUST NOT be exportable.
+- **FR-F-006**: *(moved to `012` — see `FR-FL-034`/`FR-FL-038`.)* Listing and viewing a record is a lifecycle surface concern, not capture. Retained as a pointer so the identifier keeps a home.
+- **FR-F-007**: *(moved to `012` — see `FR-FL-032`/`FR-FL-033`.)* Export became brief assembly, which happens at `briefed` after clause vetting, and is administrator-only. Retained as a pointer.
 - **FR-F-008**: System MUST bound conversation length (approximately 30 user turns); on reaching the bound it MUST direct the assistant to finalize the record best-effort, marking unknown fields explicitly, rather than continuing to ask questions.
 - **FR-F-009**: Assistant-backed chat turns MUST be rate-limited per user (10 per minute, matching the existing assistant-backed endpoint); list/detail/export/delete operations follow the default rate limit.
 - **FR-F-010**: The assistant's replies MUST follow a strict machine-readable structure; the only assistant text ever shown to the user is the designated reply field. Free-form prose outside that structure MUST never reach the user.
 - **FR-F-011**: User-supplied chat content MUST be treated as data: instructions embedded in user messages MUST NOT alter the assistant's reply structure, behaviour, or cause disclosure of its internal instructions.
 - **FR-F-012**: Users MUST be able to resume a draft conversation with full prior context, delete their own records, and receive a clear refusal when messaging an already-completed conversation.
 
-#### Development pipeline (Revision 2026-07-23 — backlog #7)
+#### Development pipeline *(moved to `012` by the 2026-08-24 revision)*
 
-- **FR-F-013**: The maintainer MUST be able to **promote** a completed, schema-valid feedback record into the development pipeline. Promotion transitions the record to pipeline stage *approved*, records the approving user and timestamp, and is **idempotent** (promoting an already-pipelined record does not duplicate or reset it). Draft/incomplete records MUST NOT be promotable.
-- **FR-F-014**: A promoted record MUST carry an **ordered pipeline stage** through the delivery lifecycle — at minimum `approved → in-spec → in-review → shipped` — plus a terminal `parked` stage for records that will not proceed. Every stage transition MUST record its timestamp and the actor (human or the orchestrated session). Stage MUST never move backward implicitly; an explicit park/reopen is the only non-forward transition.
-- **FR-F-015**: The system MUST provide a **development status view** listing the maintainer's promoted records with each one's current pipeline stage and links to the development artifacts produced for it (the draft specification reference and the pull-request URL, as they come into existence). Progress MUST be visible in-app without hand-maintaining a separate tracker.
-- **FR-F-016**: Pipeline advancement MUST be **human-gated at the critical boundaries only**: a record MUST NOT advance beyond *in-spec* without an explicit **spec-approval** action, and MUST NOT reach *shipped* without an explicit **pre-merge / pre-release approval** action; the intermediate speckit stages (clarify, plan, tasks, analyze) advance without a separate gate. Each gate approval is recorded (actor + timestamp).
-- **FR-F-017**: The automated / agent-driven portion of the loop MUST operate **branch- and PR-only**: it MAY create branches, commits, and pull requests, but MUST NEVER merge a pull request, tag a release, or trigger a deployment without an explicit human approval action (FR-F-016). No pipeline stage transition may itself perform a merge, tag, or deploy.
-- **FR-F-018**: The record→specification handoff MUST produce a **draft** for human review, never an authority. Promoted feedback content (its exported spec-shaped text, FR-F-007) seeds a draft specification that the maintainer reviews and approves before the pipeline proceeds; feedback text MUST NOT be able to authorize a merge, tag, or deployment, and instruction-like content in a record MUST NOT alter pipeline behaviour (extends FR-F-011 and Assumption 2 across the whole pipeline). Pipeline operations remain scoped to the authenticated maintainer (FR-F-005).
+**`FR-F-013`..`FR-F-018` are superseded in full by `012`.** They are not restated here, because
+`012` does not merely relocate them — it changes them: three gates instead of two (`FR-FL-008`,
+`FR-FL-009`, `FR-FL-010`), a real `briefed` stage carrying clause drafting and vetting
+(`FR-FL-024`..`FR-FL-033`), terminal `closed`/`dismissed`/`merged` stages, and explicit closure
+(`FR-FL-040`..`FR-FL-048`). The branch/PR-only and no-merge/tag/deploy invariants of `FR-F-017`
+survive unchanged as `FR-FL-057`, and the draft-not-authority rule of `FR-F-018` as `FR-FL-030`.
 
 #### Feedback UX completion (Revision 2026-07-28)
 
-- **FR-F-019**: When a feedback record is created from a **quick-capture** surface and the assistant's reply is not a completed record, the system MUST hand the user off into the full conversation for that record, with the transcript loaded and the assistant's question visible. The user MUST NOT be told the report was filed while the record is still *draft*. If the assistant completes the record on the first turn, the completion outcome MUST be shown instead. If the assistant is unavailable, the draft MUST be preserved (FR-F-002) and described as saved-but-unfinished.
+- **FR-F-019** *(revised 2026-08-24 per D18 — supersedes the unconditional hand-off)*: When a
+  report is created from a **quick-capture** surface, the system MUST first ask the reporter
+  whether they will elaborate, and MUST branch on that answer:
+  - **FR-F-019a**: If the reporter agrees, the system MUST open the full conversation for that
+    record with the transcript loaded and the assistant's question visible.
+  - **FR-F-019b**: If the reporter declines, the system MUST route the record through the
+    forced-finalize path of FR-F-008 — finalising on that single turn and explicitly marking
+    every field it had to guess — so the record reaches *complete*, visibly thin, and never
+    remains a draft.
+  - **FR-F-019c**: The system MUST NOT tell the reporter their report was filed while the record
+    is still *draft*.
+  - **FR-F-019d**: If the assistant is unavailable, the system MUST preserve the draft (FR-F-002)
+    and describe it as saved-but-unfinished.
+
+  > Split into four clauses deliberately. As a single requirement it carried four separate
+  > behaviours, so "FR-F-019 is implemented" could be partly true — the atomicity problem that
+  > `012` D16/D20 adopt EARS to prevent. The honesty clause (019c) is unchanged and governs both
+  > branches.
 - **FR-F-020**: Deleting a feedback record MUST require an explicit confirmation step, or be reversible immediately afterwards; a single unconfirmed action MUST NOT irreversibly discard a record and its transcript.
-- **FR-F-021**: Every feedback operation that fails MUST surface that failure to the user distinguishably from success and from emptiness. In particular: a failed list load MUST NOT be presented as "no feedback yet"; a deletion refused because the record is in the active pipeline MUST state that reason and the action that unblocks it (park it first); a failed export MUST report the failure rather than appearing to do nothing.
+- **FR-F-021** *(split 2026-08-24)*: Every **capture-surface** operation that fails MUST surface
+  that failure to the reporter distinguishably from success and from emptiness. In particular, a
+  failed list load MUST NOT be presented as "no feedback yet", and a failed chat turn MUST report
+  the failure rather than appearing to do nothing.
+  > The **maintainer-surface** half — a deletion refused because the item is in an active stage,
+  > and a failed export/brief — is restated in `012` as part of `FR-FL-006` and the maintainer
+  > surface requirements, because those failures now belong to a surface this spec no longer owns.
 
 > **Already required, not yet implemented** (bug fixes under this revision, no new FR): **FR-F-012**'s resume clause and **US3 scenario 1** — a draft MUST be reopenable with full prior context; and the *"Delete a promoted record"* edge case's **clear warning**, which FR-F-021 now states in testable form.
 
@@ -171,7 +200,9 @@ A user notices something mid-task and jots it into the quick-capture affordance 
 
 - **FeedbackRecord**: one per conversation. Owner (authenticated user), status (*draft* → *complete* → *reviewed*), the conversation transcript, and the structured specification fields of FR-F-003 (absent until completion). *(Revision 2026-07-23: a completed record may additionally be **promoted** into the development pipeline — see PipelineItem. The `reviewed` status remains valid; promotion is the concrete action the earlier "forward-looking triage" hook anticipated.)*
 - **FeedbackMessage** (part of a record): role (user or assistant), content, timestamp — ordered.
-- **PipelineItem** (Revision 2026-07-23): the development-tracking record created when a FeedbackRecord is promoted (FR-F-013). References its source FeedbackRecord (owner-scoped), an ordered **stage** (`approved → in-spec → in-review → shipped`, or terminal `parked`), a transition log (each entry: from-stage, to-stage, actor, timestamp, and whether it was a gate approval), and links to the produced development artifacts (draft-spec reference, pull-request URL) as they materialise. It never stores or executes anything — it is a status/audit record over work done by the spec-driven workflow.
+- **PipelineItem**: *(moved to `012`.)* Superseded by `012`'s **LifecycleItem**, which adds the
+  vetted clauses, the dismissal reason, the merge target, the maintainer reply, and the closure
+  record, and which survives the erasure of its reporter (`012` FR-FL-059).
 
 ## Success Criteria *(mandatory)*
 
@@ -179,15 +210,19 @@ A user notices something mid-task and jots it into the quick-capture affordance 
 
 - **SC-F-001**: For a typical bug report, a user goes from first message to a saved completed record in at most 6 assistant turns.
 - **SC-F-002**: 100% of records stored as *complete* satisfy the FR-F-003 required-field schema (enforced at save time; verified in tests).
-- **SC-F-003**: An exported record can be used as specification-tooling input with no structural edits — its headings and section order match the project's specification template (verified against the template in tests).
+- **SC-F-003**: *(moved to `012`.)* Export became brief assembly at `briefed`; the equivalent outcome is `012` SC-FL-005 (no item reaches `in-spec` with an unvetted clause).
 - **SC-F-004**: Zero cross-user visibility: in tests covering list, detail, export, and delete, no operation ever returns another user's record.
 - **SC-F-005**: The chat surface acknowledges a sent message (visible pending state) within 200ms even though the assistant's reply may take substantially longer; non-assistant operations (list, detail, export, delete) meet the standard response-time constraint (`001` CR-008).
-- **SC-F-006**: A maintainer can promote a completed record and see it in the development status view at stage *approved* in a single action; 100% of promotion attempts on draft/incomplete records are refused (verified in tests).
-- **SC-F-007**: The status view reflects each promoted record's current stage and its draft-spec / PR links with zero hand-maintained tracking; a record's stage in the view always matches its recorded transition log.
-- **SC-F-008**: No promoted record ever reaches *shipped* without a recorded human approval at the pre-merge/pre-release gate, and no pipeline transition performs a merge/tag/deploy (verified in tests) — the branch/PR-only and gate invariants (FR-F-016/017) hold in 100% of covered cases.
+- **SC-F-006**: *(moved to `012` — see SC-FL-001.)*
+- **SC-F-007**: **RETIRED, not moved.** This promised *"zero hand-maintained tracking"*, which
+  the system never delivered and `012` D4 deliberately does not attempt — stage advancement is
+  hand-driven by design. `012` SC-FL-004 restates the achievable half (every stage change is
+  attributable to a named administrator and an explicit action). Recorded as retired rather than
+  deleted so the reversal stays visible.
+- **SC-F-008**: *(moved to `012` — see SC-FL-006 and SC-FL-007.)*
 
 - **SC-F-009**: No capture path can produce a record whose only available action is deletion — 100% of records are either *complete* or offer a continue action from the list (verified in tests, including the quick-capture path).
-- **SC-F-010**: Every failed feedback operation (list, export, delete, chat turn) surfaces a user-visible message; zero failures are silent, and a failed list load is never rendered as the empty state (verified in tests).
+- **SC-F-010**: Every failed **capture-surface** operation (list, chat turn) surfaces a user-visible message; zero failures are silent, and a failed list load is never rendered as the empty state (verified in tests). Maintainer-surface failures are covered by `012`.
 - **SC-F-011**: Deletion of a record cannot occur from a single unconfirmed interaction (verified in tests).
 
 ## Assumptions & Dependencies
@@ -199,7 +234,14 @@ A user notices something mid-task and jots it into the quick-capture affordance 
 5. The assistant-backed chat turn is exempt from the <200ms synchronous latency constraint, following the precedent of the recommendations endpoint (`001` SG-02); SC-F-005 covers the user-facing responsiveness requirement instead.
 6. Builds on `001` FR-036 / `002` FR-D-004 (per-user isolation) and `001` CR-012..015 (API-first, versioned endpoints, RFC 7807 errors, rate limiting).
 
-### Development-loop assumptions & scope (Revision 2026-07-23)
+### Development-loop assumptions & scope *(moved to `012` by the 2026-08-24 revision)*
+
+> The assumptions below described the development pipeline while `003` still owned it. They are
+> **superseded by `012`** and retained only for provenance — do not treat them as current. In
+> particular: assumption 8's "the app provides the tracking layer, not a job runner" survives as
+> `012` D3 and `FR-FL-033`; assumption 10's safety invariants survive as `012` `FR-FL-057`
+> (no commit/merge/tag/deploy) and `FR-FL-058` (report text is data, never instruction). Where
+> these assumptions and `012` disagree, `012` wins.
 
 7. **Single-maintainer model.** In the deployed (single-household) app the promoting user *is* the maintainer; pipeline operations stay user-scoped (FR-F-005/018). Multi-maintainer roles/permissions are out of scope.
 8. **The chain is Claude-orchestrated, not app-runtime.** Running the speckit chain (`/speckit.specify → … → implement`) is performed by a **Claude Code session** (the operating procedure), which updates a PipelineItem's stage as it progresses and stops at the FR-F-016 gates for the maintainer's approval. The app provides the **tracking layer** — promote, stages, transition log, status view, artifact links, and gate/branch-PR invariants — not an in-app job runner, scheduler, or background agent. Deeper automation (auto-advancing more of the chain) is a later increment.
