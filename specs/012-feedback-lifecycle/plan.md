@@ -198,11 +198,15 @@ No constitutional violation requires justification. The one flagged item (outbou
 is required by D17, is read-only and unauthenticated, and is explicitly specified to degrade
 rather than block.
 
-## Open decision carried into implementation
+## Open decisions
 
-**D18 modal placement (R8) is unresolved by the operator's choice.** It blocks only the
-quick-capture tasks (`003` T020 / `FR-F-019a`/`b`). Every phase above is independent of it.
-**It must be answered, not defaulted** — if implementation reaches those tasks first, stop and ask.
+**None.** D18 modal placement — the only one this plan carried — was **resolved 2026-08-24**: the
+consent question is asked in the capture modal, before the note is sent (research R8). `003`
+`tasks.md` T020 is unblocked, and `FR-F-019` now pins placement rather than only behaviour.
+
+The one item still marked for follow-up is editorial, not a decision: `FR-FL-001`'s "each accepted
+report" wording versus `new` being a legal stage (research R2), to be tightened during
+`/speckit.analyze`.
 
 ## Post-Design Constitution Re-check
 

@@ -168,22 +168,34 @@ public-readable, and an unnecessary credential is a liability.
 
 ---
 
-## R8 — D18 modal placement ⚠️ **OPEN — deliberately not decided here**
+## R8 — D18 modal placement ✅ **RESOLVED 2026-08-24**
 
-`003` `FR-F-019a`/`b` need to know **where the "got a minute to elaborate?" question is asked**:
+**Decision: ask in the capture modal, before the note is sent.** The reporter decides while still
+typing, so nothing is added to the wait and the branch is known before the request leaves.
 
-- **(a) In the modal, before sending.** The branch is decided up front and the reporter never
-  waits. Cost: it asks even when the assistant would have completed the record on the first turn.
-- **(b) Send first, ask only if the assistant returned a question.** Asks strictly fewer
-  unnecessary questions. Cost: the reporter waits on the assistant round-trip before learning
-  whether they are done — the latency quick capture exists to avoid.
+**Rationale — decided on evidence from the tree, not preference.** The alternative (send first,
+ask only if the assistant returned a question) asks strictly fewer unnecessary questions, but
+charges an agent round-trip on *every* capture before the reporter learns whether they are done —
+the exact latency quick capture exists to avoid. Three facts make its benefit close to
+hypothetical:
 
-**Status: the operator deferred this to the `012` specification workflow and has not yet
-answered.** It is recorded in `012` Clarifications, as `003` `tasks.md` T020, and here.
+- `agents/feedback-collector/instructions/system-prompt.md` **mandates** exactly one clarifying
+  question whenever detail is still missing.
+- The agent is tuned to produce records usable *"verbatim as specification input"*, so a one-line
+  quick note essentially never clears that bar on the first turn.
+- `003`'s 2026-07-28 revision records that the assistant **"almost always answers a first message
+  with a clarifying question"**, reproduced live 2026-07-27.
 
-**Impact if left open:** it blocks only T020 and the `FR-F-019a/b` tasks. Every other task in this
-plan is independent of it, so planning and implementation can proceed and this can be settled
-before the quick-capture story starts. **It must not be chosen by default during implementation.**
+So it would have asked nearly every time regardless, after a wait bounded by the 60s agent timeout.
+
+**Alternatives considered.** (b) send-first, above — rejected. (c) fire the request and show the
+question concurrently, dropping it if the assistant finishes first — rejected: the modal can
+change under the reporter mid-answer, the same "control appears then vanishes" defect PR #76 had
+just removed, and it introduces a race for no gain in the common case.
+
+**Implementation consequence.** `FR-F-019` now pins placement, not just behaviour: the ask happens
+in the modal before sending, and the reporter must never wait on an assistant turn to learn
+whether they are done. `003` `tasks.md` **T020 is unblocked**.
 
 ---
 
