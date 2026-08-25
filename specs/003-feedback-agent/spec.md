@@ -201,7 +201,7 @@ survive unchanged as `FR-FL-057`, and the draft-not-authority rule of `FR-F-018`
 
 ### Key Entities
 
-- **FeedbackRecord**: one per conversation. Owner (authenticated user), status (*draft* → *complete* → *reviewed*), the conversation transcript, and the structured specification fields of FR-F-003 (absent until completion). *(Revision 2026-07-23: a completed record may additionally be **promoted** into the development pipeline — see PipelineItem. The `reviewed` status remains valid; promotion is the concrete action the earlier "forward-looking triage" hook anticipated.)*
+- **FeedbackRecord**: one per conversation. Owner (authenticated user), status (*draft* → *complete* → *reviewed*), the conversation transcript, and the structured specification fields of FR-F-003 (absent until completion). *(Revised 2026-08-24: `reviewed` is no longer reached by **promotion**, which moved to `012` and became gate-1 acceptance. A completed record enters the lifecycle as a `012` **LifecycleItem**, and `012` `FR-FL-062`/`FR-FL-063` now own the `complete → reviewed` transition — set when a maintainer accepts **or** dismisses it. This spec still owns the record and its first two states; it no longer owns what triage does to the third.)*
 - **FeedbackMessage** (part of a record): role (user or assistant), content, timestamp — ordered.
 - **PipelineItem**: *(moved to `012`.)* Superseded by `012`'s **LifecycleItem**, which adds the
   vetted clauses, the dismissal reason, the merge target, the maintainer reply, and the closure
