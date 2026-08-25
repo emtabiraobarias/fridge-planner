@@ -156,12 +156,43 @@ promote + pipeline 100/min · everything else 100/min.
 | GET | `/feedback[?status]` · `/feedback/:id` · `/feedback/:id/export` | own records; export is spec-template markdown, 409 while `draft` |
 | DELETE | `/feedback/:id` | **409 `Pipeline Active`** if a non-`parked` PipelineItem references it; a `parked` item cascades; else 204/404 |
 | POST | `/feedback/:id/promote` | promote a `complete` record to stage `approved` — 201 first, idempotent 200 on repeat, 409 `Not Promotable` on a draft, 404 cross-user. Sets source `status:'reviewed'` |
-| GET | `/pipeline[?stage=]` · `/pipeline/:id` | summaries (no transitions log) / full item incl. ordered audit log |
-| PATCH | `/pipeline/:id` | action union: `advance` (`approved→in-spec`, only non-gated step) · `approve-spec` (**gate**) · `approve-release` (**gate**, flips status only) · `park` · `reopen` · `attach-artifact` (`ref` ≤2048). Every transition is an atomic guarded `findOneAndUpdate`; gated/illegal/backward/concurrent → **409 `Illegal Transition`** |
+| GET | `/pipeline[?stage=]` · `/pipeline/:id` | **deprecated reads** — kept for the migration window; the same collection is served by `/lifecycle` and `/admin/lifecycle` |
+| PATCH | `/pipeline/:id` | ⚠️ **RETIRED — 410 Gone.** Transitions moved to `PATCH /admin/lifecycle/:id` (spec 012). It cannot forward: the old action set assumed `approved→in-spec→in-review→shipped`, and 012 inserts `briefed` and `in-progress`, so the same action name means a different destination. The admin guard still runs first, so a non-admin gets 403 |
+| POST | `/feedback/:id/promote` | **superseded** by `PATCH /admin/lifecycle/:id {action:'accept'}`. An item now exists from `complete` (FR-FL-001), so promotion never creates one — it returns its idempotent existing-item 200 and does **not** move the stage |
 
 > `shipped` is reachable **only** via an explicit `approve-release`, never derived from
 > record content, and **no transition ever commits, merges, tags, or deploys**
 > (FR-F-016/017/018, SC-F-008).
+
+### Feedback Lifecycle (spec 012) — triage to closure
+
+**Two surfaces, and the split is the point (D7).** `/lifecycle/**` is reporter-facing
+(`authenticate()`, own items only, projected). `/admin/lifecycle/**` is maintainer-facing
+(`requirePrincipalAdmin`, cross-user, full detail). A non-admin on an admin route gets **403,
+never 401** — 401 is the client's refresh-retry trigger and would loop.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/lifecycle` · `/lifecycle/:id` | the reporter's OWN items, projected. A **merged** item returns `mergedTargetStage` and nothing else about the target (FR-FL-019). Another reporter's id → **404, not 403**, so existence is not disclosed |
+| GET | `/admin/lifecycle[?stage=&userId=]` | the cross-user triage queue, in maintainer-set rank order (FR-FL-022/023) |
+| GET/PATCH | `/admin/lifecycle/:id` | full item · the single action endpoint (below) |
+| GET/POST | `…/:id/clauses` · PATCH `…/clauses/:provisionalId` | drafted EARS clauses, each beside the record text it came from · vet one. `POST {}` drafts via the agent; `POST {text,derivedFrom}` authors by hand (FR-FL-031). Shares the `feedback-chat:${userId}` 10/min bucket so drafting cannot bypass the chat limit |
+| GET | `…/:id/brief` | `text/markdown`, carries only **accepted** clauses. **Content a human runs — never executed** (FR-FL-033) |
+| PUT | `…/:id/reply` | the maintainer's reply to the reporter (FR-FL-036/037) |
+| GET | `/admin/releases` | closure picker. **200 even when GitHub is unreachable** — `available:false` is a normal answer, because closure must never be gated on a third party (FR-FL-045) |
+
+**Actions** (`PATCH /admin/lifecycle/:id`, discriminated union, atomic guarded `findOneAndUpdate`):
+`accept` (**gate 1**) · `dismiss{reason}` · `merge{targetId}` · `advance` · `approve-spec`
+(**gate 2**) · `reject-spec` · `approve-release` (**gate 3**) · `reject-release` · `close{excerpt,…}`
+· `park` · `reopen` · `set-rank` · `edit-source` · `attach-artifact` · `cite`.
+Illegal/backward/gate-from-wrong-stage/concurrent → **409 `Illegal Transition`**, state unchanged.
+
+> **`shipped` is reachable only through a recorded release approval, and no action ever commits,
+> merges, tags or deploys** (FR-FL-057, SC-FL-006/007). `attach-artifact` stores a string and
+> never dereferences it.
+>
+> `briefed → in-spec` is refused while any clause is unvetted (FR-FL-028) — that is what makes
+> `briefed` a real stage rather than a label.
 
 ### Administration (spec 011) — admin-only unless noted
 Requires the admin role via `requirePrincipalAdmin`. An authenticated-but-unprivileged
@@ -238,17 +269,36 @@ refresh-retry trigger, so 401 would loop. Role comes from a **verified token cla
 `draft` → `complete` when the agent returns a schema-valid record → `reviewed` on first
 promotion (a side effect of promotion, not a separate workflow).
 
-### PipelineItem
+### LifecycleItem (spec 012 — was PipelineItem)
 ```typescript
-{ userId, feedbackRecordId,        // UNIQUE together — enforces idempotent promotion in the DB
-  sourceTitle, sourceType, sourceAffectedArea,   // immutable snapshot taken at promotion
-  stage: 'approved'|'in-spec'|'in-review'|'shipped'|'parked',  // parked is terminal, off the ordinal
-  parkedFromStage?, promotedBy, promotedAt,
-  transitions: [{ from: Stage|null, to, actor:'human'|'session', at,
-                  isGateApproval /* server-derived, never client-forgeable */, note? }],
-  artifacts: [{ type:'draft-spec'|'pull-request', ref /* reference only, never executed */, at, note? }] }
+{ userId,                          // the REPORTER. Detached, NOT deleted, on erasure (D15)
+  feedbackRecordId,                // UNIQUE with userId — makes acceptance idempotent in the DB
+  sourceTitle, sourceType, sourceAffectedArea,   // immutable snapshot taken at creation
+  stage: 'new'|'accepted'|'briefed'|'in-spec'|'in-progress'
+       | 'in-review'|'shipped'|'closed'|'dismissed'|'merged'|'parked',
+  parkedFromStage?, rank?,         // rank = a ranked QUEUE, not a P1/P2/P3 label (FR-FL-022)
+  dismissalReason?: 'no-action-required'|'declined',
+  mergedInto?,                     // NEVER projected to a reporter — they see its stage only
+  cites?: string[],                // reference only; citing moves nothing (FR-FL-050/051)
+  acceptedBy?, acceptedAt?,
+  transitions: [{ from, to, actor, actorUserId, at, isGateApproval, note? }],
+  clauses: [{ provisionalId, text, derivedFrom /* REQUIRED */, inferred, vetted, editedText? }],
+  reply?, closure?, artifacts?, reporterErasedAt? }
 ```
-Indexes `{userId,stage}` and `{userId,updatedAt:-1}` serve the status view and `?stage=`.
+
+> ⚠️ **The collection is `pipelineitems`, NOT `pipeline_items`.** The old `PipelineItem` model set
+> no explicit collection, so Mongoose's default pluralisation is what production holds. The model
+> renamed; the collection did not. Both models still map the same collection during the migration
+> — **only `LifecycleItem` may write `stage`**, because the old enum predates the new values and
+> rejects them. `scripts/migrate-lifecycle-stages.mjs` renamed the one value that changed
+> (`approved → accepted`), once, as an admin task.
+
+> **`derivedFrom` is required on every clause.** Vetting is a *comparison* against the reporter's
+> own words (FR-FL-025); a clause with nothing to compare against silently degrades into a
+> proofread, and well-formed EARS is easy to accept uncritically.
+
+Indexes: `{userId,feedbackRecordId}` unique · `{userId,stage}` · `{userId,updatedAt:-1}` ·
+`{stage,updatedAt:-1}` for the cross-user triage queue, which is deliberately not user-scoped.
 
 ### Administration collections (spec 011)
 | Collection | Shape | Note |

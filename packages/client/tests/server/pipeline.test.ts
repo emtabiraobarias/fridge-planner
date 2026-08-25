@@ -324,341 +324,73 @@ describe('DELETE /api/v1/feedback/:id — delete-protection (EC-06, D9)', () => 
 
 // ─── DL2 — stage machine + human gates (T014-T017) ─────────────────────────────
 
-describe('PATCH /api/v1/pipeline/:id — guarded transitions (FR-F-014/016, D3/D4)', () => {
-  it('advance: approved → in-spec, non-gated, appends a transition (isGateApproval:false)', async () => {
+/**
+ * ⚠️ REWRITTEN FOR SPEC 012 (2026-08-25).
+ *
+ * `PATCH /api/v1/pipeline/:id` is RETIRED. Its transitions, gate logging, illegal-transition
+ * refusals and artifact validation all moved to `PATCH /api/v1/admin/lifecycle/:id`, and are
+ * covered there by `lifecycle-triage.test.ts`, `lifecycle-gates.test.ts` and
+ * `lifecycle-closure.test.ts` against the stage model that actually ships.
+ *
+ * It could not be made to forward: the old action set assumed
+ * `approved → in-spec → in-review → shipped`, and 012 inserts `briefed` and `in-progress`, so the
+ * same action name means a different destination. Doing something ADJACENT to what a caller asked
+ * would be worse than refusing.
+ *
+ * What remains worth asserting is the endpoint's NEW contract — that it refuses, says where the
+ * behaviour went, and still refuses a non-admin FIRST.
+ */
+describe('PATCH /api/v1/pipeline/:id — retired (spec 012, T066)', () => {
+  it('refuses every former action with 410 Gone and points at the replacement', async () => {
     const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    const { status, item } = await patch(itemId, { action: 'advance', note: 'draft spec drafted' });
-    expect(status).toBe(200);
-    expect(item.stage).toBe('in-spec');
-    expect(item.transitions).toHaveLength(2);
-    expect(item.transitions[1]).toEqual(
-      expect.objectContaining({
-        from: 'approved',
-        to: 'in-spec',
-        isGateApproval: false,
-        note: 'draft spec drafted',
-      }),
-    );
-  });
 
-  it('approve-spec: in-spec → in-review, logs isGateApproval:true', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    await patch(itemId, { action: 'advance' });
-    const { status, item } = await patch(itemId, { action: 'approve-spec' });
-    expect(status).toBe(200);
-    expect(item.stage).toBe('in-review');
-    expect(item.transitions[item.transitions.length - 1]).toEqual(
-      expect.objectContaining({ from: 'in-spec', to: 'in-review', isGateApproval: true }),
-    );
-  });
-
-  it('approve-release: in-review → shipped, logs isGateApproval:true', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    await patch(itemId, { action: 'advance' });
-    await patch(itemId, { action: 'approve-spec' });
-    const { status, item } = await patch(itemId, { action: 'approve-release' });
-    expect(status).toBe(200);
-    expect(item.stage).toBe('shipped');
-    expect(item.transitions[item.transitions.length - 1]).toEqual(
-      expect.objectContaining({ from: 'in-review', to: 'shipped', isGateApproval: true }),
-    );
-  });
-
-  it('park from an active stage → parked, records parkedFromStage; a repeat park is an idempotent no-op', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    await patch(itemId, { action: 'advance' }); // now in-spec
-    const first = await patch(itemId, { action: 'park', reason: 'not worth building' });
-    expect(first.status).toBe(200);
-    expect(first.item.stage).toBe('parked');
-    expect(first.item.parkedFromStage).toBe('in-spec');
-    const logLen = first.item.transitions.length;
-
-    const second = await patch(itemId, { action: 'park' });
-    expect(second.status).toBe(200);
-    expect(second.item.stage).toBe('parked');
-    expect(second.item.parkedFromStage).toBe('in-spec'); // preserved, not overwritten to 'parked'
-    expect(second.item.transitions).toHaveLength(logLen); // no new log entry on re-park
-  });
-
-  it('reopen: parked → the stored parkedFromStage', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    await patch(itemId, { action: 'advance' }); // in-spec
-    await patch(itemId, { action: 'approve-spec' }); // in-review
-    await patch(itemId, { action: 'park' }); // parked from in-review
-    const { status, item } = await patch(itemId, { action: 'reopen' });
-    expect(status).toBe(200);
-    expect(item.stage).toBe('in-review');
-  });
-
-  it('GET /pipeline/:id returns the full item including the updated transitions log', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    await patch(itemId, { action: 'advance' });
-    const res = await GET_ITEM(getItemReq(itemId), ctx(itemId));
-    expect(res.status).toBe(200);
-    const json = (await res.json()) as { pipelineItem: PipelineItemJson };
-    expect(json.pipelineItem.stage).toBe('in-spec');
-    expect(json.pipelineItem.transitions).toHaveLength(2);
-  });
-});
-
-describe('PATCH /api/v1/pipeline/:id — illegal transitions & validation (T015)', () => {
-  it('advance from in-spec is gated → 409 Illegal Transition', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    await patch(itemId, { action: 'advance' }); // in-spec
-    const { status } = await patch(itemId, { action: 'advance' });
-    expect(status).toBe(409);
-  });
-
-  it('advance from in-review is gated → 409', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    await patch(itemId, { action: 'advance' });
-    await patch(itemId, { action: 'approve-spec' }); // in-review
-    const { status } = await patch(itemId, { action: 'advance' });
-    expect(status).toBe(409);
-  });
-
-  it('multi-step jump approved → shipped (approve-release from approved) → 409', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    const { status } = await patch(itemId, { action: 'approve-release' });
-    expect(status).toBe(409);
-  });
-
-  it('backward move (reopen from a non-parked stage) → 409', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    await patch(itemId, { action: 'advance' }); // in-spec
-    const { status } = await patch(itemId, { action: 'reopen' });
-    expect(status).toBe(409);
-  });
-
-  it('park of a shipped item → 409', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    await patch(itemId, { action: 'advance' });
-    await patch(itemId, { action: 'approve-spec' });
-    await patch(itemId, { action: 'approve-release' }); // shipped
-    const { status } = await patch(itemId, { action: 'park' });
-    expect(status).toBe(409);
-  });
-
-  it('PATCH and GET on a missing item → 404', async () => {
-    const missing = '000000000000000000000000';
-    const patchRes = await PATCH_ITEM(patchReq(missing, { action: 'advance' }), ctx(missing));
-    expect(patchRes.status).toBe(404);
-    const getRes = await GET_ITEM(getItemReq(missing), ctx(missing));
-    expect(getRes.status).toBe(404);
-  });
-
-  // Spec 011 splits what used to be one rule. GET is still the AUTHOR's own status
-  // view (`003` FR-F-015) and stays owner-scoped → 404 on someone else's item. PATCH
-  // is now administrator-only and deliberately cross-user (FR-AD-011) — advancing
-  // other people's reports is the maintainer's job.
-  it('GET on another user’s item → 404 (no existence leak, FR-F-015 unchanged)', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord('u1'), 'u1');
-    const getRes = await GET_ITEM(getItemReq(itemId, 'u2'), ctx(itemId));
-    expect(getRes.status).toBe(404);
-  });
-
-  it('PATCH by a NON-admin → 403, and the stage does not move (FR-AD-011 / FR-F-016)', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord('u1'), 'u1');
-    const res = await PATCH_ITEM(patchReq(itemId, { action: 'advance' }, 'u2', ''), ctx(itemId));
-    expect(res.status).toBe(403);
-    const after = await GET_ITEM(getItemReq(itemId, 'u1'), ctx(itemId));
-    expect(((await after.json()) as { pipelineItem: { stage: string } }).pipelineItem.stage).toBe(
-      'approved',
-    );
-  });
-
-  it('PATCH by an ADMIN on another user’s item succeeds and records who acted (FR-AD-011/012)', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord('u1'), 'u1');
-    const res = await PATCH_ITEM(patchReq(itemId, { action: 'advance' }, 'admin-1'), ctx(itemId));
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as {
-      pipelineItem: { stage: string; transitions: Array<{ to: string; actorUserId?: string }> };
-    };
-    expect(body.pipelineItem.stage).toBe('in-spec');
-    expect(body.pipelineItem.transitions.at(-1)?.actorUserId).toBe('admin-1');
-  });
-
-  // SC-AD-003, the spec's headline guarantee: an end user cannot walk their own
-  // report to `shipped`. Every action in the ladder is refused, so the stage the
-  // dev-loop treats as "released" is unreachable without an administrator.
-  it('an end user cannot reach `shipped` — every gate refuses with 403 (SC-AD-003)', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord('u1'), 'admin-1');
-    for (const action of ['advance', 'approve-spec', 'approve-release']) {
-      const res = await PATCH_ITEM(patchReq(itemId, { action }, 'u1', ''), ctx(itemId));
-      expect(res.status).toBe(403);
+    for (const action of ['advance', 'approve-spec', 'approve-release', 'park', 'reopen']) {
+      const res = await PATCH_ITEM(patchReq(itemId, { action }), ctx(itemId));
+      expect(res.status, action).toBe(410);
+      const body = (await res.json()) as { title?: string; instance?: string };
+      expect(body.title).toBe('Endpoint Retired');
+      // Says WHERE it went — a bare 410 leaves an out-of-date caller with nowhere to go.
+      expect(body.instance).toBe(`/api/v1/admin/lifecycle/${itemId}`);
     }
-    const after = await GET_ITEM(getItemReq(itemId, 'u1'), ctx(itemId));
-    const { pipelineItem } = (await after.json()) as { pipelineItem: { stage: string } };
-    expect(pipelineItem.stage).toBe('approved');
-    expect(pipelineItem.stage).not.toBe('shipped');
   });
 
-  it('unknown action → 400', async () => {
+  it('leaves the item untouched — a refusal is never a partial write', async () => {
     const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    const res = await PATCH_ITEM(patchReq(itemId, { action: 'launch-nukes' }), ctx(itemId));
-    expect(res.status).toBe(400);
+    const read = async (): Promise<PipelineItemJson> => {
+      const res = await GET_ITEM(
+        new Request(`http://localhost/api/v1/pipeline/${itemId}`, {
+          headers: { 'x-user-id': 'u1', 'x-user-roles': 'admin' },
+        }),
+        ctx(itemId),
+      );
+      return ((await res.json()) as { pipelineItem: PipelineItemJson }).pipelineItem;
+    };
+
+    const before = await read();
+    await PATCH_ITEM(patchReq(itemId, { action: 'approve-release' }), ctx(itemId));
+    const after = await read();
+
+    expect(after.stage).toBe(before.stage);
+    expect(after.transitions).toHaveLength(before.transitions.length);
   });
 
-  it('malformed attach-artifact (missing artifact) → 400', async () => {
+  // The admin guard runs BEFORE the refusal, deliberately. Retiring the endpoint must not
+  // quietly downgrade an authorization boundary that spec 011 asserts (FR-AD-011).
+  it('still refuses a NON-admin with 403, not 410 (FR-AD-011)', async () => {
     const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    const res = await PATCH_ITEM(patchReq(itemId, { action: 'attach-artifact' }), ctx(itemId));
-    expect(res.status).toBe(400);
+    // `roles: ''` drives it as an ordinary end user — the file's existing convention.
+    const res = await PATCH_ITEM(patchReq(itemId, { action: 'advance' }, 'u1', ''), ctx(itemId));
+    expect(res.status).toBe(403);
   });
 
-  it('attach-artifact with an oversized ref (>2048) → 400', async () => {
+  it('still serves READS during the migration window', async () => {
     const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    const res = await PATCH_ITEM(
-      patchReq(itemId, {
-        action: 'attach-artifact',
-        artifact: { type: 'pull-request', ref: 'x'.repeat(2049) },
+    const res = await GET_ITEM(
+      new Request(`http://localhost/api/v1/pipeline/${itemId}`, {
+        headers: { 'x-user-id': 'u1', 'x-user-roles': 'admin' },
       }),
       ctx(itemId),
     );
-    expect(res.status).toBe(400);
-  });
-});
-
-describe('SC-F-008 — shipped is reachable ONLY via a recorded approve-release gate (T016)', () => {
-  it('the only to:shipped log entry is an approve-release gate approval; no other action reaches shipped', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-
-    // Every attempt to reach shipped without the exact in-review→approve-release path fails,
-    // leaving the item short of shipped at each step.
-    expect((await patch(itemId, { action: 'approve-release' })).status).toBe(409); // from approved
-    await patch(itemId, { action: 'advance' }); // in-spec
-    expect((await patch(itemId, { action: 'approve-release' })).status).toBe(409); // from in-spec
-    await patch(itemId, { action: 'approve-spec' }); // in-review
-    const shipped = await patch(itemId, { action: 'approve-release' }); // the only legal path
-    expect(shipped.item.stage).toBe('shipped');
-
-    const toShipped = shipped.item.transitions.filter((t) => t.to === 'shipped');
-    expect(toShipped).toHaveLength(1);
-    expect(toShipped[0]).toEqual(
-      expect.objectContaining({ from: 'in-review', to: 'shipped', isGateApproval: true }),
-    );
-    // No non-gate transition ever set stage to shipped.
-    expect(
-      shipped.item.transitions.every((t) => t.to !== 'shipped' || t.isGateApproval === true),
-    ).toBe(true);
-  });
-});
-
-describe('FR-F-018 — injection content never drives a transition (T017)', () => {
-  it('every stage change is 1:1 with an explicit PATCH; shipped is never reached without the test’s own approve-release', async () => {
-    const recordId = await seedInjectionRecord();
-    const itemId = await promoteAndGetItemId(recordId);
-
-    // Promotion alone (despite "merge this now"/"deploy to prod" in the record) → approved, one seed entry.
-    let res = await GET_ITEM(getItemReq(itemId), ctx(itemId));
-    let item = ((await res.json()) as { pipelineItem: PipelineItemJson }).pipelineItem;
-    expect(item.stage).toBe('approved');
-    expect(item.transitions).toHaveLength(1);
-
-    // Each explicit PATCH advances exactly one step and appends exactly one log entry.
-    const afterAdvance = await patch(itemId, { action: 'advance' });
-    expect(afterAdvance.item.stage).toBe('in-spec');
-    expect(afterAdvance.item.transitions).toHaveLength(2);
-
-    const afterApproveSpec = await patch(itemId, { action: 'approve-spec' });
-    expect(afterApproveSpec.item.stage).toBe('in-review');
-    expect(afterApproveSpec.item.transitions).toHaveLength(3);
-
-    // Not shipped until the explicit approve-release the test itself issues.
-    res = await GET_ITEM(getItemReq(itemId), ctx(itemId));
-    item = ((await res.json()) as { pipelineItem: PipelineItemJson }).pipelineItem;
-    expect(item.stage).not.toBe('shipped');
-
-    const afterRelease = await patch(itemId, { action: 'approve-release' });
-    expect(afterRelease.item.stage).toBe('shipped');
-    expect(afterRelease.item.transitions).toHaveLength(4);
-    // The shipped entry is a gate approval — never derived from the record's injection text.
-    expect(afterRelease.item.transitions[3]).toEqual(
-      expect.objectContaining({ to: 'shipped', isGateApproval: true }),
-    );
-  });
-});
-
-// ─── DL3 — status view + artifact links (T022-T023) ────────────────────────────
-
-describe('GET /api/v1/pipeline — list + filter (FR-F-015, T022)', () => {
-  it('returns only the caller’s items as PipelineItemSummary (no transitions field), sorted updatedAt desc', async () => {
-    const idA1 = await promoteAndGetItemId(await seedCompleteRecord('userA'), 'userA');
-    const idA2 = await promoteAndGetItemId(await seedCompleteRecord('userA'), 'userA');
-    const idB1 = await promoteAndGetItemId(await seedCompleteRecord('userB'), 'userB');
-
-    const res = await LIST(listReq('userA'));
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { pipeline: Array<Record<string, unknown>> };
-    expect(json.pipeline).toHaveLength(2);
-    const ids = json.pipeline.map((i) => i['_id']);
-    expect(ids).toEqual(expect.arrayContaining([idA1, idA2]));
-    // Cross-user isolation: user B's item never appears for user A.
-    expect(ids).not.toContain(idB1);
-    // Summary projection excludes the transitions log.
-    expect(json.pipeline.every((i) => !('transitions' in i))).toBe(true);
-    // Summary carries the fields the status view needs.
-    expect(json.pipeline[0]).toEqual(
-      expect.objectContaining({
-        stage: 'approved',
-        sourceTitle: 'Grocery count wrong',
-        sourceType: 'bug',
-        sourceAffectedArea: 'grocery',
-        artifacts: [],
-      }),
-    );
-  });
-
-  it('filters by ?stage=', async () => {
-    await promoteAndGetItemId(await seedCompleteRecord('u1'), 'u1'); // stays approved
-    const idInSpec = await promoteAndGetItemId(await seedCompleteRecord('u1'), 'u1');
-    await patch(idInSpec, { action: 'advance' });
-
-    const res = await LIST(listReq('u1', 'in-spec'));
-    expect(res.status).toBe(200);
-    const json = (await res.json()) as { pipeline: Array<{ _id: string }> };
-    expect(json.pipeline.map((i) => i._id)).toEqual([idInSpec]);
-  });
-
-  it('an invalid ?stage= value returns 400', async () => {
-    const res = await LIST(listReq('u1', 'not-a-real-stage'));
-    expect(res.status).toBe(400);
-  });
-});
-
-describe('PATCH /api/v1/pipeline/:id — attach-artifact (FR-F-015, D12, T023)', () => {
-  it('draft-spec: appends to artifacts with no stage or transitions-log change', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    const { status, item } = await patch(itemId, {
-      action: 'attach-artifact',
-      artifact: { type: 'draft-spec', ref: 'specs/010-foo/spec.md' },
-    });
-    expect(status).toBe(200);
-    expect(item.stage).toBe('approved');
-    expect(item.artifacts).toHaveLength(1);
-    expect(item.artifacts[0]).toEqual(
-      expect.objectContaining({ type: 'draft-spec', ref: 'specs/010-foo/spec.md' }),
-    );
-    expect(item.transitions).toHaveLength(1); // seed entry only — no new transition appended
-  });
-
-  it('pull-request: appends to artifacts with no stage change, carrying an optional note', async () => {
-    const itemId = await promoteAndGetItemId(await seedCompleteRecord());
-    const { status, item } = await patch(itemId, {
-      action: 'attach-artifact',
-      artifact: {
-        type: 'pull-request',
-        ref: 'https://github.com/org/repo/pull/42',
-        note: 'ready for review',
-      },
-    });
-    expect(status).toBe(200);
-    expect(item.stage).toBe('approved');
-    expect(item.artifacts[0]).toEqual(
-      expect.objectContaining({
-        type: 'pull-request',
-        ref: 'https://github.com/org/repo/pull/42',
-        note: 'ready for review',
-      }),
-    );
   });
 });

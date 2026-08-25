@@ -165,13 +165,13 @@ data, and every story below adds more of that data.
 
 ## Phase 10: Polish & cross-cutting
 
-- [ ] T066 [P] Deprecate `packages/client/app/api/v1/pipeline/**` — reads proxy to the new controller, writes refuse. **Kept, not deleted**: it is the surface `003` shipped and the current UI calls, and removing it in the same change that rewrites the model makes the diff unbisectable
-- [ ] T067 [P] Keep `POST /feedback/:id/promote` returning its idempotent response during the deprecation window, superseded by `PATCH /admin/lifecycle/:id {action:'accept'}`
-- [ ] T068 [P] Update `CLAUDE.md` §4 endpoint table and §5 data models for the lifecycle collection
-- [ ] T069 [P] Update `docs/decisions.md` with D1–D20 and the R1–R9 rationale
-- [ ] T070 Release the agent: tag `agent-feedback-v*` and pin it in `docker-compose.prod.yml` **before** the app depends on the clause mode (research R3)
-- [ ] T071 Full gate: `npm run lint` (zero warnings) · `npm test` at threshold (≥80% backend, ≥70% frontend) · `npm -w packages/client run build` · `bash scripts/validate-e2e.sh --no-agent` · `npm -w packages/client run test:e2e`
-- [ ] T072 Run `bash scripts/cut-release.sh <version>` — never a bare `git tag`; it resolves the target from `origin/impl/nextjs` after fetching, which is what 4.14.0 failed
+- [X] T066 [P] Deprecate `packages/client/app/api/v1/pipeline/**` — reads proxy to the new controller, writes refuse. **Kept, not deleted**: it is the surface `003` shipped and the current UI calls, and removing it in the same change that rewrites the model makes the diff unbisectable
+- [X] T067 [P] Keep `POST /feedback/:id/promote` returning its idempotent response during the deprecation window, superseded by `PATCH /admin/lifecycle/:id {action:'accept'}`
+- [X] T068 [P] Update `CLAUDE.md` §4 endpoint table and §5 data models for the lifecycle collection
+- [X] T069 [P] Update `docs/decisions.md` with D1–D20 and the R1–R9 rationale
+- [ ] T070 Release the agent: tag `agent-feedback-v*` and pin it in `docker-compose.prod.yml` **before** the app depends on the clause mode (research R3) — ⏸ **awaiting operator approval** (CLAUDE.md §14: automation covers the rollout, not the decision to ship). Prompt + eval are committed and live-verified; prod still runs the pre-mode image, which degrades to zero clauses
+- [X] T071 Full gate: `npm run lint` (zero warnings) · `npm test` at threshold (≥80% backend, ≥70% frontend) · `npm -w packages/client run build` · `bash scripts/validate-e2e.sh --no-agent` · `npm -w packages/client run test:e2e`
+- [ ] T072 Run `bash scripts/cut-release.sh <version>` — ⏸ **awaiting operator approval**, and blocked on T070 — never a bare `git tag`; it resolves the target from `origin/impl/nextjs` after fetching, which is what 4.14.0 failed
 
 ---
 
