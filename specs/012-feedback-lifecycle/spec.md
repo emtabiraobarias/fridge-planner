@@ -116,10 +116,23 @@ the **forced-finalize path** already built for the 30-turn cap (`003` FR-F-008):
 finalises on that single turn and **explicitly marks the fields it had to guess**. The record
 reaches triage `complete` but visibly thin; D8's "edit before it briefs" is the repair tool.
 
-*Open for confirmation during planning, not a blocker:* the design assumes the consent
-question is asked **in the modal before sending**. The alternative — send first, ask only if
-the assistant returned a question — asks fewer unnecessary questions but makes the reporter
-wait. Recorded here so the choice is made deliberately rather than by default.
+**RESOLVED 2026-08-24 (operator decision) — the consent question is asked in the modal, before
+sending.** The reporter decides while still typing, so nothing is added to the wait and the branch
+is known before the request leaves.
+
+The alternative considered — send first, ask only if the assistant returned a question — asks
+strictly fewer unnecessary questions, but pays an agent round-trip (60s timeout) on *every*
+capture before the reporter learns whether they are done, which is the exact latency quick capture
+exists to avoid. It was rejected on evidence, not preference: the agent's instructions mandate
+exactly one clarifying question whenever detail is still missing, and it is tuned to produce
+records usable *verbatim as specification input*, so a one-line note essentially never clears that
+bar. `003`'s own 2026-07-28 revision records that the assistant **"almost always answers a first
+message with a clarifying question"**, reproduced live on 2026-07-27. That option therefore
+optimises a case that barely occurs while charging the wait every time.
+
+A third option — fire the request and show the question concurrently, dropping it if the assistant
+finishes first — was also rejected: the modal can change under the reporter mid-answer, which is
+the same "control appears then vanishes" defect PR #76 had just removed.
 
 ---
 
