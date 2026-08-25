@@ -411,12 +411,13 @@ requirement, one test, matching the repo convention of naming the requirement in
   its structured fields.
 - **FR-FL-021**: When a maintainer edits a record, the system shall attribute the edit to that
   maintainer.
-- **FR-FL-022**: The system shall allow the maintainer to assign each item a priority of `P1`,
-  `P2` or `P3`, and shall order the triage queue by it.
-  > *Scale named 2026-08-24 (analyze finding U1).* It previously said only "order by priority",
-  > leaving the values to the implementation — which had already invented `P1`/`P2`/`P3` in the
-  > data model. Reusing `003` `FR-F-003`'s existing record priority scale rather than adding a
-  > second vocabulary for the same idea.
+- **FR-FL-022**: The system shall allow the maintainer to **rank** the items in the triage queue,
+  and shall present the queue in that rank order.
+  > *Reworded twice, 2026-08-24.* It first said only "order by priority", which was untestable
+  > (analyze finding U1). It was then briefly given a fixed `P1`/`P2`/`P3` scale — an
+  > over-specification: the design calls for a **ranked queue, not a flat list** and never names a
+  > label scale, and "top of the queue" is an ordering rather than a three-value tag. The
+  > requirement now states the observable behaviour and leaves the mechanism open.
 - **FR-FL-023**: The system shall present the triage queue across all reporters.
 
 #### Drafting and vetting at `briefed`
@@ -504,6 +505,30 @@ requirement, one test, matching the repo convention of naming the requirement in
   items from reporter-identifying content.
 - **FR-FL-061**: While an item is detached from an erased reporter, the system shall keep it
   advanceable and closable.
+
+#### Validated against the design artifact *(added 2026-08-24)*
+
+Three behaviours the design shows that these requirements did not carry. Found by checking the
+spec against the lifecycle drawing rather than against itself.
+
+- **FR-FL-064**: When the release is rejected at gate 3, the system shall return the item to
+  `in-progress`.
+  > The design's spine shows an explicit edge from gate 3 back to `in-progress` labelled
+  > *"changes needed"*. Without it `in-review` could only go forward to `shipped` or sideways to
+  > `parked`, so review finding a problem had nowhere to send the work. Mirrors `FR-FL-014` at
+  > gate 2, and like it, returns to the work — never to the reporter.
+- **FR-FL-065**: When an item is dismissed, the system shall make the dismissal reason visible to
+  its reporter.
+  > `FR-FL-016`/`FR-FL-017` captured and stored the reason but never surfaced it. The design
+  > labels the dismissed exit *"reason sent to reporter"* — for declined work the reason **is**
+  > the closing of the loop, and a reporter seeing only the stage `dismissed` learns nothing.
+- **FR-FL-066**: The system shall make any `complete` record exportable as a
+  specification-shaped document, whether or not its item has reached `briefed`.
+  > `003` `FR-F-007` was pointed only at `FR-FL-032`/`FR-FL-033`, which narrowed export to brief
+  > assembly after clause vetting. The design is explicit that a thin forced-finalize record is
+  > *"still exportable, promotable and complete"* — export is a property of a completed record,
+  > not a reward for reaching `briefed`. Brief assembly is the richer artifact built on top,
+  > not a replacement.
 
 #### The source record *(added 2026-08-24)*
 
