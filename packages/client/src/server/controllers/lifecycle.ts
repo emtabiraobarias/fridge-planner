@@ -14,6 +14,7 @@ import {
 } from '../lib/lifecycle-stages';
 import {
   DISMISSAL_REASONS,
+  type IClosureRecord,
   type ILifecycleItem,
   type ITransitionLogEntry,
 } from '../types/lifecycle';
@@ -38,6 +39,15 @@ export const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('reject-release'), note: z.string().max(2000).optional() }),
   z.object({ action: z.literal('park'), note: z.string().max(2000).optional() }),
   z.object({ action: z.literal('reopen') }),
+  z.object({
+    action: z.literal('close'),
+    excerpt: z.string().min(1).max(2000),
+    releaseTag: z.string().max(200).optional(),
+    releaseUrl: z.string().max(2048).optional(),
+    releaseFallbackText: z.string().max(500).optional(),
+    unavailableReason: z.string().max(500).optional(),
+  }),
+  z.object({ action: z.literal('cite'), citedId: z.string().min(1) }),
   z.object({ action: z.literal('set-rank'), rank: z.number().int().min(0) }),
   z.object({
     action: z.literal('edit-source'),
@@ -61,13 +71,27 @@ async function markSourceReviewed(item: Pick<ILifecycleItem, 'feedbackRecordId'>
  * Non-transition actions: they change the item without moving its stage, so they skip the
  * legality graph entirely rather than being modelled as self-transitions.
  */
-type NonTransitionRequest = Extract<ActionRequest, { action: 'set-rank' | 'edit-source' }>;
+type NonTransitionRequest = Extract<ActionRequest, { action: 'set-rank' | 'edit-source' | 'cite' }>;
 
 async function applyNonTransition(
   id: string,
   adminUserId: string,
   body: NonTransitionRequest,
 ): Promise<ControllerResult> {
+  if (body.action === 'cite') {
+    // A citation is a REFERENCE, never a transition (FR-FL-050/051). It is also the only way a
+    // recurrence relates to a closed item, since `closed` never reopens — so it must work on a
+    // terminal item, which is why it never touches the stage graph.
+    const updated = await LifecycleItem.findOneAndUpdate(
+      { _id: id },
+      { $addToSet: { cites: body.citedId } },
+      { new: true },
+    ).lean();
+    if (!updated) return problem(404, 'Not Found', 'No such lifecycle item.');
+    await auditRecord(adminUserId, 'lifecycle.edit', { id, type: 'lifecycle' });
+    return { status: 200, body: updated };
+  }
+
   if (body.action === 'set-rank') {
     const updated = await LifecycleItem.findOneAndUpdate(
       { _id: id },
@@ -100,6 +124,28 @@ async function applyNonTransition(
   return { status: 200, body: updated! };
 }
 
+
+
+/**
+ * The closure record. Carries either a picked release or the free-text fallback — the fallback
+ * is a FIRST-CLASS path, not an error state, because `FR-FL-045` forbids gating closure on a
+ * third party. `unavailableReason` records WHY the picker was empty, so a closure written during
+ * an outage is not indistinguishable from a careless one.
+ */
+function buildClosure(
+  body: Extract<ActionRequest, { action: 'close' }>,
+  adminUserId: string,
+): IClosureRecord {
+  return {
+    excerpt: body.excerpt,
+    ...(body.releaseTag ? { releaseTag: body.releaseTag } : {}),
+    ...(body.releaseUrl ? { releaseUrl: body.releaseUrl } : {}),
+    ...(body.releaseFallbackText ? { releaseFallbackText: body.releaseFallbackText } : {}),
+    ...(body.unavailableReason ? { unavailableReason: body.unavailableReason } : {}),
+    closedBy: adminUserId,
+    closedAt: new Date(),
+  };
+}
 
 /**
  * The per-action field writes. Extracted from `applyAction` to keep it under the complexity
@@ -141,6 +187,9 @@ async function buildStageUpdate(
     case 'accept':
       $set['acceptedBy'] = adminUserId;
       $set['acceptedAt'] = new Date();
+      break;
+    case 'close':
+      $set['closure'] = buildClosure(body, adminUserId);
       break;
     default:
       break;
@@ -203,7 +252,7 @@ export async function applyAction(
   adminUserId: string,
   body: ActionRequest,
 ): Promise<ControllerResult> {
-  if (body.action === 'set-rank' || body.action === 'edit-source') {
+  if (body.action === 'set-rank' || body.action === 'edit-source' || body.action === 'cite') {
     return applyNonTransition(id, adminUserId, body);
   }
 

@@ -49,7 +49,16 @@ export type LifecycleAction =
   | { action: 'park'; note?: string }
   | { action: 'reopen' }
   | { action: 'set-rank'; rank: number }
-  | { action: 'edit-source'; sourceTitle?: string; sourceAffectedArea?: string };
+  | { action: 'edit-source'; sourceTitle?: string; sourceAffectedArea?: string }
+  | {
+      action: 'close';
+      excerpt: string;
+      releaseTag?: string;
+      releaseUrl?: string;
+      releaseFallbackText?: string;
+      unavailableReason?: string;
+    }
+  | { action: 'cite'; citedId: string };
 
 export interface QueueQuery {
   stage?: LifecycleStage;
@@ -101,4 +110,28 @@ export async function fetchOwnLifecycle(): Promise<ReporterItem[]> {
   const res = await apiFetch('/api/v1/lifecycle');
   const body = (await ensureOk(res, 'load your reports').json()) as { items: ReporterItem[] };
   return body.items;
+}
+
+export interface Release {
+  tag: string;
+  name: string;
+  url: string;
+  publishedAt: string;
+}
+
+export interface ReleaseList {
+  releases: Release[];
+  available: boolean;
+  unavailableReason?: string;
+}
+
+/**
+ * The closure picker's release list.
+ *
+ * `available: false` is a NORMAL answer, not an error — the endpoint returns 200 even when
+ * GitHub is unreachable, because closure must never be gated on a third party (FR-FL-045).
+ */
+export async function fetchReleaseList(): Promise<ReleaseList> {
+  const res = await apiFetch('/api/v1/admin/releases');
+  return (await ensureOk(res, 'load the release list').json()) as ReleaseList;
 }

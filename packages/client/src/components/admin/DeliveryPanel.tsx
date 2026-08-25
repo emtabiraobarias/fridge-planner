@@ -7,6 +7,7 @@ import {
   type LifecycleStage,
   type LifecycleSummary,
 } from '../../services/lifecycle';
+import { ClosureComposer } from './ClosureComposer';
 
 /**
  * Delivery — the second half of the maintainer surface (spec 012 US4, D7).
@@ -58,6 +59,9 @@ function controlsFor(stage: LifecycleStage): Control[] {
       ];
     case 'parked':
       return [{ label: 'Reopen', action: { action: 'reopen' } }];
+    case 'shipped':
+      // Nothing auto-closes on merge or release (D9) — the maintainer closes explicitly.
+      return [];
     default:
       return [];
   }
@@ -77,6 +81,7 @@ export function DeliveryPanel(): React.JSX.Element {
   const [items, setItems] = useState<LifecycleSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [closing, setClosing] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -164,6 +169,16 @@ export function DeliveryPanel(): React.JSX.Element {
                 </button>
               ))}
 
+              {item.stage === 'shipped' && closing !== item._id && (
+                <button
+                  type="button"
+                  onClick={() => setClosing(item._id)}
+                  className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-bg hover:bg-accent-600"
+                >
+                  Close
+                </button>
+              )}
+
               {item.stage !== 'parked' && item.stage !== 'shipped' && (
                 <button
                   type="button"
@@ -174,6 +189,17 @@ export function DeliveryPanel(): React.JSX.Element {
                 </button>
               )}
             </div>
+
+            {closing === item._id && (
+              <ClosureComposer
+                sourceTitle={item.sourceTitle}
+                onCancel={() => setClosing(null)}
+                onClose={(action) => {
+                  setClosing(null);
+                  void act(item._id, action);
+                }}
+              />
+            )}
           </li>
         ))}
       </ul>

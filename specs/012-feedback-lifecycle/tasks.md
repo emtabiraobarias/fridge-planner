@@ -125,17 +125,17 @@ data, and every story below adds more of that data.
 **Goal**: closure with a pre-filled excerpt and a picked release; never blocked by GitHub.
 **Independent test**: close a `shipped` item; the reporter sees excerpt + release; closure still succeeds with the release list unavailable.
 
-- [ ] T049 [P] [US5] **(RED)** `packages/client/tests/server/unit/release-list.test.ts` (stub `global.fetch`): parse; 1h cache hit avoids a second call; failure → `available:false` **with a reason, not a throw**
-- [ ] T050 [US5] **(GREEN)** `packages/client/src/server/services/release-list.ts` — unauthenticated read, module-level cache, degrade-never-block (research R7)
-- [ ] T051 [US5] `packages/client/app/api/v1/admin/releases/route.ts` — returns **200 even when GitHub is unreachable**; `available:false` is a normal response, not an error (FR-FL-044/045)
-- [ ] T052 [P] [US5] Add the `release-list` probe to `packages/client/src/server/lib/health-checks.ts` — reports `degraded`, **never `down`** (FR-FL-047); nothing user-facing blocks on it
-- [ ] T053 [P] [US5] **(RED)** `packages/client/tests/server/lifecycle-closure.test.ts`: closure only from `shipped` (FR-FL-040); excerpt pre-filled from the reporter's own title + problem statement (FR-FL-041); excerpt required (FR-FL-042); fallback free text when unavailable, with the reason recorded (FR-FL-044, SC-FL-008); every transition out of `closed` refused (FR-FL-049); `cite` is reference-only and moves nothing (FR-FL-050/051)
-- [ ] T054 [US5] **(GREEN)** `close` and `cite` actions + `ClosureRecord` persistence in `packages/client/src/server/controllers/lifecycle.ts`
-- [ ] T055 [US5] **(RED→GREEN)** `packages/client/tests/components/admin/ClosureComposer.test.tsx` + `packages/client/src/components/admin/ClosureComposer.tsx` — pre-filled excerpt, release picker, and the free-text fallback **stating why** the list was unavailable
-- [ ] T056 [US5] Show excerpt + release to the reporter (FR-FL-048) in `packages/client/src/components/feedback/PipelineStatusView.tsx`
-- [ ] T057 [US5] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — close through the UI **with the release endpoint mocked as unavailable**, asserting closure still succeeds
+- [X] T049 [P] [US5] **(RED)** `packages/client/tests/server/unit/release-list.test.ts` (stub `global.fetch`): parse; 1h cache hit avoids a second call; failure → `available:false` **with a reason, not a throw**
+- [X] T050 [US5] **(GREEN)** `packages/client/src/server/services/release-list.ts` — unauthenticated read, module-level cache, degrade-never-block (research R7)
+- [X] T051 [US5] `packages/client/app/api/v1/admin/releases/route.ts` — returns **200 even when GitHub is unreachable**; `available:false` is a normal response, not an error (FR-FL-044/045)
+- [X] T052 [P] [US5] Add the `release-list` probe to `packages/client/src/server/lib/health-checks.ts` — reports `degraded`, **never `down`** (FR-FL-047); nothing user-facing blocks on it
+- [X] T053 [P] [US5] **(RED)** `packages/client/tests/server/lifecycle-closure.test.ts`: closure only from `shipped` (FR-FL-040); excerpt pre-filled from the reporter's own title + problem statement (FR-FL-041); excerpt required (FR-FL-042); fallback free text when unavailable, with the reason recorded (FR-FL-044, SC-FL-008); every transition out of `closed` refused (FR-FL-049); `cite` is reference-only and moves nothing (FR-FL-050/051)
+- [X] T054 [US5] **(GREEN)** `close` and `cite` actions + `ClosureRecord` persistence in `packages/client/src/server/controllers/lifecycle.ts`
+- [X] T055 [US5] **(RED→GREEN)** `packages/client/tests/components/admin/ClosureComposer.test.tsx` + `packages/client/src/components/admin/ClosureComposer.tsx` — pre-filled excerpt, release picker, and the free-text fallback **stating why** the list was unavailable
+- [X] T056 [US5] Show excerpt + release to the reporter (FR-FL-048) in `packages/client/src/components/feedback/PipelineStatusView.tsx`
+- [X] T057 [US5] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — close through the UI **with the release endpoint mocked as unavailable**, asserting closure still succeeds
 
-**Checkpoint**: the lifecycle can reach its terminal stage. Primary journey complete end to end.
+**Checkpoint**: ✅ the lifecycle can reach its terminal stage. Primary journey complete end to end.
 
 ---
 

@@ -218,3 +218,57 @@ test('an erased reporter’s in-flight work survives, detached, and still advanc
   });
   expect(advanced.status()).toBe(200);
 });
+
+// ── US5 — closure, including with the release list unavailable ───────────────
+
+test('closing tells the reporter, and still works when the release list is down (FR-FL-044, SC-FL-008)', async ({
+  page,
+}) => {
+  const title = await fileReport(page.request);
+  const queue = await page.request.get('/api/v1/admin/lifecycle?stage=new', { headers: AS_ADMIN });
+  const { items } = (await queue.json()) as { items: { _id: string; sourceTitle: string }[] };
+  const id = items.find((i) => i.sourceTitle === title)!._id;
+
+  for (const action of ['accept', 'advance', 'advance', 'approve-spec', 'advance', 'approve-release']) {
+    const r = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+      data: { action },
+      headers: AS_ADMIN,
+    });
+    expect(r.status(), action).toBe(200);
+  }
+
+  // Force the picker to be unavailable at the network edge — closure must proceed regardless.
+  await page.route('**/api/v1/admin/releases', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        releases: [],
+        available: false,
+        unavailableReason: 'The release list is unreachable.',
+      }),
+    }),
+  );
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Delivery' }).click();
+  const row = page.locator('section[aria-label="Delivery"] li', { hasText: title });
+  await row.getByRole('button', { name: /^Close$/ }).click();
+
+  // It must SAY WHY rather than silently offering a text box.
+  await expect(page.getByRole('status')).toContainText(/unreachable/i);
+  await page.getByLabel('Release (free text)').fill('the 25 Aug release');
+  await page.getByRole('button', { name: /Close and tell the reporter/ }).click();
+
+  const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
+  const item = (await after.json()) as {
+    stage: string;
+    closure?: { excerpt: string; releaseFallbackText?: string };
+  };
+  expect(item.stage).toBe('closed');
+  expect(item.closure?.releaseFallbackText).toBe('the 25 Aug release');
+
+  // And the reporter sees the excerpt (FR-FL-048).
+  const asReporter = await page.request.get('/api/v1/lifecycle', { headers: AS_REPORTER });
+  expect(await asReporter.text()).toContain(item.closure!.excerpt);
+});
