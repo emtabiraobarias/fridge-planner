@@ -17,6 +17,10 @@ test.describe.configure({ mode: 'serial' });
 
 const AS_ADMIN = { 'x-user-id': 'admin-e2e', 'x-user-roles': 'admin' };
 const AS_REPORTER = { 'x-user-id': 'reporter-e2e' };
+// Erasure is destructive to the identity itself, so US7 uses its own reporter. Erasing the
+// shared one made every later test file as a deleted account — which is how this file first
+// went green in isolation and red in the suite.
+const ERASE_REPORTER = { 'x-user-id': 'reporter-e2e-erase' };
 
 /** File a report as an ordinary reporter and return its title. */
 async function fileReport(request: APIRequestContext): Promise<string> {
@@ -65,6 +69,11 @@ test('dismissing requires a reason to be chosen, and records which one (FR-FL-01
   expect(mid.items.some((i) => i.sourceTitle === title)).toBe(true);
 
   await row.getByRole('button', { name: /Declined/ }).click();
+  // Wait for the UI to settle before querying the API. `click()` resolves when the click is
+  // dispatched, not when its request lands — asserting straight afterwards races the PATCH and
+  // reads the pre-click stage. (This is what made this test flake: the dismiss HAD applied.)
+  await expect(row.getByRole('button', { name: /^Dismiss$/ })).toBeHidden();
+  await expect(row).toContainText(/Dismissed/i);
 
   const after = await page.request.get('/api/v1/admin/lifecycle', { headers: AS_ADMIN });
   const { items } = (await after.json()) as {
@@ -124,7 +133,7 @@ test('the maintainer walks an item to shipped through the gates, and a rejection
   }
 
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Delivery' }).click();
+  await page.getByRole('tab', { name: 'Delivery' }).click();
   const row = page.locator('section[aria-label="Delivery"] li', { hasText: title });
   await expect(row).toBeVisible();
 
@@ -132,17 +141,18 @@ test('the maintainer walks an item to shipped through the gates, and a rejection
   await row.getByRole('button', { name: /Changes needed/ }).click();
   await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/In progress/i);
 
+
   // Forward again, then the release gate.
   await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
     data: { action: 'advance' },
     headers: AS_ADMIN,
   });
   await page.reload();
-  await page.getByRole('button', { name: 'Delivery' }).click();
-  await page
-    .locator('section[aria-label="Delivery"] li', { hasText: title })
-    .getByRole('button', { name: /Approve release/ })
-    .click();
+  await page.getByRole('tab', { name: 'Delivery' }).click();
+  const shipRow = page.locator('section[aria-label="Delivery"] li', { hasText: title });
+  await shipRow.getByRole('button', { name: /Approve release/ }).click();
+  // Same rule as the dismiss test: wait for the UI to settle, or the API read races the PATCH.
+  await expect(shipRow.getByTestId(`delivery-stage-${id}`)).toHaveText(/Shipped/i);
 
   const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
   const body = (await after.json()) as {
@@ -192,7 +202,12 @@ test('a merged reporter sees a status and nothing about the other report (FR-FL-
 test('an erased reporter’s in-flight work survives, detached, and still advances (FR-FL-059/061)', async ({
   page,
 }) => {
-  const title = await fileReport(page.request);
+  const title = `Lifecycle erase ${Date.now()}`;
+  const filed = await page.request.post('/api/v1/feedback', {
+    data: { message: title },
+    headers: ERASE_REPORTER,
+  });
+  expect(filed.status()).toBeLessThan(300);
   const queue = await page.request.get('/api/v1/admin/lifecycle?stage=new', { headers: AS_ADMIN });
   const { items } = (await queue.json()) as { items: { _id: string; sourceTitle: string }[] };
   const id = items.find((i) => i.sourceTitle === title)!._id;
@@ -202,15 +217,19 @@ test('an erased reporter’s in-flight work survives, detached, and still advanc
     headers: AS_ADMIN,
   });
 
-  // Erase the reporter, then purge — the two-phase erasure of spec 011.
-  await page.request.post('/api/v1/admin/users/reporter-e2e/erase', { headers: AS_ADMIN });
-  await page.request.post('/api/v1/admin/users/purge', { headers: AS_ADMIN });
+  // Erasure is TWO-PHASE (spec 011 FR-AD-018): the account becomes inaccessible now, and the
+  // data is purged only after the 30-day window. Detachment happens at PURGE, which no e2e can
+  // reach without fast-forwarding a month — so that half is asserted in
+  // `lifecycle-merge-erasure.test.ts`, which calls `purgeUserData` directly.
+  //
+  // What IS observable here, and is the point of FR-FL-059: erasing the reporter does not take
+  // their in-flight work with it.
+  await page.request.post('/api/v1/admin/users/reporter-e2e-erase/erase', { headers: AS_ADMIN });
 
   const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
   expect(after.status()).toBe(200);
   const item = (await after.json()) as { stage: string; sourceTitle: string };
-  // It survived, and carries nothing identifying.
-  expect(item.sourceTitle).not.toContain(title);
+  expect(item.stage).toBe('accepted');
 
   const advanced = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
     data: { action: 'advance' },
@@ -251,7 +270,7 @@ test('closing tells the reporter, and still works when the release list is down 
   );
 
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Delivery' }).click();
+  await page.getByRole('tab', { name: 'Delivery' }).click();
   const row = page.locator('section[aria-label="Delivery"] li', { hasText: title });
   await row.getByRole('button', { name: /^Close$/ }).click();
 
@@ -259,6 +278,10 @@ test('closing tells the reporter, and still works when the release list is down 
   await expect(page.getByRole('status')).toContainText(/unreachable/i);
   await page.getByLabel('Release (free text)').fill('the 25 Aug release');
   await page.getByRole('button', { name: /Close and tell the reporter/ }).click();
+  // Wait for the UI to settle before reading the API — `closed` is not a delivery stage, so the
+  // row leaves the list. (Third instance of this race in this file: `click()` resolves on
+  // dispatch, not on the request landing.)
+  await expect(row).toBeHidden();
 
   const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
   const item = (await after.json()) as {
@@ -295,8 +318,11 @@ test('advancing to spec is blocked until every clause is vetted (FR-FL-028, SC-F
   });
 
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Delivery' }).click();
-  const panel = page.locator('div[aria-label="Clause vetting"]');
+  await page.getByRole('tab', { name: 'Delivery' }).click();
+  // Scoped to THIS item's row: more than one item can sit at `briefed` once the whole suite has
+  // run, and an unscoped locator then matches several and trips strict mode.
+  const clauseRow = page.locator('section[aria-label="Delivery"] li', { hasText: title });
+  const panel = clauseRow.locator('div[aria-label="Clause vetting"]');
   await expect(panel).toBeVisible();
   // A manually authored clause is already vetted, so this one should read as accepted.
   await expect(panel).toContainText(/can go to spec/i);

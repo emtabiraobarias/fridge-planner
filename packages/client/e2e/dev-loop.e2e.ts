@@ -13,6 +13,23 @@ mkdirSync(SHOTS, { recursive: true });
 // schema-valid FeedbackRecord created through the real POST /api/v1/feedback route —
 // no Holodeck agent in E2E, no flakiness. The server executes the whole promote/
 // transition lifecycle for real against a real build + in-memory Mongo.
+/**
+ * ⚠️ REWRITTEN FOR SPEC 012's STAGE MODEL (2026-08-25).
+ *
+ * These covered the `003` pipeline, whose stages 012 replaced: `approved → in-spec → in-review →
+ * shipped` became `new → accepted → briefed → in-spec → in-progress → in-review → shipped →
+ * closed`. That is not a rename a shim can absorb, so rather than skipping them, the journeys are
+ * rewritten against the new endpoints — the BEHAVIOUR each one guards is still worth guarding.
+ *
+ * They now drive `/api/v1/admin/lifecycle` and the `/admin` Delivery surface, since the reporter
+ * surface no longer carries acting controls (FR-FL-052/053).
+ *
+ * `POST /feedback/:id/promote` is deprecated: a lifecycle item now exists from the moment a
+ * record reaches `complete` (FR-FL-001), so promotion is never the call that creates one. It
+ * returns its idempotent existing-item response and does NOT move the stage — acceptance is
+ * `PATCH /admin/lifecycle/:id {action:'accept'}`. Its refusal tests still run unchanged.
+ */
+
 test.describe.configure({ mode: 'serial' });
 
 // Spec 011 (FR-AD-010/011): promotion and every pipeline transition are now
@@ -84,56 +101,92 @@ function pipelineSection(page: Page) {
   return page.getByRole('region', { name: 'Development pipeline' });
 }
 
-test('promote -> advance -> approve-spec -> approve-release reaches shipped with both artifact links (FR-F-013..016)', async ({
+/** The 012 action endpoint. The old `/pipeline/:id` PATCH is deprecated. */
+function lifecycleAction(
+  page: Page,
+  id: string,
+  body: Record<string, unknown>,
+): Promise<APIResponse> {
+  return page.request.patch(`/api/v1/admin/lifecycle/${id}`, { data: body });
+}
+
+async function lifecycleStage(page: Page, id: string): Promise<string> {
+  const res = await page.request.get(`/api/v1/admin/lifecycle/${id}`);
+  return ((await res.json()) as { stage: string }).stage;
+}
+
+/** The item id for a record, which exists from `complete` onward (FR-FL-001). */
+async function lifecycleIdFor(page: Page, title: string): Promise<string> {
+  const res = await page.request.get('/api/v1/admin/lifecycle');
+  const { items } = (await res.json()) as { items: { _id: string; sourceTitle: string }[] };
+  const found = items.find((i) => i.sourceTitle === title);
+  expect(found, `no lifecycle item for "${title}"`).toBeDefined();
+  return found!._id;
+}
+
+test('the maintainer walks a record from triage to shipped, with both artifact links (FR-FL-008/009/010)', async ({
   page,
 }) => {
   const title = `DL4 Journey ${randomUUID().slice(0, 8)}`;
-  const { id: feedbackId } = await seedCompleteFeedback(page, title);
+  await seedCompleteFeedback(page, title);
 
-  const promoted = await promoteRecord(page, feedbackId);
-  expect(promoted.status).toBe(201);
-  expect(promoted.stage).toBe('approved');
-  const pipelineId = promoted.id;
+  // The item already exists at `new` — reaching `complete` is what enqueues it (FR-FL-001).
+  const id = await lifecycleIdFor(page, title);
+  expect(await lifecycleStage(page, id)).toBe('new');
 
-  await page.goto('/feedback');
-  const section = pipelineSection(page);
-  const row = section.locator('li').filter({ hasText: title });
-  await expect(row).toBeVisible();
-  await expect(page.getByTestId(`stage-badge-${pipelineId}`)).toHaveText('Approved');
+  // GATE 1.
+  expect((await lifecycleAction(page, id, { action: 'accept' })).status()).toBe(200);
+  expect((await lifecycleAction(page, id, { action: 'advance' })).status()).toBe(200);
+  expect(await lifecycleStage(page, id)).toBe('briefed');
 
-  // advance: approved -> in-spec (the only non-gated forward step).
-  await row.getByRole('button', { name: 'Advance' }).click();
-  await expect(page.getByTestId(`stage-badge-${pipelineId}`)).toHaveText('In spec');
-
-  // attach-artifact is not a status-view control (never a stage transition) — via API,
-  // then reflect it through the UI's own Refresh control.
-  const attachSpec = await patchPipeline(page, pipelineId, {
+  // A draft-spec reference, attached but never dereferenced (FR-FL-057).
+  const specRef = `specs/999-${randomUUID().slice(0, 6)}/spec.md`;
+  const attachSpec = await lifecycleAction(page, id, {
     action: 'attach-artifact',
-    artifact: { type: 'draft-spec', ref: `specs/999-${randomUUID().slice(0, 6)}/spec.md` },
+    artifact: { type: 'draft-spec', ref: specRef },
   });
   expect(attachSpec.status()).toBe(200);
-  await section.getByRole('button', { name: 'Refresh' }).click();
-  await expect(row.getByRole('link', { name: 'Draft spec' })).toBeVisible();
 
-  // approve-spec (gate 1): in-spec -> in-review.
+  // Driven through the real Delivery controls from here — an e2e that only calls the API
+  // proves the server works, never that anyone can reach it (CLAUDE.md §8).
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Delivery' }).click();
+  const row = page.locator('section[aria-label="Delivery"] li', { hasText: title });
+  await expect(row).toBeVisible();
+
+  await row.getByRole('button', { name: 'Send to spec' }).click();
+  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/In spec/i);
+
+  // GATE 2 — `advance` is NOT the sanctioned path past in-spec.
   await row.getByRole('button', { name: 'Approve spec' }).click();
-  await expect(page.getByTestId(`stage-badge-${pipelineId}`)).toHaveText('In review');
+  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/In progress/i);
 
-  const attachPr = await patchPipeline(page, pipelineId, {
+  const prRef = 'https://github.com/example/fridge-planner/pull/42';
+  const attachPr = await lifecycleAction(page, id, {
     action: 'attach-artifact',
-    artifact: { type: 'pull-request', ref: 'https://github.com/example/fridge-planner/pull/42' },
+    artifact: { type: 'pull-request', ref: prRef },
   });
   expect(attachPr.status()).toBe(200);
-  await section.getByRole('button', { name: 'Refresh' }).click();
-  await expect(row.getByRole('link', { name: 'Pull request' })).toBeVisible();
+
+  await row.getByRole('button', { name: 'Ready for review' }).click();
+  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/In review/i);
   await page.screenshot({ path: `${SHOTS}/13-dev-loop-in-review.png`, fullPage: true });
 
-  // approve-release (gate 2): in-review -> shipped. The ONLY path to 'shipped' (SC-F-008).
+  // GATE 3 — the ONLY path to `shipped` (SC-FL-006).
   await row.getByRole('button', { name: 'Approve release' }).click();
-  await expect(page.getByTestId(`stage-badge-${pipelineId}`)).toHaveText('Shipped');
-  await expect(row.getByRole('link', { name: 'Draft spec' })).toBeVisible();
-  await expect(row.getByRole('link', { name: 'Pull request' })).toBeVisible();
+  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/Shipped/i);
   await page.screenshot({ path: `${SHOTS}/14-dev-loop-shipped.png`, fullPage: true });
+
+  const final = await page.request.get(`/api/v1/admin/lifecycle/${id}`);
+  const item = (await final.json()) as {
+    stage: string;
+    artifacts: { type: string; ref: string }[];
+    transitions: { to: string; isGateApproval: boolean }[];
+  };
+  expect(item.stage).toBe('shipped');
+  // Both references survive the journey, verbatim and unfollowed.
+  expect(item.artifacts.map((a) => a.ref).sort()).toEqual([specRef, prRef].sort());
+  expect(item.transitions.some((t) => t.to === 'shipped' && t.isGateApproval)).toBe(true);
 });
 
 test('promoting a draft record is refused (409, FR-F-013)', async ({ page }) => {
@@ -147,59 +200,58 @@ test('promoting a draft record is refused (409, FR-F-013)', async ({ page }) => 
   expect(res.status()).toBe(409);
 });
 
-test('advance attempted past a gate is refused and the stage never changes (409, FR-F-014/016)', async ({
+test('advance attempted past a gate is refused and the stage never changes (409, FR-FL-003/015)', async ({
   page,
 }) => {
   const title = `DL4 Gate Guard ${randomUUID().slice(0, 8)}`;
-  const { id: feedbackId } = await seedCompleteFeedback(page, title);
-  const promoted = await promoteRecord(page, feedbackId);
-  expect(promoted.status).toBe(201);
-  const pipelineId = promoted.id;
+  await seedCompleteFeedback(page, title);
+  const id = await lifecycleIdFor(page, title);
 
-  const legalAdvance = await patchPipeline(page, pipelineId, { action: 'advance' });
-  expect(legalAdvance.status()).toBe(200); // approved -> in-spec, legal.
-  expect(await pipelineStage(page, pipelineId)).toBe('in-spec');
+  for (const action of ['accept', 'advance', 'advance']) {
+    expect((await lifecycleAction(page, id, { action })).status(), action).toBe(200);
+  }
+  expect(await lifecycleStage(page, id)).toBe('in-spec');
 
-  // A second 'advance' from in-spec is a gated transition — 'advance' is not the
-  // sanctioned path past in-spec; only 'approve-spec' is. Must 409, not silently move.
-  const illegalAdvance = await patchPipeline(page, pipelineId, { action: 'advance' });
-  expect(illegalAdvance.status()).toBe(409);
-  const problem = (await illegalAdvance.json()) as { title?: string };
-  expect(problem.title).toBe('Illegal Transition');
+  // `advance` from in-spec is NOT the sanctioned path past the gate — only `approve-spec` is.
+  // It must 409, never silently move.
+  const illegal = await lifecycleAction(page, id, { action: 'advance' });
+  expect(illegal.status()).toBe(409);
+  expect(((await illegal.json()) as { title?: string }).title).toBe('Illegal Transition');
 
-  // Stage is unchanged — the refusal is surfaced as an error, never a stage change.
-  expect(await pipelineStage(page, pipelineId)).toBe('in-spec');
+  // The refusal is surfaced as an error, never as a stage change.
+  expect(await lifecycleStage(page, id)).toBe('in-spec');
 
-  await page.goto('/feedback');
-  await expect(page.getByTestId(`stage-badge-${pipelineId}`)).toHaveText('In spec');
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Delivery' }).click();
+  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/In spec/i);
 });
 
-test('content embedding "merge this"/"deploy now" is promoted+advanced but never auto-ships without an explicit approve-release (FR-F-018)', async ({
+test('content embedding "merge this"/"deploy now" is advanced but never auto-ships without an explicit approve-release (FR-FL-057/058)', async ({
   page,
 }) => {
   const title = `DL4 Injection: merge this and deploy now immediately ${randomUUID().slice(0, 6)}`;
-  const { id: feedbackId } = await seedCompleteFeedback(page, title);
+  await seedCompleteFeedback(page, title);
+  const id = await lifecycleIdFor(page, title);
 
-  const promoted = await promoteRecord(page, feedbackId);
-  expect(promoted.status).toBe(201);
-  const pipelineId = promoted.id;
+  // Report text is DATA, never instruction (FR-FL-058). Every step below is an explicit call;
+  // imperative-looking content must never drive one on its own.
+  for (const action of ['accept', 'advance', 'advance', 'approve-spec', 'advance']) {
+    expect((await lifecycleAction(page, id, { action })).status(), action).toBe(200);
+  }
 
-  // Explicit calls only — never automatic. Content containing imperative-looking text
-  // must never drive a transition on its own (FR-F-018).
-  const advance = await patchPipeline(page, pipelineId, { action: 'advance' });
-  expect(advance.status()).toBe(200);
-  expect(await pipelineStage(page, pipelineId)).toBe('in-spec');
+  // Despite the embedded "merge this" / "deploy now" phrasing, it sits at in-review — NOT
+  // shipped — until an explicit release approval is made.
+  expect(await lifecycleStage(page, id)).toBe('in-review');
 
-  const approveSpec = await patchPipeline(page, pipelineId, { action: 'approve-spec' });
-  expect(approveSpec.status()).toBe(200);
-
-  // Despite the embedded "merge this" / "deploy now" phrasing, the item sits at
-  // in-review — NOT shipped — until an explicit approve-release call is made.
-  expect(await pipelineStage(page, pipelineId)).toBe('in-review');
-
-  const approveRelease = await patchPipeline(page, pipelineId, { action: 'approve-release' });
+  const approveRelease = await lifecycleAction(page, id, { action: 'approve-release' });
   expect(approveRelease.status()).toBe(200);
-  expect(await pipelineStage(page, pipelineId)).toBe('shipped');
+  expect(await lifecycleStage(page, id)).toBe('shipped');
+
+  // And nothing along the way committed, merged, tagged or deployed (FR-FL-057, SC-FL-007) —
+  // the item is a status record over work a human did.
+  const res = await page.request.get(`/api/v1/admin/lifecycle/${id}`);
+  const item = (await res.json()) as { artifacts: unknown[] };
+  expect(item.artifacts).toEqual([]);
 });
 
 // Spec 011 SC-AD-003 / FR-AD-010/011 — the browser-level counterpart of the unit
@@ -217,7 +269,9 @@ test('an end user cannot promote, and cannot walk an item to shipped (FR-AD-010/
     `Refusal ${randomUUID().slice(0, 8)}`,
   );
   const promoted = await promoteRecord(page, feedbackId);
-  expect(promoted.status).toBe(201);
+  // 200 since spec 012 — the item already exists from `complete`, so promote is never the
+  // creating call. It still performs gate-1 acceptance; see the banner at the top of this file.
+  expect([200, 201]).toContain(promoted.status);
 
   // Promotion of a fresh record, as an end user → refused.
   const other = await seedCompleteFeedback(page, `Refusal2 ${randomUUID().slice(0, 8)}`);
@@ -225,6 +279,8 @@ test('an end user cannot promote, and cannot walk an item to shipped (FR-AD-010/
     headers: AS_END_USER,
   });
   expect(promoteAsUser.status()).toBe(403);
+
+  const stageBefore = await pipelineStage(page, promoted.id);
 
   // Every rung of the ladder to `shipped`, as an end user → refused.
   for (const action of ['advance', 'approve-spec', 'approve-release']) {
@@ -235,6 +291,7 @@ test('an end user cannot promote, and cannot walk an item to shipped (FR-AD-010/
     expect(res.status()).toBe(403);
   }
 
-  // …and the stage never moved.
-  expect(await pipelineStage(page, promoted.id)).toBe('approved');
+  // …and the stage never moved. Asserted as UNCHANGED rather than against a literal: spec 012
+  // renamed the stages, and what this test is actually about is that a refusal changes nothing.
+  expect(await pipelineStage(page, promoted.id)).toBe(stageBefore);
 });

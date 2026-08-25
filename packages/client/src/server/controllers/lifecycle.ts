@@ -14,6 +14,7 @@ import {
   type LifecycleStage,
 } from '../lib/lifecycle-stages';
 import {
+  ARTIFACT_TYPES,
   DISMISSAL_REASONS,
   type IClosureRecord,
   type ILifecycleItem,
@@ -49,6 +50,15 @@ export const actionSchema = z.discriminatedUnion('action', [
     unavailableReason: z.string().max(500).optional(),
   }),
   z.object({ action: z.literal('cite'), citedId: z.string().min(1) }),
+  z.object({
+    action: z.literal('attach-artifact'),
+    artifact: z.object({
+      type: z.enum(ARTIFACT_TYPES),
+      // A reference ONLY. Never fetched, never dereferenced, never executed (FR-FL-057).
+      ref: z.string().min(1).max(2048),
+      note: z.string().max(500).optional(),
+    }),
+  }),
   z.object({ action: z.literal('set-rank'), rank: z.number().int().min(0) }),
   z.object({
     action: z.literal('edit-source'),
@@ -72,36 +82,54 @@ async function markSourceReviewed(item: Pick<ILifecycleItem, 'feedbackRecordId'>
  * Non-transition actions: they change the item without moving its stage, so they skip the
  * legality graph entirely rather than being modelled as self-transitions.
  */
-type NonTransitionRequest = Extract<ActionRequest, { action: 'set-rank' | 'edit-source' | 'cite' }>;
+type NonTransitionRequest = Extract<
+  ActionRequest,
+  { action: 'set-rank' | 'edit-source' | 'cite' | 'attach-artifact' }
+>;
+
+/**
+ * The non-transition actions that are one Mongo update and nothing else.
+ *
+ * Tabled rather than chained: each is two lines of intent and one of plumbing, and as a
+ * branch-per-action they pushed `applyNonTransition` past the complexity limit.
+ */
+function simpleUpdateFor(body: NonTransitionRequest): Record<string, unknown> | null {
+  switch (body.action) {
+    case 'attach-artifact':
+      // Records where the work HAPPENED, which a human did elsewhere. Stored as a string and
+      // never dereferenced: no action may commit, merge, tag or deploy (FR-FL-057).
+      return { $push: { artifacts: { ...body.artifact, at: new Date() } } };
+    case 'cite':
+      // A reference, never a transition (FR-FL-050/051) — and the only way a recurrence relates
+      // to a `closed` item, so it must work on a terminal one.
+      return { $addToSet: { cites: body.citedId } };
+    case 'set-rank':
+      return { $set: { rank: body.rank } };
+    default:
+      return null;
+  }
+}
 
 async function applyNonTransition(
   id: string,
   adminUserId: string,
   body: NonTransitionRequest,
 ): Promise<ControllerResult> {
-  if (body.action === 'cite') {
-    // A citation is a REFERENCE, never a transition (FR-FL-050/051). It is also the only way a
-    // recurrence relates to a closed item, since `closed` never reopens — so it must work on a
-    // terminal item, which is why it never touches the stage graph.
-    const updated = await LifecycleItem.findOneAndUpdate(
-      { _id: id },
-      { $addToSet: { cites: body.citedId } },
-      { new: true },
-    ).lean();
+  const simple = simpleUpdateFor(body);
+  if (simple) {
+    const updated = await LifecycleItem.findOneAndUpdate({ _id: id }, simple, {
+      new: true,
+    }).lean();
     if (!updated) return problem(404, 'Not Found', 'No such lifecycle item.');
-    await auditRecord(adminUserId, 'lifecycle.edit', { id, type: 'lifecycle' });
+    const action = body.action === 'set-rank' ? 'lifecycle.rank' : 'lifecycle.edit';
+    await auditRecord(adminUserId, action, { id, type: 'lifecycle' });
     return { status: 200, body: updated };
   }
 
-  if (body.action === 'set-rank') {
-    const updated = await LifecycleItem.findOneAndUpdate(
-      { _id: id },
-      { $set: { rank: body.rank } },
-      { new: true },
-    ).lean();
-    if (!updated) return problem(404, 'Not Found', 'No such lifecycle item.');
-    await auditRecord(adminUserId, 'lifecycle.rank', { id, type: 'lifecycle' });
-    return { status: 200, body: updated };
+  // Everything not handled above is `edit-source`. Stated as a guard rather than assumed, so
+  // adding a non-transition action later fails here instead of falling into the wrong branch.
+  if (body.action !== 'edit-source') {
+    return problem(400, 'Invalid Request', 'Unrecognised action.');
   }
 
   // edit-source — allowed only BEFORE the record briefs (FR-FL-020). After that, clauses have
@@ -291,7 +319,12 @@ export async function applyAction(
   adminUserId: string,
   body: ActionRequest,
 ): Promise<ControllerResult> {
-  if (body.action === 'set-rank' || body.action === 'edit-source' || body.action === 'cite') {
+  if (
+    body.action === 'set-rank' ||
+    body.action === 'edit-source' ||
+    body.action === 'cite' ||
+    body.action === 'attach-artifact'
+  ) {
     return applyNonTransition(id, adminUserId, body);
   }
 
