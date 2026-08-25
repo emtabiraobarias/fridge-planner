@@ -14,6 +14,7 @@ let INVENTORY_GET: typeof import('../../app/api/v1/inventory/route').GET;
 let AccountErasure: typeof import('@server/models/account-erasure').AccountErasure;
 let AdminAuditLog: typeof import('@server/models/admin-audit-log').AdminAuditLog;
 let USER_KEYED_MODELS: typeof import('@server/lib/account-purge').USER_KEYED_MODELS;
+let ALL_USER_DATA_MODELS: typeof import('@server/lib/account-purge').ALL_USER_DATA_MODELS;
 
 beforeAll(async () => {
   mongod = await MongoMemoryServer.create();
@@ -27,7 +28,7 @@ beforeAll(async () => {
   ({ GET: INVENTORY_GET } = await import('../../app/api/v1/inventory/route'));
   ({ AccountErasure } = await import('@server/models/account-erasure'));
   ({ AdminAuditLog } = await import('@server/models/admin-audit-log'));
-  ({ USER_KEYED_MODELS } = await import('@server/lib/account-purge'));
+  ({ USER_KEYED_MODELS, ALL_USER_DATA_MODELS } = await import('@server/lib/account-purge'));
 });
 
 afterAll(async () => {
@@ -91,9 +92,11 @@ describe('export (FR-AD-017)', () => {
       data: Record<string, unknown[]>;
     };
 
-    // The export must name ALL six — the "no orphans" guarantee is only as good as
-    // this list, so it is asserted against the shared constant rather than a literal.
-    expect(body.collections.sort()).toEqual(USER_KEYED_MODELS.map((m) => m.name).sort());
+    // The export must name EVERY collection holding something about the user — deleted and
+    // detached alike — so it is asserted against the shared constant rather than a literal.
+    // Updated 2026-08-24: spec 012 D15 split the table in two, and the manifest must follow the
+    // export's CONTENTS (collectUserData spans both) or it under-reports what is held.
+    expect(body.collections.sort()).toEqual(ALL_USER_DATA_MODELS.map((m) => m.name).sort());
     expect(body.data['inventory-item']).toHaveLength(1);
     expect(body.data['grocery-list']).toHaveLength(1);
     expect(body.data['feedback-record']).toHaveLength(1);
@@ -181,8 +184,8 @@ describe('purge (FR-AD-018 "no orphans", FR-AD-023)', () => {
     const res = await PURGE(req('POST'));
     expect(res.status).toBe(200);
 
-    // Asserted across the shared table, so a seventh collection added later without
-    // being registered fails here rather than silently orphaning data.
+    // Asserted across the DELETE table only: the detached table is deliberately NOT emptied by
+    // a purge (D15 — work outlives the account), and is covered by account-purge-detach.test.ts.
     for (const { name, model } of USER_KEYED_MODELS) {
       expect(await model.countDocuments({ userId: 'user-a' }), `${name} not purged`).toBe(0);
     }

@@ -1,6 +1,6 @@
 import 'server-only';
 import { AccountErasure } from '../models/account-erasure';
-import { collectUserData, purgeUserData, USER_KEYED_MODELS } from '../lib/account-purge';
+import { collectUserData, purgeUserData, ALL_USER_DATA_MODELS } from '../lib/account-purge';
 import { record as auditRecord } from '../lib/audit';
 import { ERASURE_WINDOW_DAYS } from '../types/admin';
 import { problem, type ControllerResult } from '../http';
@@ -40,7 +40,9 @@ export async function adminExportUser(
     body: {
       userId: targetUserId,
       exportedAt: new Date().toISOString(),
-      collections: USER_KEYED_MODELS.map((m) => m.name),
+      // Both lists — deleted AND detached. Reporting only the delete-list would make the
+      // manifest disagree with `data` below, which collectUserData spans in full.
+      collections: ALL_USER_DATA_MODELS.map((m) => m.name),
       data,
     },
   };

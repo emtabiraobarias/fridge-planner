@@ -263,9 +263,18 @@ Indexes `{userId,stage}` and `{userId,updatedAt:-1}` serve the status view and `
 > became irreversible. Both in `src/server/types/admin.ts`; a test asserts the relationship
 > from the constants.
 
-> **Six user-keyed collections** (`lib/account-purge.ts` → `USER_KEYED_MODELS`):
-> inventory-item, meal-plan, grocery-list, ingredient-alias, feedback-record, pipeline-item.
-> **Adding a seventh means adding a line there**, or erasure silently orphans it.
+> **TWO lists in `lib/account-purge.ts`, with different semantics — put a new model in the
+> wrong one and you either leak data or destroy it:**
+> - `USER_KEYED_MODELS` (**deleted**): inventory-item, meal-plan, grocery-list, ingredient-alias,
+>   feedback-record.
+> - `USER_DETACHED_MODELS` (**detached, not deleted**): lifecycle-item.
+>
+> **Adding a model means adding a line to one of them** — omit it and erasure silently orphans
+> it. The split arrived with spec 012 D15: the lifecycle collection used to sit in the delete
+> list, so erasing a reporter destroyed every item their report had started, including maintainer
+> work in flight. A detached item is **not** an orphan for FR-AD-018's purposes — detachment is
+> the *defined* outcome, and the item keeps no reporter-identifying content while staying
+> advanceable and closable.
 
 ---
 
@@ -285,6 +294,7 @@ Copy `.env.example` → `.env` at the **repo root** (never inside `packages/`). 
 | `AUTH_ADMIN_ROLE` | `admin` | No (spec 011) |
 | `AUTH_ROLES_CLAIM` | `realm_access.roles` | No — dotted path to the role array in the JWT |
 | `AUTH_DEV_USER_ID` / `AUTH_DEV_ROLES` | — | **LOCAL DEV ONLY.** A browser can't send `x-user-id`. Read only on the dev branch of `resolveMode()`. **NEVER set in prod** |
+| `GITHUB_REPO` | `owner/name` — the repo whose published releases fill the closure picker (spec 012 D17). **Read-only, unauthenticated, no credential.** Unset ⇒ picker unavailable and closure falls back to free text; it must never block on a third party | No |
 | `NODE_ENV` · `LOG_LEVEL` · `REDIS_URL` | `development` · `info` · — | No (Redis is P2+) |
 
 Single same-origin process ⇒ **no `PORT`/`CORS_ORIGIN`/`BACKEND_URL`**.

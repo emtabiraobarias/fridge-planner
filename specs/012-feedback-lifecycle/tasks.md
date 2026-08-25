@@ -16,9 +16,9 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 [P] Add `GITHUB_REPO` (format `owner/name`, no credential) to `.env.example`, `docker-compose.yml`, `docker-compose.prod.yml` and `deploy/prod.env.example`
-- [ ] T002 [P] Add the `migrate:lifecycle-stages` script entry to `packages/client/package.json`
-- [ ] T003 [P] Document `GITHUB_REPO` in `CLAUDE.md` §6 env table and `docs/DEVELOPMENT.md`
+- [X] T001 [P] Add `GITHUB_REPO` (format `owner/name`, no credential) to `.env.example`, `docker-compose.yml`, `docker-compose.prod.yml` and `deploy/prod.env.example`
+- [X] T002 [P] Add the `migrate:lifecycle-stages` script entry to `packages/client/package.json`
+- [X] T003 [P] Document `GITHUB_REPO` in `CLAUDE.md` §6 env table and `docs/DEVELOPMENT.md`
 
 ---
 
@@ -28,17 +28,17 @@ Plan phases A + B. The stage graph is the single source of truth every story rea
 erasure correction lands here — **not** in US7 — because it fixes shipped behaviour that destroys
 data, and every story below adds more of that data.
 
-- [ ] T004 [P] **(RED)** Stage-graph legality matrix in `packages/client/tests/server/unit/lifecycle-stages.test.ts`: all 11 stages; every legal transition per data-model; every illegal one refused; `closed`/`dismissed`/`merged` accept nothing (FR-FL-001/002/003/049). Build the matrix **at module scope** — `it.each` expands at collection time, so a table built in `beforeAll` registers zero cases
-- [ ] T005 **(GREEN)** `packages/client/src/server/lib/lifecycle-stages.ts` — stages, legal-transition map, gate flags, terminal set, `parkedFromStage` restore. Controllers and tests both read this; a matrix duplicated in the test only proves someone typed it twice
-- [ ] T006 [P] **(RED)** Model tests in `packages/client/tests/server/unit/lifecycle-item-model.test.ts`: widened stage enum, `clauses`/`reply`/`closure`/`dismissalReason`/`mergedInto`/`cites`/`priority`/`reporterErasedAt`, `{userId,feedbackRecordId}` unique, new `{stage,updatedAt:-1}` index
-- [ ] T007 **(GREEN)** Rename `packages/client/src/server/models/pipeline-item.ts` → `lifecycle-item.ts` (same collection `pipeline_items`, research R1); widen enum, add fields and index. Keep the `mongoose.models` hot-reload guard — schema edits need a dev-server restart
-- [ ] T008 Migration `packages/client/scripts/migrate-lifecycle-stages.ts` mapping `approved → accepted`, idempotent, run as a one-off admin task — **never on startup**, where a failure is invisible
-- [ ] T009 [P] **(RED)** Purge tests in `packages/client/tests/server/unit/account-purge.test.ts`: the five delete-list models are deleted; the lifecycle item **survives**, loses reporter-identifying content, and gains `reporterErasedAt` (FR-FL-059/060)
-- [ ] T010 **(GREEN)** Split `packages/client/src/server/lib/account-purge.ts` into `USER_KEYED_MODELS` (delete) and `USER_DETACHED_MODELS` (detach). ⚠️ Erasure currently **deletes** lifecycle items, directly contradicting D15 (research R4)
-- [ ] T011 Update `CLAUDE.md` §5 — the "six user-keyed collections, adding a seventh means adding a line there" rule now covers **two lists with different semantics**; a future model filed under the wrong one either leaks or destroys data
-- [ ] T012 Extend `packages/client/src/server/lib/audit.ts` usage so every lifecycle transition records actor + time (FR-FL-005) via the existing append-only `record()`
+- [X] T004 [P] **(RED)** Stage-graph legality matrix in `packages/client/tests/server/unit/lifecycle-stages.test.ts`: all 11 stages; every legal transition per data-model; every illegal one refused; `closed`/`dismissed`/`merged` accept nothing (FR-FL-001/002/003/049). Build the matrix **at module scope** — `it.each` expands at collection time, so a table built in `beforeAll` registers zero cases
+- [X] T005 **(GREEN)** `packages/client/src/server/lib/lifecycle-stages.ts` — stages, legal-transition map, gate flags, terminal set, `parkedFromStage` restore. Controllers and tests both read this; a matrix duplicated in the test only proves someone typed it twice
+- [X] T006 [P] **(RED)** Model tests in `packages/client/tests/server/unit/lifecycle-item-model.test.ts`: widened stage enum, `clauses`/`reply`/`closure`/`dismissalReason`/`mergedInto`/`cites`/`priority`/`reporterErasedAt`, `{userId,feedbackRecordId}` unique, new `{stage,updatedAt:-1}` index
+- [X] T007 **(GREEN)** Rename `packages/client/src/server/models/pipeline-item.ts` → `lifecycle-item.ts` (same collection `pipeline_items`, research R1); widen enum, add fields and index. Keep the `mongoose.models` hot-reload guard — schema edits need a dev-server restart
+- [X] T008 Migration `packages/client/scripts/migrate-lifecycle-stages.ts` mapping `approved → accepted`, idempotent, run as a one-off admin task — **never on startup**, where a failure is invisible
+- [X] T009 [P] **(RED)** Purge tests in `packages/client/tests/server/unit/account-purge.test.ts`: the five delete-list models are deleted; the lifecycle item **survives**, loses reporter-identifying content, and gains `reporterErasedAt` (FR-FL-059/060)
+- [X] T010 **(GREEN)** Split `packages/client/src/server/lib/account-purge.ts` into `USER_KEYED_MODELS` (delete) and `USER_DETACHED_MODELS` (detach). ⚠️ Erasure currently **deletes** lifecycle items, directly contradicting D15 (research R4)
+- [X] T011 Update `CLAUDE.md` §5 — the "six user-keyed collections, adding a seventh means adding a line there" rule now covers **two lists with different semantics**; a future model filed under the wrong one either leaks or destroys data
+- [ ] T012 Extend `packages/client/src/server/lib/audit.ts` usage so every lifecycle transition records actor + time (FR-FL-005) via the existing append-only `record()` — **deferred into T014**: there is no controller yet to wire the call into, and a wrapper with no caller would be untestable
 
-**Checkpoint**: stage graph green, model migrated, erasure no longer destroys lifecycle work.
+**Checkpoint**: ✅ stage graph green (158 assertions), model migrated, erasure no longer destroys lifecycle work. T012 rides with T014.
 
 ---
 
