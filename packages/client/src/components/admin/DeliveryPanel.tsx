@@ -9,6 +9,7 @@ import {
 } from '../../services/lifecycle';
 import { ClosureComposer } from './ClosureComposer';
 import { ClauseVetting } from './ClauseVetting';
+import { StageFilter, STAGE_LABEL, type StageFilterValue } from './StageFilter';
 
 /**
  * Delivery — the second half of the maintainer surface (spec 012 US4, D7).
@@ -16,16 +17,6 @@ import { ClauseVetting } from './ClauseVetting';
  * Triage and delivery sit on ONE surface deliberately: splitting them would recreate the thing
  * `003` shipped, where an item's id appeared once at promotion and was never seen again.
  */
-
-const STAGE_LABEL: Record<string, string> = {
-  accepted: 'Accepted',
-  briefed: 'Briefed',
-  'in-spec': 'In spec',
-  'in-progress': 'In progress',
-  'in-review': 'In review',
-  shipped: 'Shipped',
-  parked: 'Parked',
-};
 
 interface Control {
   label: string;
@@ -83,6 +74,7 @@ export function DeliveryPanel(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [closing, setClosing] = useState<string | null>(null);
+  const [filter, setFilter] = useState<StageFilterValue>('all');
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -111,8 +103,11 @@ export function DeliveryPanel(): React.JSX.Element {
     }
   }
 
+  const visible = filter === 'all' ? items : items.filter((i) => i.stage === filter);
+
   return (
     <section aria-label="Delivery" className="mt-4">
+      <StageFilter stages={items.map((i) => i.stage)} value={filter} onChange={setFilter} />
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-heading text-h5 text-ink">Delivery</h2>
         <button
@@ -129,12 +124,14 @@ export function DeliveryPanel(): React.JSX.Element {
         </p>
       )}
       {loading && <p className="text-muted text-sm">Loading…</p>}
-      {!loading && !error && items.length === 0 && (
-        <p className="text-muted text-sm">Nothing in delivery.</p>
+      {!loading && !error && visible.length === 0 && (
+        <p className="text-muted text-sm">
+          {items.length === 0 ? 'Nothing in delivery.' : 'Nothing at this stage.'}
+        </p>
       )}
 
       <ul className="flex flex-col gap-2">
-        {items.map((item) => (
+        {visible.map((item) => (
           <li
             key={item._id}
             className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg bg-surface p-3"

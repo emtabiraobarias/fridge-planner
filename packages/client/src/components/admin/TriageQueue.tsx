@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { StageFilter, STAGE_LABEL, type StageFilterValue } from './StageFilter';
 import {
   applyLifecycleAction,
   fetchQueue,
@@ -29,43 +30,10 @@ import type { AdminFeedbackRow } from '../../services/admin';
  * enforcement (FR-FL-054).
  */
 
-const STAGE_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  new: 'New',
-  accepted: 'Accepted',
-  briefed: 'Briefed',
-  'in-spec': 'In spec',
-  'in-progress': 'In progress',
-  'in-review': 'In review',
-  shipped: 'Shipped',
-  closed: 'Closed',
-  dismissed: 'Dismissed',
-  merged: 'Merged',
-  parked: 'Parked',
-};
-
-/** Funnel order, so the chips read as a journey rather than an alphabetised set. */
-const STAGE_ORDER: Array<LifecycleStage | 'draft'> = [
-  'draft',
-  'new',
-  'accepted',
-  'briefed',
-  'in-spec',
-  'in-progress',
-  'in-review',
-  'shipped',
-  'closed',
-  'dismissed',
-  'merged',
-  'parked',
-];
-
 const REASONS: { value: DismissalReason; label: string }[] = [
   { value: 'no-action-required', label: 'No action required' },
   { value: 'declined', label: 'Declined' },
 ];
-
-type Filter = LifecycleStage | 'draft' | 'all';
 
 interface Row {
   id: string;
@@ -113,7 +81,7 @@ export function TriageQueue({ drafts, onSelectUser }: TriageQueueProps): React.J
   const [items, setItems] = useState<LifecycleSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useState<StageFilterValue>('all');
   // Two-step dismiss: the reason is part of the decision, so it is chosen before the action
   // fires rather than defaulted (FR-FL-016).
   const [dismissing, setDismissing] = useState<string | null>(null);
@@ -143,21 +111,6 @@ export function TriageQueue({ drafts, onSelectUser }: TriageQueueProps): React.J
     [drafts, items],
   );
 
-  /** Only stages actually present get a chip — a filter that can only ever return nothing is
-   *  noise, and this list has twelve possible stages. */
-  const chips = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const r of rows) counts.set(r.stage, (counts.get(r.stage) ?? 0) + 1);
-    return [
-      { value: 'all' as Filter, label: 'All', count: rows.length },
-      ...STAGE_ORDER.filter((s) => counts.has(s)).map((s) => ({
-        value: s as Filter,
-        label: STAGE_LABEL[s] ?? s,
-        count: counts.get(s) ?? 0,
-      })),
-    ];
-  }, [rows]);
-
   const visible = filter === 'all' ? rows : rows.filter((r) => r.stage === filter);
 
   async function act(id: string, action: Parameters<typeof applyLifecycleAction>[1]): Promise<void> {
@@ -173,21 +126,7 @@ export function TriageQueue({ drafts, onSelectUser }: TriageQueueProps): React.J
 
   return (
     <section aria-label="Triage queue">
-      <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filter by stage">
-        {chips.map((c) => (
-          <button
-            key={c.value}
-            type="button"
-            onClick={() => setFilter(c.value)}
-            aria-pressed={filter === c.value}
-            className={`rounded-full px-4 py-2 text-[13px] font-semibold ${
-              filter === c.value ? 'bg-accent text-bg' : 'bg-accent-100 text-accent-800'
-            }`}
-          >
-            {c.label} ({c.count})
-          </button>
-        ))}
-      </div>
+      <StageFilter stages={rows.map((r) => r.stage)} value={filter} onChange={setFilter} />
 
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-heading text-h5 text-ink">Triage queue</h2>
