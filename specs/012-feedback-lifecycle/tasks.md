@@ -70,17 +70,17 @@ data, and every story below adds more of that data.
 **Goal**: a reporter sees where each of their reports stands, plus any maintainer reply.
 **Independent test**: submit as reporter; advance and reply as maintainer; see the new stage and reply, and no other reporter's report anywhere.
 
-- [ ] T025 [P] [US2] **(RED)** `packages/client/tests/server/lifecycle-reporter.test.ts`: own items only (FR-FL-038); another user's id → **404 not 403**, so existence is not disclosed; reporter-facing stage labels (FR-FL-035); zero cross-user visibility (SC-FL-003)
-- [ ] T026 [US2] **(GREEN)** Reporter projection in `packages/client/src/server/controllers/lifecycle.ts` — a projection, never a client-side filter (research R5)
-- [ ] T027 [US2] Route handlers `packages/client/app/api/v1/lifecycle/route.ts` and `[id]/route.ts` — `authenticate()` only, no admin guard
-- [ ] T028 [P] [US2] **(RED)** Reply tests in `packages/client/tests/server/lifecycle-reply.test.ts`: maintainer writes; reporter sees it attributed (FR-FL-036/037); non-admin cannot write
-- [ ] T029 [US2] **(GREEN)** `PUT /admin/lifecycle/:id/reply` handler + controller support
-- [ ] T030 [US2] Reporter-facing stage vocabulary in `packages/client/src/lib/lifecycle-labels.ts` — "Being specified" vs "Being built" is the distinction D12 buys the reporter (FR-FL-035)
-- [ ] T031 [US2] **(RED→GREEN)** Make `packages/client/src/components/feedback/PipelineStatusView.tsx` **read-only** for reporters and point it at `/lifecycle`; transition controls live only on the maintainer surface (FR-FL-053, research R6)
-- [ ] T074 [US2] **(RED→GREEN)** Dismissal reason in the reporter projection — `packages/client/tests/server/lifecycle-reporter.test.ts` + `packages/client/src/server/controllers/lifecycle.ts`: a dismissed reporter sees the **reason**, not just the stage (FR-FL-065). Found by validating against the design artifact, which labels that exit "reason sent to reporter" — for declined work the reason **is** the closing of the loop, and a reporter seeing only `dismissed` learns nothing
+- [X] T025 [P] [US2] **(RED)** `packages/client/tests/server/lifecycle-reporter.test.ts`: own items only (FR-FL-038); another user's id → **404 not 403**, so existence is not disclosed; reporter-facing stage labels (FR-FL-035); zero cross-user visibility (SC-FL-003)
+- [X] T026 [US2] **(GREEN)** Reporter projection in `packages/client/src/server/controllers/lifecycle.ts` — a projection, never a client-side filter (research R5)
+- [X] T027 [US2] Route handlers `packages/client/app/api/v1/lifecycle/route.ts` and `[id]/route.ts` — `authenticate()` only, no admin guard
+- [X] T028 [P] [US2] **(RED)** Reply tests in `packages/client/tests/server/lifecycle-reply.test.ts`: maintainer writes; reporter sees it attributed (FR-FL-036/037); non-admin cannot write
+- [X] T029 [US2] **(GREEN)** `PUT /admin/lifecycle/:id/reply` handler + controller support
+- [X] T030 [US2] Reporter-facing stage vocabulary in `packages/client/src/lib/lifecycle-labels.ts` — "Being specified" vs "Being built" is the distinction D12 buys the reporter (FR-FL-035)
+- [X] T031 [US2] **(RED→GREEN)** Make `packages/client/src/components/feedback/PipelineStatusView.tsx` **read-only** for reporters and point it at `/lifecycle`; transition controls live only on the maintainer surface (FR-FL-053, research R6)
+- [X] T074 [US2] **(RED→GREEN)** Dismissal reason in the reporter projection — `packages/client/tests/server/lifecycle-reporter.test.ts` + `packages/client/src/server/controllers/lifecycle.ts`: a dismissed reporter sees the **reason**, not just the stage (FR-FL-065). Found by validating against the design artifact, which labels that exit "reason sent to reporter" — for declined work the reason **is** the closing of the loop, and a reporter seeing only `dismissed` learns nothing
 - [ ] T032 [US2] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — reporter sees stage + reply, the **dismissal reason** when dismissed, and **cannot see another reporter's report**
 
-**Checkpoint**: the loop returns something to the reporter — D1's premise is met.
+**Checkpoint**: ✅ the loop returns something to the reporter — D1's premise is met. T032 (Playwright) pending a build.
 
 ---
 

@@ -21,6 +21,12 @@ vi.mock('../../src/services/pipeline', () => ({
 }));
 
 import { startFeedback, fetchFeedbackList } from '../../src/services/feedback';
+// Spec 012 US2: the page now renders the reporter's read-only status list, which fetches on
+// mount. Unmocked it fails and renders its own error alert, colliding with the chat's.
+vi.mock('../../src/services/lifecycle', () => ({
+  fetchOwnLifecycle: vi.fn().mockResolvedValue([]),
+}));
+
 import { fetchPipeline } from '../../src/services/pipeline';
 
 const mockStart = vi.mocked(startFeedback);

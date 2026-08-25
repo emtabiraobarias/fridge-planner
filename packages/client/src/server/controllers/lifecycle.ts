@@ -246,3 +246,101 @@ export async function applyAction(
 
   return { status: 200, body: updated };
 }
+
+
+// ─── Reporter-facing reads (US2) ──────────────────────────────────────────────
+
+export interface ReporterView {
+  _id: string;
+  sourceTitle: string;
+  stage: LifecycleStage;
+  stageLabel: string;
+  dismissalReason?: string;
+  reply?: { text: string; at: Date };
+  closure?: { excerpt: string; releaseTag?: string; releaseUrl?: string };
+  mergedTargetStage?: LifecycleStage;
+  updatedAt: Date;
+}
+
+/** Reporter-facing stage vocabulary (FR-FL-035). "Being specified" vs "being built" is the
+ *  distinction D12 buys the reporter — it is the difference they actually feel. */
+const REPORTER_LABEL: Record<LifecycleStage, string> = {
+  new: 'Received',
+  accepted: 'Accepted',
+  briefed: 'Being specified',
+  'in-spec': 'Being specified',
+  'in-progress': 'Being built',
+  'in-review': 'In review',
+  shipped: 'Shipped',
+  closed: 'Closed',
+  dismissed: 'Not being built',
+  merged: 'Merged with another report',
+  parked: 'Paused',
+};
+
+/**
+ * Project one item for its reporter.
+ *
+ * A PROJECTION, never a client-side filter (research R5). The cheapest way to violate D1's
+ * reporter isolation is to send the whole document and hide fields in the UI, so a merged item
+ * resolves its target's stage HERE and the target document never leaves the process.
+ */
+async function toReporterView(item: ILifecycleItem & { _id: unknown }): Promise<ReporterView> {
+  const view: ReporterView = {
+    _id: String(item._id),
+    sourceTitle: item.sourceTitle,
+    stage: item.stage,
+    stageLabel: REPORTER_LABEL[item.stage],
+    updatedAt: item.updatedAt,
+    // The reason IS the closing of the loop for declined work (FR-FL-065). Without it a
+    // reporter sees only "not being built" and learns nothing.
+    ...(item.dismissalReason ? { dismissalReason: item.dismissalReason } : {}),
+    ...(item.reply ? { reply: { text: item.reply.text, at: item.reply.at } } : {}),
+    ...(item.closure
+      ? {
+          closure: {
+            excerpt: item.closure.excerpt,
+            ...(item.closure.releaseTag ? { releaseTag: item.closure.releaseTag } : {}),
+            ...(item.closure.releaseUrl ? { releaseUrl: item.closure.releaseUrl } : {}),
+          },
+        }
+      : {}),
+  };
+
+  if (item.stage === 'merged' && item.mergedInto) {
+    const target = await LifecycleItem.findById(item.mergedInto).select('stage').lean();
+    // Stage ONLY — no id, title, text or reporter (FR-FL-019, D14).
+    if (target) view.mergedTargetStage = target.stage;
+  }
+
+  return view;
+}
+
+/** GET /lifecycle — the caller's OWN items, never anyone else's (FR-FL-034/038). */
+export async function listOwn(userId: string): Promise<ControllerResult> {
+  const items = await LifecycleItem.find({ userId }).sort({ updatedAt: -1 }).lean();
+  return { status: 200, body: { items: await Promise.all(items.map(toReporterView)) } };
+}
+
+/** GET /lifecycle/:id — 404 for another reporter's item, so existence is not disclosed. */
+export async function getOwn(userId: string, id: string): Promise<ControllerResult> {
+  const item = await LifecycleItem.findOne({ _id: id, userId }).lean();
+  if (!item) return problem(404, 'Not Found', 'No such item.');
+  return { status: 200, body: await toReporterView(item) };
+}
+
+/** PUT /admin/lifecycle/:id/reply — the maintainer writes to the reporter (FR-FL-036). */
+export async function setReply(
+  id: string,
+  adminUserId: string,
+  text: string,
+): Promise<ControllerResult> {
+  const updated = await LifecycleItem.findOneAndUpdate(
+    { _id: id },
+    { $set: { reply: { text, byUserId: adminUserId, at: new Date() } } },
+    { new: true },
+  ).lean();
+  if (!updated) return problem(404, 'Not Found', 'No such lifecycle item.');
+  await auditRecord(adminUserId, 'lifecycle.edit', { id, type: 'lifecycle' });
+  return { status: 200, body: { ok: true } };
+}

@@ -81,3 +81,24 @@ export async function applyLifecycleAction(
   });
   return (await ensureOk(res, 'update this item').json()) as LifecycleSummary;
 }
+
+export interface ReporterItem {
+  _id: string;
+  sourceTitle: string;
+  stage: LifecycleStage;
+  /** Reporter-facing wording, decided server-side (FR-FL-035). */
+  stageLabel: string;
+  dismissalReason?: DismissalReason;
+  reply?: { text: string; at: string };
+  closure?: { excerpt: string; releaseTag?: string; releaseUrl?: string };
+  /** Present only for a merged item — the target's stage and nothing else (FR-FL-019). */
+  mergedTargetStage?: LifecycleStage;
+  updatedAt: string;
+}
+
+/** The reporter's own items. Not admin-guarded — this is what they get back for reporting. */
+export async function fetchOwnLifecycle(): Promise<ReporterItem[]> {
+  const res = await apiFetch('/api/v1/lifecycle');
+  const body = (await ensureOk(res, 'load your reports').json()) as { items: ReporterItem[] };
+  return body.items;
+}
