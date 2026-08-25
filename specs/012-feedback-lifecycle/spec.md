@@ -353,9 +353,13 @@ requirement, one test, matching the repo convention of naming the requirement in
 
 #### The stage model
 
-- **FR-FL-001**: The system shall represent each accepted report as a **lifecycle item** whose
-  stage is exactly one of `new`, `accepted`, `briefed`, `in-spec`, `in-progress`, `in-review`,
-  `shipped`, `closed`, `dismissed`, `parked`, `merged`.
+- **FR-FL-001**: The system shall represent each **completed** report as a **lifecycle item**
+  whose stage is exactly one of `new`, `accepted`, `briefed`, `in-spec`, `in-progress`,
+  `in-review`, `shipped`, `closed`, `dismissed`, `parked`, `merged`.
+  > *Corrected 2026-08-24.* This read "each **accepted** report", which contradicted its own
+  > stage list: if an item existed only once accepted, `new` was unreachable, and the triage
+  > queue would have had nothing to list until after the decision it exists to support. An item
+  > is created when the record reaches `complete`, at stage `new`; gate 1 then accepts it.
 - **FR-FL-002**: The system shall treat `closed`, `dismissed` and `merged` as terminal stages.
 - **FR-FL-003**: When a transition is requested that is not legal from the item's current
   stage, then the system shall refuse it and leave the stage unchanged.
@@ -484,6 +488,23 @@ requirement, one test, matching the repo convention of naming the requirement in
   items from reporter-identifying content.
 - **FR-FL-061**: While an item is detached from an erased reporter, the system shall keep it
   advanceable and closable.
+
+#### The source record *(added 2026-08-24)*
+
+`003` owns the record's `draft → complete → reviewed` states, but `reviewed` was reached "on first
+promotion" — an action this spec removed. The transition therefore had no owner: it was asserted
+in `012`'s API contract with no requirement behind it. These give it one. Numbering is
+append-only; nothing above is renumbered.
+
+- **FR-FL-062**: When a report is accepted, the system shall set its source record's status to
+  `reviewed`.
+- **FR-FL-063**: When a report is dismissed, the system shall set its source record's status to
+  `reviewed`.
+
+> **Why dismissal counts too.** `reviewed` marks *a maintainer has looked at this*, which is what
+> `003` meant by making it a side effect of triage rather than a separate workflow. Setting it
+> only on acceptance would leave every dismissed record sitting at `complete`, indistinguishable
+> from one nobody has read — and dismissal is a decision, not an absence of one.
 
 ### Key Entities
 
