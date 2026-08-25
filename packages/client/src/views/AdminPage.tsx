@@ -1,26 +1,13 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useIsAdmin } from '../hooks/useIsAdmin';
-import { FeedbackTriageList } from '../components/admin/FeedbackTriageList';
 import { UserDataPanel } from '../components/admin/UserDataPanel';
 import { OpsPanel } from '../components/admin/OpsPanel';
 import { AccountsPanel } from '../components/admin/AccountsPanel';
 import { SettingsPanel } from '../components/admin/SettingsPanel';
 import { TriageQueue } from '../components/admin/TriageQueue';
 import { DeliveryPanel } from '../components/admin/DeliveryPanel';
-import {
-  fetchAdminFeedback,
-  promoteFeedback,
-  type AdminFeedbackRow,
-  type AdminFeedbackStatus,
-} from '../services/admin';
-
-const FILTERS: Array<{ label: string; value: AdminFeedbackStatus | 'all' }> = [
-  { label: 'All', value: 'all' },
-  { label: 'Complete', value: 'complete' },
-  { label: 'Draft', value: 'draft' },
-  { label: 'Reviewed', value: 'reviewed' },
-];
+import { fetchAdminFeedback, type AdminFeedbackRow } from '../services/admin';
 
 type Tab = 'triage' | 'delivery' | 'ops' | 'accounts' | 'settings';
 
@@ -45,49 +32,32 @@ const TABS: Array<{ label: string; value: Tab }> = [
 ];
 
 interface TriageTabProps {
-  rows: AdminFeedbackRow[];
+  drafts: AdminFeedbackRow[];
   loading: boolean;
-  filter: AdminFeedbackStatus | 'all';
-  busyId: string | null;
   supportUserId: string | null;
-  onFilter: (value: AdminFeedbackStatus | 'all') => void;
-  onPromote: (id: string) => void;
-  onSelect: (id: string) => void;
+  onSelectUser: (userId: string) => void;
   onCloseSupport: () => void;
 }
 
+/**
+ * Triage is ONE list (spec 012 US1, FR-FL-023).
+ *
+ * It carried two until 2026-08-26: the spec-011 record list filtered by record `status`, with
+ * the lifecycle queue stacked underneath it. The queue ignored the filter, so changing it
+ * emptied the top list while the bottom one stayed put — indistinguishable from a filter that
+ * does nothing. Since FR-FL-001 enqueues every completed record automatically, the record list
+ * had no action of its own left to offer, so the queue absorbed it: attribution, the
+ * click-through to the reporter's kitchen, and filtering — now by stage, per FR-AD-009.
+ */
 function TriageTab(props: TriageTabProps): React.JSX.Element {
-  const { rows, loading, filter, busyId, supportUserId } = props;
+  const { drafts, loading, supportUserId } = props;
   return (
     <>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => props.onFilter(f.value)}
-            aria-pressed={filter === f.value}
-            className={`rounded-full px-4 py-2 text-[13px] font-semibold ${
-              filter === f.value ? 'bg-accent text-bg' : 'bg-accent-100 text-accent-800'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-5">
-        {loading ? (
-          <p className="text-[14px] text-ink-soft">Loading…</p>
-        ) : (
-          <FeedbackTriageList
-            rows={rows}
-            busyId={busyId}
-            onPromote={props.onPromote}
-            onSelect={props.onSelect}
-          />
-        )}
-      </div>
+      {loading ? (
+        <p className="text-[14px] text-ink-soft">Loading…</p>
+      ) : (
+        <TriageQueue drafts={drafts} onSelectUser={props.onSelectUser} />
+      )}
 
       {/* US3: open the reporter's kitchen read-only, so "my grocery list is wrong"
           can actually be investigated instead of guessed at (FR-AD-015). */}
@@ -111,19 +81,17 @@ function TriageTab(props: TriageTabProps): React.JSX.Element {
  */
 export function AdminPage(): React.JSX.Element {
   const isAdmin = useIsAdmin();
-  const [rows, setRows] = useState<AdminFeedbackRow[]>([]);
-  const [filter, setFilter] = useState<AdminFeedbackStatus | 'all'>('all');
+  /** Records with no lifecycle item yet. This request doubles as the FR-AD-002 probe below. */
+  const [drafts, setDrafts] = useState<AdminFeedbackRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [supportUserId, setSupportUserId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('triage');
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const next = await fetchAdminFeedback(filter === 'all' ? {} : { status: filter });
-      setRows(next);
+      setDrafts(await fetchAdminFeedback({ status: 'draft' }));
       setError(null);
     } catch {
       // Includes the 403 an ordinary user gets here — the server's refusal is what
@@ -132,26 +100,11 @@ export function AdminPage(): React.JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
-
-  const handlePromote = useCallback(
-    async (id: string): Promise<void> => {
-      setBusyId(id);
-      try {
-        await promoteFeedback(id);
-        await load();
-      } catch {
-        setError('Could not promote that report. It may already be in the pipeline.');
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [load],
-  );
 
   if (isAdmin === false || error) {
     return (
@@ -192,21 +145,13 @@ export function AdminPage(): React.JSX.Element {
       <div className="mt-5">
         {tab === 'triage' && (
           <TriageTab
-            rows={rows}
+            drafts={drafts}
             loading={loading}
-            filter={filter}
-            busyId={busyId}
             supportUserId={supportUserId}
-            onFilter={setFilter}
-            onPromote={(id) => void handlePromote(id)}
-            onSelect={(id) => setSupportUserId(rows.find((r) => r._id === id)?.userId ?? null)}
+            onSelectUser={setSupportUserId}
             onCloseSupport={() => setSupportUserId(null)}
           />
         )}
-        {/* Spec 012 US1. The lifecycle queue sits alongside the record list rather than in its
-            own tab: D7 puts triage AND delivery on one maintainer surface, and splitting the
-            two halves of triage across tabs would undo that. */}
-        {tab === 'triage' && <TriageQueue />}
         {/* D7: triage AND delivery on one maintainer surface (FR-FL-056). Looked up rather than
             chained — each added tab was another branch in an already-long component. */}
         {SIMPLE_TABS[tab]?.()}
