@@ -55,8 +55,9 @@
 
 ## Known open items (tracked, not blocking)
 
-- [ ] **D18 modal placement** — ask the consent question in the modal before sending, or send
-      first and ask only if the assistant returned a question. Recorded in Clarifications;
-      resolve during planning, not in this spec.
+- [x] **D18 modal placement** — **RESOLVED 2026-08-24 (PR #82)**: asked in the capture modal,
+      before the note is sent. The send-first alternative was rejected on evidence — the agent
+      mandates a clarifying question whenever detail is missing, so it would have asked nearly
+      every time anyway, after a wait bounded by the 60s agent timeout.
 - [ ] **Playwright coverage** of the primary lifecycle journey is a standing gate and belongs
       to the implementation story tasks on `impl/nextjs`, not to this branch.

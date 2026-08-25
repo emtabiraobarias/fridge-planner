@@ -29,6 +29,13 @@ This spec defines that lifecycle once, end to end, and lets the surfaces fall ou
 exists.** `011` continues to own *who may act* (the administrator role, verified-claim
 sourcing, refusal semantics, the audit trail); this spec defines *what those actions are*.
 
+> **Glossary — two words, one person.** This spec says **maintainer** for the human doing
+> lifecycle work, and **administrator** for the privilege that permits it. They are the same
+> account: `011` defines the administrator role, and every maintainer action in this spec is
+> administrator-guarded. The split is deliberate — it keeps *what the work is* separable from
+> *who is allowed to do it*, so a future graded-role change touches `011` alone. **Operator**
+> appears only when quoting the person who commissioned the work.
+
 ---
 
 ## Clarifications
@@ -404,7 +411,12 @@ requirement, one test, matching the repo convention of naming the requirement in
   its structured fields.
 - **FR-FL-021**: When a maintainer edits a record, the system shall attribute the edit to that
   maintainer.
-- **FR-FL-022**: The system shall allow the maintainer to order the triage queue by priority.
+- **FR-FL-022**: The system shall allow the maintainer to assign each item a priority of `P1`,
+  `P2` or `P3`, and shall order the triage queue by it.
+  > *Scale named 2026-08-24 (analyze finding U1).* It previously said only "order by priority",
+  > leaving the values to the implementation — which had already invented `P1`/`P2`/`P3` in the
+  > data model. Reusing `003` `FR-F-003`'s existing record priority scale rather than adding a
+  > second vocabulary for the same idea.
 - **FR-FL-023**: The system shall present the triage queue across all reporters.
 
 #### Drafting and vetting at `briefed`
@@ -455,7 +467,11 @@ requirement, one test, matching the repo convention of naming the requirement in
 - **FR-FL-044**: If the release list is unavailable, then the system shall allow closure with
   free text and shall state why the list was unavailable.
 - **FR-FL-045**: The system shall never block closure on the availability of a third party.
-- **FR-FL-046**: The system shall cache the release list.
+- **FR-FL-046**: The system shall serve the release list from a cache with a bounded maximum
+  staleness, and shall not call the third party on every request.
+  > *Bounded 2026-08-24 (analyze finding A1).* "Shall cache" alone was not testable — any
+  > behaviour satisfies it. The bound stays a duration the implementation chooses (currently one
+  > hour) because the requirement is about not hammering a third party, not about a number.
 - **FR-FL-047**: The system shall report the release-list dependency in the readiness check
   alongside the database and the agents.
 - **FR-FL-048**: When an item is closed, the system shall show the reporter the excerpt and the
