@@ -21,6 +21,7 @@ The caller's own items. Never another reporter's, in any stage (`FR-FL-038`, `SC
 { "items": [ { "_id": "…", "sourceTitle": "…", "stage": "in-progress",
                "stageLabel": "Being built",          // reporter-facing language (FR-FL-035)
                "reply": { "text": "…", "at": "…" },  // if written (FR-FL-037)
+               "dismissalReason": "declined",        // if dismissed (FR-FL-065)
                "closure": { "excerpt": "…", "releaseUrl": "…" } } ] }   // if closed (FR-FL-048)
 ```
 
@@ -62,6 +63,7 @@ The single action endpoint. Discriminated union, validated by Zod, applied as an
 | `approve-spec` | `in-spec` → `in-progress` | — | **Gate 2** |
 | `reject-spec` | `in-spec` → `briefed` | `{note?}` | Returns to the clauses, never to the reporter (`FR-FL-014`) |
 | `approve-release` | `in-review` → `shipped` | — | **Gate 3** |
+| `reject-release` | `in-review` → `in-progress` | `{note?}` | "Changes needed" — returns to the work, never to the reporter (`FR-FL-064`) |
 | `close` | `shipped` → `closed` | `{excerpt, releaseTag?, releaseFallbackText?}` | Terminal (`FR-FL-049`) |
 | `park` | any active → `parked` | — | Records `parkedFromStage` |
 | `reopen` | `parked` → *prior* | — | Restores the exact stage |
@@ -145,5 +147,8 @@ One test per row, each naming its requirement in the test name:
 - [ ] Closure succeeds with the release list unavailable — `FR-FL-044`, `SC-FL-008`
 - [ ] Erased reporter's item survives, advanceable, no identifying content — `SC-FL-010`
 - [ ] No action performs a repository write — `SC-FL-007`
+- [ ] `reject-release` returns `in-review` → `in-progress` — `FR-FL-064`
+- [ ] A dismissed reporter sees the **reason**, not just the stage — `FR-FL-065`
+- [ ] A `complete` record is exportable before reaching `briefed` — `FR-FL-066`
 - [ ] Accepting sets the source record to `reviewed` — `FR-FL-062`
 - [ ] **Dismissing** sets the source record to `reviewed` — `FR-FL-063`

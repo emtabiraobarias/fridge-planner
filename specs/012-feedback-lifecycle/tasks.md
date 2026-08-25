@@ -50,10 +50,10 @@ data, and every story below adds more of that data.
 - [ ] T013 [P] [US1] **(RED)** Contract tests in `packages/client/tests/server/lifecycle-triage.test.ts`: accept `new→accepted` (FR-FL-008); dismiss with each reason, stored distinguishably (FR-FL-016/017); illegal transition → 409 unchanged (FR-FL-003); concurrent transitions → exactly one applies (FR-FL-004); non-admin → **403 not 401** (FR-FL-055). Reset the limiter key in `beforeEach` — it is module-level state surviving between tests
 - [ ] T014 [US1] **(GREEN)** `packages/client/src/server/controllers/lifecycle.ts` — atomic guarded `findOneAndUpdate` per action, `problem()` refusals, `isGateApproval` derived server-side (FR-FL-013)
 - [ ] T015 [US1] Create a lifecycle item at stage `new` when a record reaches `complete` (research R2), in `packages/client/src/server/controllers/feedback.ts`
-- [ ] T016 [P] [US1] **(RED)** Queue tests in `packages/client/tests/server/admin-lifecycle.test.ts`: cross-user listing (FR-FL-023), `?stage=`/`?priority=` filters, priority ordering (FR-FL-022)
+- [ ] T016 [P] [US1] **(RED)** Queue tests in `packages/client/tests/server/admin-lifecycle.test.ts`: cross-user listing (FR-FL-023), `?stage=` filter, **rank ordering** (FR-FL-022 — a ranked queue, not a P1/P2/P3 label scale)
 - [ ] T017 [US1] **(GREEN)** `packages/client/src/server/controllers/admin-lifecycle.ts` — cross-user queue, summaries without the transition log
 - [ ] T018 [US1] Route handlers `packages/client/app/api/v1/admin/lifecycle/route.ts` (GET queue) and `[id]/route.ts` (GET full · PATCH action union), both `requirePrincipalAdmin` + `withRoute` + `connectDb`
-- [ ] T019 [US1] `edit-source` and `set-priority` actions in the controller — edits allowed pre-`briefed` only, attributed to the maintainer (FR-FL-020/021)
+- [ ] T019 [US1] `edit-source` and `set-rank` actions in the controller — edits allowed pre-`briefed` only, attributed to the maintainer (FR-FL-020/021); `set-rank` positions the item in the queue (FR-FL-022)
 - [ ] T020 [US1] Refuse deletion of a feedback record whose item is in an active stage (FR-FL-006) in `packages/client/src/server/controllers/feedback.ts`
 - [ ] T021 [P] [US1] `packages/client/src/services/lifecycle.ts` — browser fetchers via `apiFetch`/`ensureOk`
 - [ ] T022 [US1] **(RED→GREEN)** `packages/client/tests/components/admin/TriageQueue.test.tsx` + `packages/client/src/components/admin/TriageQueue.tsx` — queue, accept, dismiss-with-reason, priority
@@ -77,7 +77,8 @@ data, and every story below adds more of that data.
 - [ ] T029 [US2] **(GREEN)** `PUT /admin/lifecycle/:id/reply` handler + controller support
 - [ ] T030 [US2] Reporter-facing stage vocabulary in `packages/client/src/lib/lifecycle-labels.ts` — "Being specified" vs "Being built" is the distinction D12 buys the reporter (FR-FL-035)
 - [ ] T031 [US2] **(RED→GREEN)** Make `packages/client/src/components/feedback/PipelineStatusView.tsx` **read-only** for reporters and point it at `/lifecycle`; transition controls live only on the maintainer surface (FR-FL-053, research R6)
-- [ ] T032 [US2] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — reporter sees stage + reply, and **cannot see another reporter's report**
+- [ ] T074 [US2] **(RED→GREEN)** Dismissal reason in the reporter projection — `packages/client/tests/server/lifecycle-reporter.test.ts` + `packages/client/src/server/controllers/lifecycle.ts`: a dismissed reporter sees the **reason**, not just the stage (FR-FL-065). Found by validating against the design artifact, which labels that exit "reason sent to reporter" — for declined work the reason **is** the closing of the loop, and a reporter seeing only `dismissed` learns nothing
+- [ ] T032 [US2] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — reporter sees stage + reply, the **dismissal reason** when dismissed, and **cannot see another reporter's report**
 
 **Checkpoint**: the loop returns something to the reporter — D1's premise is met.
 
@@ -97,6 +98,7 @@ data, and every story below adds more of that data.
 - [ ] T039 [US3] Route handlers `packages/client/app/api/v1/admin/lifecycle/[id]/clauses/route.ts` and `clauses/[provisionalId]/route.ts`
 - [ ] T040 [US3] Extend `packages/client/src/server/lib/feedback-export.ts` so the brief carries the vetted clauses (FR-FL-032), and `[id]/brief/route.ts` serving `text/markdown` — **content a human runs; the system never executes it** (FR-FL-033)
 - [ ] T041 [US3] **(RED→GREEN)** `packages/client/tests/components/admin/ClauseVetting.test.tsx` + `packages/client/src/components/admin/ClauseVetting.tsx` — each clause rendered **beside its `derivedFrom` text**. Vetting is a comparison, not a proofread: well-formed EARS is easy to accept uncritically, and a model can produce beautifully-shaped clauses that are subtly wrong
+- [ ] T076 [US3] **(RED→GREEN)** Export any `complete` record regardless of stage — `packages/client/tests/server/lifecycle-export.test.ts` + `packages/client/app/api/v1/admin/lifecycle/[id]/export/route.ts`: a completed record is exportable **before** reaching `briefed` (FR-FL-066), reusing `lib/feedback-export.ts`. Brief assembly (T040) is the richer artifact built on top, not a replacement. Found by validating against the design artifact: a thin forced-finalize record is "still exportable, promotable and complete"
 - [ ] T042 [US3] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — vet clauses through the UI; assert advance is **blocked** until the last one is vetted
 
 **Checkpoint**: `briefed` is a real stage doing real work (D11/D20).
@@ -113,7 +115,8 @@ data, and every story below adds more of that data.
 - [ ] T045 [P] [US4] **(RED)** `packages/client/tests/server/unit/lifecycle-invariants.test.ts` — **no action performs any repository write** (SC-FL-007, FR-FL-057); `attach-artifact` stores a string and never dereferences it; report text never reaches an agent as instruction (FR-FL-058); **no lifecycle action emits a notification outside the application** (FR-FL-039 — a negative requirement, so it needs an explicit assertion or nothing ever checks it); every maintainer capability refuses a non-admin at the server regardless of surface (FR-FL-054, SC-FL-009)
 - [ ] T046 [US4] **(RED→GREEN)** `packages/client/tests/components/admin/DeliveryPanel.test.tsx` + `packages/client/src/components/admin/DeliveryPanel.tsx` — stage, transition controls, artifacts
 - [ ] T047 [US4] Add the delivery tab to `packages/client/src/views/AdminPage.tsx`, completing D7's combined triage-and-delivery surface (FR-FL-056)
-- [ ] T048 [US4] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — full gate walk through the UI to `shipped`
+- [ ] T075 [US4] **(RED→GREEN)** `reject-release` action — `packages/client/tests/server/lifecycle-gates.test.ts` + `packages/client/src/server/lib/lifecycle-stages.ts` + `controllers/lifecycle.ts`: `in-review → in-progress` with an optional note (FR-FL-064). Found by validating against the design artifact, whose spine shows an edge from gate 3 back to `in-progress` labelled "changes needed" — without it, review finding a problem had nowhere to send the work. Mirrors `reject-spec` at gate 2 and, like it, returns to the work rather than to the reporter
+- [ ] T048 [US4] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — full gate walk through the UI to `shipped`, **including a gate-3 rejection round trip**
 
 ---
 
@@ -190,7 +193,7 @@ FR-FL-001→T004,T005 · 002→T004,T005 · 003→T004,T013 · 004→T013,T014 �
 046→T049,T050 · 047→T052 · 048→T056 · 049→T053,T054 · 050→T053,T054 · 051→T053,T054 ·
 052→T023,T031,T047 · 053→T031 · 054→T013,T045 · 055→T013 · 056→T046,T047 · 057→T045 · 058→T045 ·
 059→T009,T010,T062 · 060→T009,T010,T062 · 061→T062,T063,T064,T065 ·
-062→T073 · 063→T073
+062→T073 · 063→T073 · 064→T075 · 065→T074 · 066→T076
 
 **Intentionally untraced** (infrastructure and process, not behaviour — these trace to the
 constitution and the repo's release rules rather than to an `FR-FL`): T001–T003 (setup),
@@ -229,10 +232,12 @@ US7**, despite being US7's subject. It fixes shipped behaviour that *deletes* li
 the behaviour as a story. Doing it in priority order would mean shipping six stories' worth of
 work that erasure quietly throws away.
 
-**Total: 73 tasks** — Setup 3 · Foundational 9 · US1 13 · US2 8 · US3 10 · US4 6 · US5 9 · US6 4 ·
+**Total: 76 tasks** — Setup 3 · Foundational 9 · US1 13 · US2 9 · US3 11 · US4 7 · US5 9 · US6 4 ·
 US7 4 · Polish 7.
 
-> **Task IDs are append-only.** T073 was added after `/speckit.analyze` (finding C1) and sits at
+> **Task IDs are append-only.** T073 was added after `/speckit.analyze` (finding C1), and
+> T074–T076 after validating against the design artifact (findings V1–V3). Each sits at the end of
+> its phase rather than in numeric position and sits at
 > the end of the US1 phase rather than in numeric position. Renumbering would invalidate every
 > reference in `plan.md`, `research.md`, and the traceability map above — the same reason the
 > spec's `FR-FL-*` numbering is append-only.

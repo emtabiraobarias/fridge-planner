@@ -24,7 +24,9 @@ data move and no dual-write).
   stage: 'new' | 'accepted' | 'briefed' | 'in-spec' | 'in-progress'
        | 'in-review' | 'shipped' | 'closed' | 'dismissed' | 'parked' | 'merged',
   parkedFromStage?: Stage,           // restores the exact stage on reopen
-  priority?: 'P1' | 'P2' | 'P3',     // maintainer-ordered queue (FR-FL-022)
+  rank?: number,                     // maintainer-set queue position (FR-FL-022)
+                                     //   a ranked queue, NOT a fixed P1/P2/P3 label scale —
+                                     //   the design says "ranked queue, not a flat list"
 
   // ── terminal detail ─────────────────────────────────────────────────────────
   dismissalReason?: 'no-action-required' | 'declined',   // FR-FL-016/017
@@ -75,6 +77,7 @@ read it — a matrix duplicated between code and test asserts only that someone 
 | `in-spec` | `briefed` | reject-spec | — *(FR-FL-014, never back to the reporter)* |
 | `in-progress` | `in-review` | advance | — |
 | `in-review` | `shipped` | approve-release | **3** |
+| `in-review` | `in-progress` | reject-release | — *(FR-FL-064, "changes needed" — returns to the work, never to the reporter)* |
 | `shipped` | `closed` | close (+closure) | — |
 | any active | `parked` | park | — |
 | `parked` | *`parkedFromStage`* | reopen | — |
@@ -121,9 +124,11 @@ not an error state — `FR-FL-045` forbids blocking closure on a third party.
 
 ## Changes to existing models
 
-### FeedbackRecord — unchanged
-`003` still owns it. `status` keeps `draft | complete | reviewed`; `reviewed` is now set when the
-item is **accepted** rather than promoted.
+### FeedbackRecord — `status` transition changes owner
+`003` still owns the record. `status` keeps `draft | complete | reviewed`, but `reviewed` is no
+longer reached by promotion (which `012` removed). It is now set when the item is **accepted**
+(`FR-FL-062`) **or dismissed** (`FR-FL-063`) — both are a maintainer having looked at it. Nothing
+else about the record changes here.
 
 ### account-purge — ⚠️ behavioural change (R4)
 
@@ -149,6 +154,7 @@ and stamps `reporterErasedAt`. The item stays advanceable and closable (`FR-FL-0
 | Rule | Source |
 |---|---|
 | Stage is one of eleven; transitions only per the matrix | FR-FL-001/003 |
+| Accepting or dismissing sets the source record to `reviewed` | FR-FL-062/063 |
 | Terminal stages accept no transition | FR-FL-002/049 |
 | Concurrent transitions: at most one applies | FR-FL-004 |
 | Dismissal requires a reason from the two-value enum | FR-FL-016 |
@@ -158,4 +164,7 @@ and stamps `reporterErasedAt`. The item stays advanceable and closable (`FR-FL-0
 | `derivedFrom` required on every clause | FR-FL-025 |
 | Closure only from `shipped`; excerpt required | FR-FL-040/042 |
 | Reporter reads are projections; merged → target stage only | FR-FL-019, R5 |
+| A dismissed item's reason is included in the **reporter** projection | FR-FL-065 |
+| `in-review` may return to `in-progress` via `reject-release` | FR-FL-064 |
+| Any `complete` record is exportable regardless of stage | FR-FL-066 |
 | Record deletion refused while the item is in an active stage | FR-FL-006 |
