@@ -168,8 +168,11 @@ survive unchanged as `FR-FL-057`, and the draft-not-authority rule of `FR-F-018`
 #### Feedback UX completion (Revision 2026-07-28)
 
 - **FR-F-019** *(revised 2026-08-24 per D18 — supersedes the unconditional hand-off)*: When a
-  report is created from a **quick-capture** surface, the system MUST first ask the reporter
-  whether they will elaborate, and MUST branch on that answer:
+  report is created from a **quick-capture** surface, the system MUST ask the reporter whether
+  they will elaborate **in the capture modal, before the note is sent**, and MUST branch on that
+  answer. The reporter MUST NOT be made to wait on an assistant turn to learn whether they are
+  done *(placement settled 2026-08-24 — see `012` Clarifications for why the send-first
+  alternative was rejected)*:
   - **FR-F-019a**: If the reporter agrees, the system MUST open the full conversation for that
     record with the transcript loaded and the assistant's question visible.
   - **FR-F-019b**: If the reporter declines, the system MUST route the record through the
