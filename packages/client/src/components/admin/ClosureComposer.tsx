@@ -78,6 +78,8 @@ export function ClosureComposer({ sourceTitle, onClose, onCancel }: Props): Reac
         <>
           <label className="text-muted mt-2 block text-xs font-semibold" htmlFor="closure-release">
             Release
+            {/* Honest about what is on offer: this repo ships by tagging, so the list is tags. */}
+            {list.releases[0]?.source === 'tag' && ' (from tags)'}
           </label>
           <select
             id="closure-release"

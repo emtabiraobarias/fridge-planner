@@ -117,6 +117,8 @@ export interface Release {
   name: string;
   url: string;
   publishedAt: string;
+  /** `tag` when the repo publishes git tags rather than GitHub Release objects. */
+  source: 'release' | 'tag';
 }
 
 export interface ReleaseList {

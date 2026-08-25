@@ -79,6 +79,18 @@ function stubGitHub(payload: unknown, ok = true): void {
   );
 }
 
+/** Stubs the releases endpoint and the tags endpoint separately, by URL. */
+function stubGitHubRoutes(releases: unknown[], tags: unknown[]): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => (String(url).includes('/tags') ? tags : releases),
+    })),
+  );
+}
+
 describe('release list (D17)', () => {
   it('lists published releases', async () => {
     stubGitHub([
@@ -102,7 +114,38 @@ describe('release list (D17)', () => {
     stubGitHub([{ tag_name: 'v1', html_url: 'https://x/1' }]);
     await fetchReleases();
     await fetchReleases();
+    // One call, not two — and not three, since real Releases exist so tags are never fetched.
     expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(1);
+  });
+
+  // This repo ships by tagging `nextjs-v*` and bumping the compose pin (CLAUDE.md §14) and
+  // never creates GitHub Release objects — verified live: 0 releases, 15 tags. Without this
+  // the picker would be permanently empty on the very repository it is built for.
+  it('falls back to TAGS when the repo publishes no Release objects (FR-FL-043)', async () => {
+    stubGitHubRoutes([], [{ name: 'nextjs-v4.14.2' }, { name: 'nextjs-v4.13.0' }]);
+    const list = await fetchReleases();
+    expect(list.available).toBe(true);
+    expect(list.releases.map((r) => r.tag)).toEqual(['nextjs-v4.14.2', 'nextjs-v4.13.0']);
+    // Marked, so the UI can be honest about what it is offering.
+    expect(list.releases.every((r) => r.source === 'tag')).toBe(true);
+    expect(list.releases[0]!.url).toContain('/releases/tag/nextjs-v4.14.2');
+  });
+
+  it('prefers real Releases over tags when both exist', async () => {
+    stubGitHubRoutes(
+      [{ tag_name: 'v9', name: 'Nine', html_url: 'https://x/9' }],
+      [{ name: 'nextjs-v4.14.2' }],
+    );
+    const list = await fetchReleases();
+    expect(list.releases).toHaveLength(1);
+    expect(list.releases[0]!.source).toBe('release');
+  });
+
+  it('is unavailable when the repo has neither releases nor tags', async () => {
+    stubGitHubRoutes([], []);
+    const list = await fetchReleases();
+    expect(list.available).toBe(false);
+    expect(list.unavailableReason).toMatch(/no releases or tags/i);
   });
 
   it('reports unavailability as a NORMAL answer, never a throw (FR-FL-044)', async () => {
