@@ -34,6 +34,11 @@ function draft(over: Record<string, unknown> = {}): any {
 
 const onSelectUser = vi.fn();
 
+/** Controls live in the item's modal, not on its row — open it first. */
+async function openItem(title = 'Grocery rows duplicate'): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: new RegExp(title, 'i') }));
+}
+
 /** The queue is fed its drafts by `AdminPage`, whose request is also the FR-AD-002 probe. */
 function renderQueue(drafts: unknown[] = []): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,13 +60,15 @@ describe('TriageQueue', () => {
 
   it('accepts a report at gate 1 (FR-FL-008)', async () => {
     renderQueue();
-    await userEvent.click(await screen.findByRole('button', { name: /accept/i }));
+    await openItem();
+    await userEvent.click(await screen.findByRole('button', { name: /^accept$/i }));
     await waitFor(() => expect(mockAct).toHaveBeenCalledWith('i1', { action: 'accept' }));
   });
 
   // FR-FL-016: the reason is part of the decision, so it must be chosen — never defaulted.
   it('requires a reason to be picked before dismissing (FR-FL-016)', async () => {
     renderQueue();
+    await openItem();
     await userEvent.click(await screen.findByRole('button', { name: /^dismiss$/i }));
     // Clicking Dismiss alone must not have acted yet.
     expect(mockAct).not.toHaveBeenCalled();
@@ -74,6 +81,7 @@ describe('TriageQueue', () => {
 
   it('offers both dismissal reasons, kept distinguishable (FR-FL-017)', async () => {
     renderQueue();
+    await openItem();
     await userEvent.click(await screen.findByRole('button', { name: /^dismiss$/i }));
     expect(screen.getByRole('button', { name: /no action required/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /declined/i })).toBeInTheDocument();
@@ -90,15 +98,16 @@ describe('TriageQueue', () => {
   it('surfaces a refused action instead of appearing to do nothing', async () => {
     mockAct.mockRejectedValue(new Error('409'));
     renderQueue();
-    await userEvent.click(await screen.findByRole('button', { name: /accept/i }));
+    await openItem();
+    await userEvent.click(await screen.findByRole('button', { name: /^accept$/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/refused/i);
   });
 
   it('shows no accept/dismiss controls once an item has left `new`', async () => {
     mockQueue.mockResolvedValue([item({ stage: 'in-progress' })]);
     renderQueue();
-    await screen.findByText('Grocery rows duplicate');
-    expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
+    await openItem();
+    expect(screen.queryByRole('button', { name: /^accept$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^dismiss$/i })).not.toBeInTheDocument();
   });
 
@@ -115,10 +124,71 @@ describe('TriageQueue', () => {
     expect(screen.getByTestId('triage-author-i2')).toHaveTextContent('reporter-2');
   });
 
-  it('opens the reporter’s kitchen when a report is selected (FR-AD-015)', async () => {
+  it('opens the reporter’s kitchen from the item (FR-AD-015)', async () => {
     renderQueue();
-    await userEvent.click(await screen.findByRole('button', { name: 'Grocery rows duplicate' }));
+    await openItem();
+    await userEvent.click(screen.getByRole('button', { name: 'reporter-1' }));
     expect(onSelectUser).toHaveBeenCalledWith('reporter-1');
+  });
+
+  it('opens an item as a dialog, dismissable by Escape', async () => {
+    renderQueue();
+    await openItem();
+    const dialog = screen.getByRole('dialog');
+    // The shared Overlay: bottom sheet on touch, centred dialog on desktop, focus trapped.
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('cannot open a draft — it has no lifecycle item yet', async () => {
+    mockQueue.mockResolvedValue([]);
+    renderQueue([draft({ title: 'Abandoned halfway' })]);
+    await userEvent.click(await screen.findByRole('button', { name: /abandoned halfway/i }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  /** FR-FL-020 — editable only before briefing, since clauses are derived from this text. */
+  it('offers Edit details before briefing, and not after', async () => {
+    renderQueue();
+    await openItem();
+    expect(screen.getByRole('button', { name: /edit details/i })).toBeInTheDocument();
+
+    await userEvent.keyboard('{Escape}');
+    mockQueue.mockResolvedValue([item({ stage: 'in-spec' })]);
+    await userEvent.click(screen.getByRole('button', { name: /refresh/i }));
+    await openItem();
+    expect(screen.queryByRole('button', { name: /edit details/i })).not.toBeInTheDocument();
+  });
+
+  it('edits the report’s structured fields (FR-FL-020)', async () => {
+    renderQueue();
+    await openItem();
+    await userEvent.click(screen.getByRole('button', { name: /edit details/i }));
+
+    const title = screen.getByLabelText(/^title$/i);
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Clearer title');
+    await userEvent.click(screen.getByRole('button', { name: /save details/i }));
+
+    await waitFor(() =>
+      expect(mockAct).toHaveBeenCalledWith('i1', {
+        action: 'edit-source',
+        sourceTitle: 'Clearer title',
+        sourceAffectedArea: 'grocery',
+      }),
+    );
+  });
+
+  it('ranks an item so the queue can be ordered (FR-FL-022)', async () => {
+    renderQueue();
+    await openItem();
+    await userEvent.click(screen.getByRole('button', { name: /edit details/i }));
+
+    await userEvent.type(screen.getByLabelText(/^rank$/i), '3');
+    await userEvent.click(screen.getByRole('button', { name: /set rank/i }));
+
+    await waitFor(() => expect(mockAct).toHaveBeenCalledWith('i1', { action: 'set-rank', rank: 3 }));
   });
 });
 

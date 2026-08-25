@@ -1,10 +1,11 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StageFilter, STAGE_LABEL, type StageFilterValue } from './StageFilter';
+import { LifecycleItemModal } from './LifecycleItemModal';
+import { QueueStatus } from './QueueStatus';
 import {
   applyLifecycleAction,
   fetchQueue,
-  type DismissalReason,
   type LifecycleStage,
   type LifecycleSummary,
 } from '../../services/lifecycle';
@@ -29,11 +30,6 @@ import type { AdminFeedbackRow } from '../../services/admin';
  * these actions regardless of what renders, because hiding a control is a courtesy, not the
  * enforcement (FR-FL-054).
  */
-
-const REASONS: { value: DismissalReason; label: string }[] = [
-  { value: 'no-action-required', label: 'No action required' },
-  { value: 'declined', label: 'Declined' },
-];
 
 interface Row {
   id: string;
@@ -69,6 +65,37 @@ function itemRow(i: LifecycleSummary): Row {
   };
 }
 
+function QueueRow({ row, onOpen }: { row: Row; onOpen: () => void }): React.JSX.Element {
+  return (
+    <li data-testid={`triage-row-${row.id}`}>
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={!row.item}
+        className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-surface p-3 text-left enabled:hover:bg-ink/[0.04] disabled:cursor-default"
+      >
+        <span className="min-w-0 flex-1 basis-full sm:basis-auto">
+          <span className="block truncate text-sm font-semibold text-ink">{row.title}</span>
+          <span className="text-muted block text-xs">
+            {/* Attribution — FR-AD-009. Before spec 011 the maintainer could not see whose
+                report this was, or that it existed at all. */}
+            <span data-testid={`triage-author-${row.id}`}>{row.userId}</span>
+            {` · ${row.meta}`}
+            {/* A detached item has no reporter to attribute it to (FR-FL-060). */}
+            {row.erased ? ' · reporter erased' : ''}
+          </span>
+        </span>
+        <span
+          data-testid={`stage-${row.id}`}
+          className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-800"
+        >
+          {STAGE_LABEL[row.stage] ?? row.stage}
+        </span>
+      </button>
+    </li>
+  );
+}
+
 interface TriageQueueProps {
   /** Records with no lifecycle item yet. Passed in rather than fetched — `AdminPage` already
    *  loads them, and that same request is the screen's FR-AD-002 refusal probe. */
@@ -81,13 +108,12 @@ export function TriageQueue({ drafts, onSelectUser }: TriageQueueProps): React.J
   const [items, setItems] = useState<LifecycleSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  /** A refused ACTION, shown in the open item — not above the list, where it read as a
+   *  second copy of whatever the load said. */
+  const [actionError, setActionError] = useState('');
   const [filter, setFilter] = useState<StageFilterValue>('all');
-  // Two-step dismiss: the reason is part of the decision, so it is chosen before the action
-  // fires rather than defaulted (FR-FL-016).
-  const [dismissing, setDismissing] = useState<string | null>(null);
-  // Merging needs a target, so it is a two-step choice like dismissal: pick the item, then pick
-  // what it duplicates (FR-FL-018).
-  const [merging, setMerging] = useState<string | null>(null);
+  // Every control an item offers lives in its modal, not on its row (see LifecycleItemModal).
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -112,15 +138,15 @@ export function TriageQueue({ drafts, onSelectUser }: TriageQueueProps): React.J
   );
 
   const visible = filter === 'all' ? rows : rows.filter((r) => r.stage === filter);
+  const open = items.find((i) => i._id === openId) ?? null;
 
   async function act(id: string, action: Parameters<typeof applyLifecycleAction>[1]): Promise<void> {
-    setError('');
+    setActionError('');
     try {
       await applyLifecycleAction(id, action);
-      setDismissing(null);
       await refresh();
     } catch {
-      setError('That action was refused. The item may have changed — refresh and try again.');
+      setActionError('That action was refused. The item may have changed — refresh and try again.');
     }
   }
 
@@ -138,130 +164,34 @@ export function TriageQueue({ drafts, onSelectUser }: TriageQueueProps): React.J
         </button>
       </div>
 
-      {error && (
-        <p role="alert" className="mb-2 rounded-lg bg-accent-100 p-2 text-sm text-accent-800">
-          {error}
-        </p>
-      )}
-      {loading && <p className="text-muted text-sm">Loading…</p>}
-      {!loading && !error && visible.length === 0 && (
-        <p className="rounded-[16px] bg-accent-100 p-5 text-[14px] text-accent-800">
-          {rows.length === 0
-            ? 'No feedback reports yet. When someone submits one, it appears here.'
-            : 'Nothing at this stage.'}
-        </p>
-      )}
+      <QueueStatus
+        error={error}
+        loading={loading}
+        empty={visible.length === 0}
+        wholeQueueEmpty={rows.length === 0}
+        emptyText="No feedback reports yet. When someone submits one, it appears here."
+        filteredEmptyText="Nothing at this stage."
+      />
 
-      {/* Report text is rendered as text (FR-AD-014). React escapes it by construction; there is
-          deliberately no `dangerouslySetInnerHTML` anywhere in this tree, so a report containing
-          instruction-like or markup-like content is displayed, never interpreted. */}
       <ul className="flex flex-col gap-2" aria-label="Feedback reports">
         {visible.map((row) => (
-          <li
-            key={row.id}
-            data-testid={`triage-row-${row.id}`}
-            className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg bg-surface p-3"
-          >
-            <div className="min-w-0 flex-1 basis-full sm:basis-auto">
-              <button
-                type="button"
-                onClick={() => onSelectUser(row.userId)}
-                className="max-w-full truncate text-left text-sm font-semibold text-ink hover:underline"
-              >
-                {row.title}
-              </button>
-              <p className="text-muted text-xs">
-                {/* Attribution — FR-AD-009. Before spec 011 the maintainer could not see whose
-                    report this was, or that it existed at all. */}
-                <span data-testid={`triage-author-${row.id}`}>{row.userId}</span>
-                {` · ${row.meta}`}
-                {/* A detached item has no reporter to attribute it to (FR-FL-060). */}
-                {row.erased ? ' · reporter erased' : ''}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                data-testid={`stage-${row.id}`}
-                className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-800"
-              >
-                {STAGE_LABEL[row.stage] ?? row.stage}
-              </span>
-
-              {row.stage === 'new' && dismissing !== row.id && merging !== row.id && (
-                <>
-                  <button
-                    onClick={() => void act(row.id, { action: 'accept' })}
-                    className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-bg hover:bg-accent-600"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => setDismissing(row.id)}
-                    className="text-xs font-semibold text-accent-700 hover:text-accent-800"
-                  >
-                    Dismiss
-                  </button>
-                  <button
-                    onClick={() => setMerging(row.id)}
-                    className="text-muted text-xs font-semibold hover:text-ink"
-                  >
-                    Merge
-                  </button>
-                </>
-              )}
-
-              {merging === row.id && (
-                <>
-                  <span className="text-muted text-xs">Duplicate of:</span>
-                  {items
-                    .filter((t) => t._id !== row.id && t.stage !== 'merged')
-                    .slice(0, 4)
-                    .map((t) => (
-                      <button
-                        key={t._id}
-                        onClick={() => {
-                          setMerging(null);
-                          void act(row.id, { action: 'merge', targetId: t._id });
-                        }}
-                        className="max-w-[14rem] truncate rounded-full border border-divider px-3 py-1 text-xs font-semibold text-ink hover:bg-ink/[0.07]"
-                      >
-                        {t.sourceTitle}
-                      </button>
-                    ))}
-                  <button
-                    onClick={() => setMerging(null)}
-                    className="text-muted text-xs font-semibold hover:text-ink"
-                  >
-                    Cancel
-                  </button>
-                </>
-              )}
-
-              {dismissing === row.id && (
-                <>
-                  <span className="text-muted text-xs">Reason:</span>
-                  {REASONS.map((r) => (
-                    <button
-                      key={r.value}
-                      onClick={() => void act(row.id, { action: 'dismiss', reason: r.value })}
-                      className="rounded-full border border-divider px-3 py-1 text-xs font-semibold text-ink hover:bg-ink/[0.07]"
-                    >
-                      {r.label}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setDismissing(null)}
-                    className="text-muted text-xs font-semibold hover:text-ink"
-                  >
-                    Cancel
-                  </button>
-                </>
-              )}
-            </div>
-          </li>
+          <QueueRow key={row.id} row={row} onOpen={() => row.item && setOpenId(row.id)} />
         ))}
       </ul>
+
+      {open && (
+        <LifecycleItemModal
+          item={open}
+          mergeTargets={items.filter((t) => t._id !== open._id && t.stage !== 'merged')}
+          onAction={(action) => void act(open._id, action)}
+          onClose={() => setOpenId(null)}
+          onOpenReporter={(userId) => {
+            setOpenId(null);
+            onSelectUser(userId);
+          }}
+          {...(actionError ? { error: actionError } : {})}
+        />
+      )}
     </section>
   );
 }

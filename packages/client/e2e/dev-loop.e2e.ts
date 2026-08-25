@@ -1,4 +1,4 @@
-import { test, expect, type APIResponse, type Page } from '@playwright/test';
+import { test, expect, type APIResponse, type Locator, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 
@@ -124,6 +124,23 @@ async function lifecycleIdFor(page: Page, title: string): Promise<string> {
   return found!._id;
 }
 
+
+/**
+ * Open an item's modal. Every control an item offers lives there now, not on its row — so the
+ * row is a single button, and the dialog is where the maintainer acts. The dialog STAYS open
+ * across actions (the panel refreshes beneath it), so a whole journey runs inside one.
+ */
+async function openItem(page: Page, section: string, title: string): Promise<Locator> {
+  await page
+    .locator(`section[aria-label="${section}"] li`, { hasText: title })
+    .getByRole('button')
+    .first()
+    .click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
 test('the maintainer walks a record from triage to shipped, with both artifact links (FR-FL-008/009/010)', async ({
   page,
 }) => {
@@ -151,15 +168,15 @@ test('the maintainer walks a record from triage to shipped, with both artifact l
   // proves the server works, never that anyone can reach it (CLAUDE.md §8).
   await page.goto('/admin');
   await page.getByRole('tab', { name: 'Delivery' }).click();
-  const row = page.locator('section[aria-label="Delivery"] li', { hasText: title });
-  await expect(row).toBeVisible();
+  // The dialog stays open across the whole walk — each action refreshes the panel beneath it.
+  const dialog = await openItem(page, 'Delivery', title);
 
-  await row.getByRole('button', { name: 'Send to spec' }).click();
-  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/In spec/i);
+  await dialog.getByRole('button', { name: 'Send to spec' }).click();
+  await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/In spec/i);
 
   // GATE 2 — `advance` is NOT the sanctioned path past in-spec.
-  await row.getByRole('button', { name: 'Approve spec' }).click();
-  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/In progress/i);
+  await dialog.getByRole('button', { name: 'Approve spec' }).click();
+  await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/In progress/i);
 
   const prRef = 'https://github.com/example/fridge-planner/pull/42';
   const attachPr = await lifecycleAction(page, id, {
@@ -168,13 +185,13 @@ test('the maintainer walks a record from triage to shipped, with both artifact l
   });
   expect(attachPr.status()).toBe(200);
 
-  await row.getByRole('button', { name: 'Ready for review' }).click();
-  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/In review/i);
+  await dialog.getByRole('button', { name: 'Ready for review' }).click();
+  await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/In review/i);
   await page.screenshot({ path: `${SHOTS}/13-dev-loop-in-review.png`, fullPage: true });
 
   // GATE 3 — the ONLY path to `shipped` (SC-FL-006).
-  await row.getByRole('button', { name: 'Approve release' }).click();
-  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/Shipped/i);
+  await dialog.getByRole('button', { name: 'Approve release' }).click();
+  await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/Shipped/i);
   await page.screenshot({ path: `${SHOTS}/14-dev-loop-shipped.png`, fullPage: true });
 
   const final = await page.request.get(`/api/v1/admin/lifecycle/${id}`);

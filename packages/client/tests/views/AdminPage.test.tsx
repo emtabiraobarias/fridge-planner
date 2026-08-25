@@ -138,6 +138,12 @@ describe('AdminPage — report content is inert (FR-AD-014)', () => {
   });
 });
 
+/** The kitchen opens from inside the item now: open the item, then follow its reporter. */
+async function openReporterKitchen(): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: /grocery count wrong/i }));
+  await userEvent.click(screen.getByRole('button', { name: 'user-a' }));
+}
+
 describe('AdminPage — read-only support view (spec 011 US3, FR-AD-015)', () => {
   const mockFetchUserData = vi.mocked(adminService.fetchUserData);
 
@@ -162,7 +168,7 @@ describe('AdminPage — read-only support view (spec 011 US3, FR-AD-015)', () =>
 
   it('opens the reporter’s kitchen when their report is selected', async () => {
     render(<AdminPage />);
-    await userEvent.click(await screen.findByText('Grocery count wrong'));
+    await openReporterKitchen();
 
     expect(await screen.findByLabelText(/support view for user-a/i)).toBeInTheDocument();
     expect(mockFetchUserData).toHaveBeenCalledWith('user-a');
@@ -173,7 +179,7 @@ describe('AdminPage — read-only support view (spec 011 US3, FR-AD-015)', () =>
   // no way to change another user's data (FR-AD-015).
   it('offers no mutating control anywhere in the panel', async () => {
     render(<AdminPage />);
-    await userEvent.click(await screen.findByText('Grocery count wrong'));
+    await openReporterKitchen();
     const panel = await screen.findByLabelText(/support view for user-a/i);
 
     // The only button is Close.
@@ -187,7 +193,7 @@ describe('AdminPage — read-only support view (spec 011 US3, FR-AD-015)', () =>
   it('surfaces a load failure instead of rendering a blank panel', async () => {
     mockFetchUserData.mockRejectedValue(new Error('Forbidden'));
     render(<AdminPage />);
-    await userEvent.click(await screen.findByText('Grocery count wrong'));
+    await openReporterKitchen();
     expect(await screen.findByText(/could not load that user/i)).toBeInTheDocument();
   });
 });

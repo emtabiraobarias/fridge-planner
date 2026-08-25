@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DeliveryPanel } from '../../../src/components/admin/DeliveryPanel';
@@ -31,6 +31,11 @@ function item(over: Record<string, unknown> = {}): any {
   };
 }
 
+/** Controls live in the item's modal, not on its row — open it first. */
+async function openItem(title = 'Grocery rows duplicate'): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: new RegExp(title, 'i') }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockQueue.mockResolvedValue([item()]);
@@ -40,7 +45,8 @@ beforeEach(() => {
 describe('DeliveryPanel — only the legal controls for a stage', () => {
   it('offers gate 2 in `in-spec`, and its rejection route (FR-FL-009/014)', async () => {
     render(<DeliveryPanel />);
-    expect(await screen.findByRole('button', { name: /approve spec/i })).toBeInTheDocument();
+    await openItem();
+    expect(screen.getByRole('button', { name: /approve spec/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reject spec/i })).toBeInTheDocument();
     // Gate 3 does not govern this stage (FR-FL-015).
     expect(screen.queryByRole('button', { name: /approve release/i })).not.toBeInTheDocument();
@@ -49,7 +55,8 @@ describe('DeliveryPanel — only the legal controls for a stage', () => {
   it('offers gate 3 and a changes-needed route in `in-review` (FR-FL-010/064)', async () => {
     mockQueue.mockResolvedValue([item({ stage: 'in-review' })]);
     render(<DeliveryPanel />);
-    expect(await screen.findByRole('button', { name: /approve release/i })).toBeInTheDocument();
+    await openItem();
+    expect(screen.getByRole('button', { name: /approve release/i })).toBeInTheDocument();
     // Without this, review finding a problem has nowhere to send the work.
     expect(screen.getByRole('button', { name: /changes needed/i })).toBeInTheDocument();
   });
@@ -57,21 +64,23 @@ describe('DeliveryPanel — only the legal controls for a stage', () => {
   it('never auto-closes a shipped item — closing is explicit (D9)', async () => {
     mockQueue.mockResolvedValue([item({ stage: 'shipped' })]);
     render(<DeliveryPanel />);
-    expect(await screen.findByRole('button', { name: /^close$/i })).toBeInTheDocument();
+    await openItem();
+    expect(screen.getByRole('button', { name: /^close$/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^park$/i })).not.toBeInTheDocument();
   });
 
   it('leaves triage-stage items to the Triage tab', async () => {
     mockQueue.mockResolvedValue([item({ stage: 'new' }), item({ _id: 'i2', stage: 'in-spec' })]);
     render(<DeliveryPanel />);
-    await screen.findByRole('button', { name: /approve spec/i });
-    expect(screen.getAllByTestId(/^delivery-stage-/)).toHaveLength(1);
+    expect(await screen.findAllByTestId(/^delivery-stage-/)).toHaveLength(1);
   });
 
   it('surfaces a refused action instead of appearing to do nothing', async () => {
     mockAct.mockRejectedValue(new Error('409'));
     render(<DeliveryPanel />);
-    await userEvent.click(await screen.findByRole('button', { name: /approve spec/i }));
+    await openItem();
+    await userEvent.click(screen.getByRole('button', { name: /approve spec/i }));
+    // Shown in the item that was acted on, not above the list where the load failure lives.
     expect(await screen.findByRole('alert')).toHaveTextContent(/refused/i);
   });
 
@@ -122,5 +131,24 @@ describe('DeliveryPanel — filtering by stage (FR-AD-009)', () => {
     await userEvent.click(screen.getByRole('button', { name: /^in review \(1\)$/i }));
     await waitFor(() => expect(screen.queryByText('Being specced')).not.toBeInTheDocument());
     expect(screen.queryByText(/nothing in delivery/i)).not.toBeInTheDocument();
+  });
+
+  it('opens an item as a dialog, dismissable by Escape', async () => {
+    render(<DeliveryPanel />);
+    await openItem();
+    const dialog = screen.getByRole('dialog');
+    // The shared Overlay: bottom sheet on touch, centred dialog on desktop, focus trapped.
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('puts clause vetting inside the item at `briefed` (FR-FL-025)', async () => {
+    mockQueue.mockResolvedValue([item({ stage: 'briefed' })]);
+    render(<DeliveryPanel />);
+    await openItem();
+    // On a phone this used to expand inside a list cell, where the clause comparison —
+    // the entire point of the step — was unreadable at 320px.
+    expect(within(screen.getByRole('dialog')).getByLabelText('Clause vetting')).toBeInTheDocument();
   });
 });

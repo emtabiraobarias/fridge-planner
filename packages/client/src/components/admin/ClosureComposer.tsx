@@ -69,7 +69,7 @@ export function ClosureComposer({ sourceTitle, onClose, onCancel }: Props): Reac
         value={excerpt}
         onChange={(e) => setExcerpt(e.target.value)}
         rows={2}
-        className="mt-1 w-full rounded-lg border border-divider p-2 text-sm text-ink"
+        className="mt-1 min-h-[44px] w-full rounded-lg border border-divider p-2 text-base text-ink xl:text-sm"
       />
 
       {list === null && <p className="text-muted mt-2 text-xs">Loading releases…</p>}
@@ -85,7 +85,7 @@ export function ClosureComposer({ sourceTitle, onClose, onCancel }: Props): Reac
             id="closure-release"
             value={tag}
             onChange={(e) => setTag(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-divider p-2 text-sm text-ink"
+            className="mt-1 min-h-[44px] w-full rounded-lg border border-divider p-2 text-base text-ink xl:text-sm"
           >
             <option value="">(none)</option>
             {list.releases.map((r) => (
@@ -107,7 +107,7 @@ export function ClosureComposer({ sourceTitle, onClose, onCancel }: Props): Reac
             aria-label="Release (free text)"
             value={fallback}
             onChange={(e) => setFallback(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-divider p-2 text-sm text-ink"
+            className="mt-1 min-h-[44px] w-full rounded-lg border border-divider p-2 text-base text-ink xl:text-sm"
           />
         </>
       )}
