@@ -55,8 +55,8 @@ The single action endpoint. Discriminated union, validated by Zod, applied as an
 
 | `action` | From → To | Body | Notes |
 |---|---|---|---|
-| `accept` | `new` → `accepted` | — | **Gate 1**. Sets source record `reviewed` |
-| `dismiss` | `new`/`accepted` → `dismissed` | `{reason}` | `no-action-required` \| `declined` (`FR-FL-016`) |
+| `accept` | `new` → `accepted` | — | **Gate 1**. Sets source record `reviewed` (FR-FL-062) |
+| `dismiss` | `new`/`accepted` → `dismissed` | `{reason}` | `no-action-required` \| `declined` (`FR-FL-016`). Also sets source record `reviewed` (FR-FL-063) — a dismissed record left at `complete` is indistinguishable from one nobody has read |
 | `merge` | `new`/`accepted` → `merged` | `{targetId}` | Target must exist, must not be self |
 | `advance` | `accepted`→`briefed`, `briefed`→`in-spec`, `in-progress`→`in-review` | — | `briefed`→`in-spec` **refused while any clause is pending** (`FR-FL-028`) |
 | `approve-spec` | `in-spec` → `in-progress` | — | **Gate 2** |
@@ -145,3 +145,5 @@ One test per row, each naming its requirement in the test name:
 - [ ] Closure succeeds with the release list unavailable — `FR-FL-044`, `SC-FL-008`
 - [ ] Erased reporter's item survives, advanceable, no identifying content — `SC-FL-010`
 - [ ] No action performs a repository write — `SC-FL-007`
+- [ ] Accepting sets the source record to `reviewed` — `FR-FL-062`
+- [ ] **Dismissing** sets the source record to `reviewed` — `FR-FL-063`

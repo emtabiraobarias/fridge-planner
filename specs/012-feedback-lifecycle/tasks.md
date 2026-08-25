@@ -59,6 +59,7 @@ data, and every story below adds more of that data.
 - [ ] T022 [US1] **(RED→GREEN)** `packages/client/tests/components/admin/TriageQueue.test.tsx` + `packages/client/src/components/admin/TriageQueue.tsx` — queue, accept, dismiss-with-reason, priority
 - [ ] T023 [US1] Add the triage tab to `packages/client/src/views/AdminPage.tsx` (research R6)
 - [ ] T024 [US1] **Playwright** `packages/client/e2e/lifecycle.e2e.ts` — accept and dismiss journeys **driven through the UI**, asserting the server's answer changed
+- [ ] T073 [US1] **(RED→GREEN)** Source-record status side effect in `packages/client/tests/server/lifecycle-triage.test.ts` + `packages/client/src/server/controllers/lifecycle.ts`: accepting sets the record to `reviewed` (FR-FL-062) and **dismissing does too** (FR-FL-063). Added by analyze finding C1 — the transition was asserted in the API contract with no requirement and no task behind it, because `003` reached `reviewed` "on first promotion" and `012` removed promotion. A dismissed record left at `complete` is indistinguishable from one nobody has read
 
 **Checkpoint**: US1 independently shippable — MVP.
 
@@ -179,16 +180,22 @@ nobody asked for.
 
 **Functional**
 FR-FL-001→T004,T005 · 002→T004,T005 · 003→T004,T013 · 004→T013,T014 · 005→T012 · 006→T020 ·
-007→T004,T005,T044 · 008→T013,T014 · 009→T043,T044 · 010→T043,T044 · 011→T014,T044 ·
+007→T004,T005,T044 · 008→T013,T014,T015,T018 · 009→T043,T044,T046,T048 · 010→T043,T044 · 011→T014,T044 ·
 012→T012,T043 · 013→T014 · 014→T043,T044 · 015→T043,T044 · 016→T013,T014 · 017→T013,T014 ·
-018→T058,T059 · 019→T058,T059,T061 · 020→T019 · 021→T019 · 022→T016,T019,T022 · 023→T016,T017 ·
-024→T037,T038 · 025→T037,T041 · 026→T033,T037 · 027→T037,T038 · 028→T037,T038,T042 ·
-029→T037,T038,T041 · 030→T033,T036 · 031→T037,T038 · 032→T040 · 033→T040 · 034→T025,T026,T031 ·
-035→T025,T030 · 036→T028,T029 · 037→T028,T029 · 038→T025,T026 · 039→T045 · 040→T053,T054 ·
+018→T058,T059,T060 · 019→T058,T059,T061 · 020→T019 · 021→T019 · 022→T016,T019,T022 · 023→T016,T017,T018 ·
+024→T037,T038 · 025→T037,T041 · 026→T033,T034,T035,T037 · 027→T037,T038 · 028→T037,T038,T039,T042 ·
+029→T037,T038,T041 · 030→T033,T036 · 031→T037,T038 · 032→T040 · 033→T040 · 034→T025,T026,T027,T031 ·
+035→T025,T030 · 036→T028,T029,T021 · 037→T028,T029 · 038→T025,T026 · 039→T045 · 040→T053,T054 ·
 041→T053,T055 · 042→T053,T055 · 043→T050,T051,T055 · 044→T051,T053,T057 · 045→T051,T057 ·
 046→T049,T050 · 047→T052 · 048→T056 · 049→T053,T054 · 050→T053,T054 · 051→T053,T054 ·
-052→T023,T031,T047 · 053→T031 · 054→T013,T045 · 055→T013 · 056→T047 · 057→T045 · 058→T045 ·
-059→T009,T010,T062 · 060→T009,T010,T062 · 061→T062,T063
+052→T023,T031,T047 · 053→T031 · 054→T013,T045 · 055→T013 · 056→T046,T047 · 057→T045 · 058→T045 ·
+059→T009,T010,T062 · 060→T009,T010,T062 · 061→T062,T063,T064,T065 ·
+062→T073 · 063→T073
+
+**Intentionally untraced** (infrastructure and process, not behaviour — these trace to the
+constitution and the repo's release rules rather than to an `FR-FL`): T001–T003 (setup),
+T006–T008 (model + migration), T011 (CLAUDE.md rule), T066–T072 (deprecation, docs, agent
+release, gates). Everything else maps.
 
 **Success criteria**
 SC-FL-001→T024,T057,T061 · 002→T032 · 003→T025,T058,T061 · 004→T012,T043 · 005→T037,T042 ·
@@ -222,5 +229,10 @@ US7**, despite being US7's subject. It fixes shipped behaviour that *deletes* li
 the behaviour as a story. Doing it in priority order would mean shipping six stories' worth of
 work that erasure quietly throws away.
 
-**Total: 72 tasks** — Setup 3 · Foundational 9 · US1 12 · US2 8 · US3 10 · US4 6 · US5 9 · US6 4 ·
+**Total: 73 tasks** — Setup 3 · Foundational 9 · US1 13 · US2 8 · US3 10 · US4 6 · US5 9 · US6 4 ·
 US7 4 · Polish 7.
+
+> **Task IDs are append-only.** T073 was added after `/speckit.analyze` (finding C1) and sits at
+> the end of the US1 phase rather than in numeric position. Renumbering would invalidate every
+> reference in `plan.md`, `research.md`, and the traceability map above — the same reason the
+> spec's `FR-FL-*` numbering is append-only.

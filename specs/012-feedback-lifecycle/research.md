@@ -45,9 +45,11 @@ acceptance. Creating it when the record reaches `complete` also gives the triage
 (`FR-FL-023`) something to list — otherwise nothing is queryable until after the decision that
 the queue exists to support.
 
-> **Spec wording to tighten during `/speckit.analyze`:** `FR-FL-001`'s "each accepted report"
-> should read "each completed report", or `new` should be described as pre-item. This is an
-> editorial ambiguity, not a design change — recorded rather than silently interpreted.
+> **✅ Fixed on the shared spec 2026-08-24 (PR #83, analyze finding I1).** `FR-FL-001` now reads
+> "each **completed** report". It was not merely editorial: as written it contradicted its own
+> stage list, so `new` was unreachable and the triage queue had nothing to list until after the
+> decision it exists to support. This interpretation is now the contract rather than a per-branch
+> reading — which matters because `impl/vite` inherits the spec without ever seeing this file.
 
 **Alternatives considered.** Create at acceptance and model `new` as "record exists, no item" —
 rejected: it makes the queue query span two collections and leaves dismissal-before-acceptance
