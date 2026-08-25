@@ -7,6 +7,7 @@ import { OpsPanel } from '../components/admin/OpsPanel';
 import { AccountsPanel } from '../components/admin/AccountsPanel';
 import { SettingsPanel } from '../components/admin/SettingsPanel';
 import { TriageQueue } from '../components/admin/TriageQueue';
+import { DeliveryPanel } from '../components/admin/DeliveryPanel';
 import {
   fetchAdminFeedback,
   promoteFeedback,
@@ -21,10 +22,23 @@ const FILTERS: Array<{ label: string; value: AdminFeedbackStatus | 'all' }> = [
   { label: 'Reviewed', value: 'reviewed' },
 ];
 
-type Tab = 'triage' | 'ops' | 'accounts' | 'settings';
+type Tab = 'triage' | 'delivery' | 'ops' | 'accounts' | 'settings';
+
+/**
+ * Tabs whose body is just a panel with no props from this component. Keeping them in a lookup
+ * stops each new tab adding a branch to `AdminPage`, which is what pushed it past the
+ * complexity limit when Delivery arrived. `triage` and `accounts` stay inline below — they
+ * take state this component owns.
+ */
+const SIMPLE_TABS: Partial<Record<Tab, () => React.JSX.Element>> = {
+  delivery: () => <DeliveryPanel />,
+  ops: () => <OpsPanel />,
+  settings: () => <SettingsPanel />,
+};
 
 const TABS: Array<{ label: string; value: Tab }> = [
   { label: 'Triage', value: 'triage' },
+  { label: 'Delivery', value: 'delivery' },
   { label: 'Operations', value: 'ops' },
   { label: 'Accounts', value: 'accounts' },
   { label: 'Settings', value: 'settings' },
@@ -193,13 +207,14 @@ export function AdminPage(): React.JSX.Element {
             own tab: D7 puts triage AND delivery on one maintainer surface, and splitting the
             two halves of triage across tabs would undo that. */}
         {tab === 'triage' && <TriageQueue />}
-        {tab === 'ops' && <OpsPanel />}
+        {/* D7: triage AND delivery on one maintainer surface (FR-FL-056). Looked up rather than
+            chained — each added tab was another branch in an already-long component. */}
+        {SIMPLE_TABS[tab]?.()}
         {/* Prefilled with whoever is under investigation in triage — the common path
             into this tab is "this reporter asked to be erased". */}
         {tab === 'accounts' && (
           <AccountsPanel {...(supportUserId ? { initialUserId: supportUserId } : {})} />
         )}
-        {tab === 'settings' && <SettingsPanel />}
       </div>
     </main>
   );

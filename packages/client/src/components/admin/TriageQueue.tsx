@@ -41,6 +41,9 @@ export function TriageQueue(): React.JSX.Element {
   // Two-step dismiss: the reason is part of the decision, so it is chosen before the action
   // fires rather than defaulted (FR-FL-016).
   const [dismissing, setDismissing] = useState<string | null>(null);
+  // Merging needs a target, so it is a two-step choice like dismissal: pick the item, then pick
+  // what it duplicates (FR-FL-018).
+  const [merging, setMerging] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -115,7 +118,7 @@ export function TriageQueue(): React.JSX.Element {
                 {STAGE_LABEL[item.stage] ?? item.stage}
               </span>
 
-              {item.stage === 'new' && dismissing !== item._id && (
+              {item.stage === 'new' && dismissing !== item._id && merging !== item._id && (
                 <>
                   <button
                     onClick={() => void act(item._id, { action: 'accept' })}
@@ -128,6 +131,39 @@ export function TriageQueue(): React.JSX.Element {
                     className="text-xs font-semibold text-accent-700 hover:text-accent-800"
                   >
                     Dismiss
+                  </button>
+                  <button
+                    onClick={() => setMerging(item._id)}
+                    className="text-muted text-xs font-semibold hover:text-ink"
+                  >
+                    Merge
+                  </button>
+                </>
+              )}
+
+              {merging === item._id && (
+                <>
+                  <span className="text-muted text-xs">Duplicate of:</span>
+                  {items
+                    .filter((t) => t._id !== item._id && t.stage !== 'merged')
+                    .slice(0, 4)
+                    .map((t) => (
+                      <button
+                        key={t._id}
+                        onClick={() => {
+                          setMerging(null);
+                          void act(item._id, { action: 'merge', targetId: t._id });
+                        }}
+                        className="max-w-[14rem] truncate rounded-full border border-divider px-3 py-1 text-xs font-semibold text-ink hover:bg-ink/[0.07]"
+                      >
+                        {t.sourceTitle}
+                      </button>
+                    ))}
+                  <button
+                    onClick={() => setMerging(null)}
+                    className="text-muted text-xs font-semibold hover:text-ink"
+                  >
+                    Cancel
                   </button>
                 </>
               )}

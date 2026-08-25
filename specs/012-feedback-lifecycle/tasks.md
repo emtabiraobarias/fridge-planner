@@ -78,7 +78,7 @@ data, and every story below adds more of that data.
 - [X] T030 [US2] Reporter-facing stage vocabulary in `packages/client/src/lib/lifecycle-labels.ts` — "Being specified" vs "Being built" is the distinction D12 buys the reporter (FR-FL-035)
 - [X] T031 [US2] **(RED→GREEN)** Make `packages/client/src/components/feedback/PipelineStatusView.tsx` **read-only** for reporters and point it at `/lifecycle`; transition controls live only on the maintainer surface (FR-FL-053, research R6)
 - [X] T074 [US2] **(RED→GREEN)** Dismissal reason in the reporter projection — `packages/client/tests/server/lifecycle-reporter.test.ts` + `packages/client/src/server/controllers/lifecycle.ts`: a dismissed reporter sees the **reason**, not just the stage (FR-FL-065). Found by validating against the design artifact, which labels that exit "reason sent to reporter" — for declined work the reason **is** the closing of the loop, and a reporter seeing only `dismissed` learns nothing
-- [ ] T032 [US2] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — reporter sees stage + reply, the **dismissal reason** when dismissed, and **cannot see another reporter's report**
+- [X] T032 [US2] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — reporter sees stage + reply, the **dismissal reason** when dismissed, and **cannot see another reporter's report**
 
 **Checkpoint**: ✅ the loop returns something to the reporter — D1's premise is met. T032 (Playwright) pending a build.
 
@@ -110,13 +110,13 @@ data, and every story below adds more of that data.
 **Goal**: gates 2 and 3, park/reopen, and gate-2 rejection returning to the clauses.
 **Independent test**: walk an item `briefed → shipped`, confirming each gate needs an explicit approval and no transition touches the repository.
 
-- [ ] T043 [P] [US4] **(RED)** `packages/client/tests/server/lifecycle-gates.test.ts`: `approve-spec` `in-spec→in-progress` (FR-FL-009); `approve-release` `in-review→shipped` (FR-FL-010); each records **which** administrator (FR-FL-012); gate from the wrong stage → 409 (FR-FL-015); `reject-spec` returns to `briefed` with clauses intact, **never to the reporter** (FR-FL-014); park stores `parkedFromStage`, reopen restores it; `shipped` unreachable without a recorded release approval (SC-FL-006)
-- [ ] T044 [US4] **(GREEN)** Gate actions, park/reopen and reject-spec in `packages/client/src/server/controllers/lifecycle.ts`
-- [ ] T045 [P] [US4] **(RED)** `packages/client/tests/server/unit/lifecycle-invariants.test.ts` — **no action performs any repository write** (SC-FL-007, FR-FL-057); `attach-artifact` stores a string and never dereferences it; report text never reaches an agent as instruction (FR-FL-058); **no lifecycle action emits a notification outside the application** (FR-FL-039 — a negative requirement, so it needs an explicit assertion or nothing ever checks it); every maintainer capability refuses a non-admin at the server regardless of surface (FR-FL-054, SC-FL-009)
-- [ ] T046 [US4] **(RED→GREEN)** `packages/client/tests/components/admin/DeliveryPanel.test.tsx` + `packages/client/src/components/admin/DeliveryPanel.tsx` — stage, transition controls, artifacts
-- [ ] T047 [US4] Add the delivery tab to `packages/client/src/views/AdminPage.tsx`, completing D7's combined triage-and-delivery surface (FR-FL-056)
-- [ ] T075 [US4] **(RED→GREEN)** `reject-release` action — `packages/client/tests/server/lifecycle-gates.test.ts` + `packages/client/src/server/lib/lifecycle-stages.ts` + `controllers/lifecycle.ts`: `in-review → in-progress` with an optional note (FR-FL-064). Found by validating against the design artifact, whose spine shows an edge from gate 3 back to `in-progress` labelled "changes needed" — without it, review finding a problem had nowhere to send the work. Mirrors `reject-spec` at gate 2 and, like it, returns to the work rather than to the reporter
-- [ ] T048 [US4] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — full gate walk through the UI to `shipped`, **including a gate-3 rejection round trip**
+- [X] T043 [P] [US4] **(RED)** `packages/client/tests/server/lifecycle-gates.test.ts`: `approve-spec` `in-spec→in-progress` (FR-FL-009); `approve-release` `in-review→shipped` (FR-FL-010); each records **which** administrator (FR-FL-012); gate from the wrong stage → 409 (FR-FL-015); `reject-spec` returns to `briefed` with clauses intact, **never to the reporter** (FR-FL-014); park stores `parkedFromStage`, reopen restores it; `shipped` unreachable without a recorded release approval (SC-FL-006)
+- [X] T044 [US4] **(GREEN)** Gate actions, park/reopen and reject-spec in `packages/client/src/server/controllers/lifecycle.ts`
+- [X] T045 [P] [US4] **(RED)** `packages/client/tests/server/unit/lifecycle-invariants.test.ts` — **no action performs any repository write** (SC-FL-007, FR-FL-057); `attach-artifact` stores a string and never dereferences it; report text never reaches an agent as instruction (FR-FL-058); **no lifecycle action emits a notification outside the application** (FR-FL-039 — a negative requirement, so it needs an explicit assertion or nothing ever checks it); every maintainer capability refuses a non-admin at the server regardless of surface (FR-FL-054, SC-FL-009)
+- [X] T046 [US4] **(RED→GREEN)** `packages/client/tests/components/admin/DeliveryPanel.test.tsx` + `packages/client/src/components/admin/DeliveryPanel.tsx` — stage, transition controls, artifacts
+- [X] T047 [US4] Add the delivery tab to `packages/client/src/views/AdminPage.tsx`, completing D7's combined triage-and-delivery surface (FR-FL-056)
+- [X] T075 [US4] **(RED→GREEN)** `reject-release` action — `packages/client/tests/server/lifecycle-gates.test.ts` + `packages/client/src/server/lib/lifecycle-stages.ts` + `controllers/lifecycle.ts`: `in-review → in-progress` with an optional note (FR-FL-064). Found by validating against the design artifact, whose spine shows an edge from gate 3 back to `in-progress` labelled "changes needed" — without it, review finding a problem had nowhere to send the work. Mirrors `reject-spec` at gate 2 and, like it, returns to the work rather than to the reporter
+- [X] T048 [US4] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — full gate walk through the UI to `shipped`, **including a gate-3 rejection round trip**
 
 ---
 
@@ -144,10 +144,10 @@ data, and every story below adds more of that data.
 **Goal**: merge a duplicate; its reporter still learns something, without seeing anyone else's report.
 **Independent test**: merge one reporter's report into another's; as the first reporter, see a status and nothing more.
 
-- [ ] T058 [P] [US6] **(RED)** `packages/client/tests/server/lifecycle-merge.test.ts`: merge → terminal `merged` with target recorded (FR-FL-018); merged reporter sees **target stage only** — no title, text or reporter id in the response body (FR-FL-019, SC-FL-003); self-merge refused; any further transition refused
-- [ ] T059 [US6] **(GREEN)** `merge` action + the status-only resolution in `packages/client/src/server/controllers/lifecycle.ts` — resolved server-side so the target document never leaves the process (research R5)
-- [ ] T060 [US6] Merge control in `packages/client/src/components/admin/TriageQueue.tsx`
-- [ ] T061 [US6] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — as the merged reporter, assert the target's **title is absent from the page**, not merely hidden
+- [X] T058 [P] [US6] **(RED)** `packages/client/tests/server/lifecycle-merge.test.ts`: merge → terminal `merged` with target recorded (FR-FL-018); merged reporter sees **target stage only** — no title, text or reporter id in the response body (FR-FL-019, SC-FL-003); self-merge refused; any further transition refused
+- [X] T059 [US6] **(GREEN)** `merge` action + the status-only resolution in `packages/client/src/server/controllers/lifecycle.ts` — resolved server-side so the target document never leaves the process (research R5)
+- [X] T060 [US6] Merge control in `packages/client/src/components/admin/TriageQueue.tsx`
+- [X] T061 [US6] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — as the merged reporter, assert the target's **title is absent from the page**, not merely hidden
 
 ---
 
@@ -156,10 +156,10 @@ data, and every story below adds more of that data.
 **Goal**: the behaviour Phase 2 made possible, verified as a user story.
 **Independent test**: erase a reporter mid-flight; their item still exists, still advances, and carries no identifying content.
 
-- [ ] T062 [P] [US7] **(RED)** `packages/client/tests/server/lifecycle-erasure.test.ts`: in-flight item persists through erasure (FR-FL-059); carries no reporter-identifying content (FR-FL-060); stays advanceable **and closable** (FR-FL-061); closure succeeds with no reporter to notify (SC-FL-010)
-- [ ] T063 [US7] **(GREEN)** Any controller changes needed so a detached item advances and closes without a reporter
-- [ ] T064 [US7] Render detached items without reporter attribution in `packages/client/src/components/admin/TriageQueue.tsx`
-- [ ] T065 [US7] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — erase a reporter, then advance and close their item
+- [X] T062 [P] [US7] **(RED)** `packages/client/tests/server/lifecycle-erasure.test.ts`: in-flight item persists through erasure (FR-FL-059); carries no reporter-identifying content (FR-FL-060); stays advanceable **and closable** (FR-FL-061); closure succeeds with no reporter to notify (SC-FL-010)
+- [X] T063 [US7] **(GREEN)** Any controller changes needed so a detached item advances and closes without a reporter
+- [X] T064 [US7] Render detached items without reporter attribution in `packages/client/src/components/admin/TriageQueue.tsx`
+- [X] T065 [US7] **Playwright** extend `packages/client/e2e/lifecycle.e2e.ts` — erase a reporter, then advance and close their item
 
 ---
 

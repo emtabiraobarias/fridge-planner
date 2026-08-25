@@ -103,3 +103,118 @@ test('an illegal transition is refused and leaves the item where it was (FR-FL-0
   const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
   expect(((await after.json()) as { stage: string }).stage).toBe('new');
 });
+
+// ── US4 — gates, driven through the delivery surface ─────────────────────────
+
+test('the maintainer walks an item to shipped through the gates, and a rejection sends it back (FR-FL-009/010/064)', async ({
+  page,
+}) => {
+  const title = await fileReport(page.request);
+
+  // Seed forward to in-review through the API — the assertion below is about the GATES.
+  const queue = await page.request.get('/api/v1/admin/lifecycle?stage=new', { headers: AS_ADMIN });
+  const { items } = (await queue.json()) as { items: { _id: string; sourceTitle: string }[] };
+  const id = items.find((i) => i.sourceTitle === title)!._id;
+  for (const action of ['accept', 'advance', 'advance', 'approve-spec', 'advance']) {
+    const r = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+      data: { action },
+      headers: AS_ADMIN,
+    });
+    expect(r.status(), action).toBe(200);
+  }
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Delivery' }).click();
+  const row = page.locator('section[aria-label="Delivery"] li', { hasText: title });
+  await expect(row).toBeVisible();
+
+  // FR-FL-064 — "changes needed" must have somewhere to send the work.
+  await row.getByRole('button', { name: /Changes needed/ }).click();
+  await expect(page.getByTestId(`delivery-stage-${id}`)).toHaveText(/In progress/i);
+
+  // Forward again, then the release gate.
+  await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+    data: { action: 'advance' },
+    headers: AS_ADMIN,
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Delivery' }).click();
+  await page
+    .locator('section[aria-label="Delivery"] li', { hasText: title })
+    .getByRole('button', { name: /Approve release/ })
+    .click();
+
+  const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
+  const body = (await after.json()) as {
+    stage: string;
+    transitions: { to: string; isGateApproval: boolean }[];
+  };
+  expect(body.stage).toBe('shipped');
+  // SC-FL-006 — shipped only via a RECORDED approval.
+  expect(body.transitions.some((t) => t.to === 'shipped' && t.isGateApproval)).toBe(true);
+});
+
+// ── US6 — a merged reporter must not learn anything about the target ─────────
+
+test('a merged reporter sees a status and nothing about the other report (FR-FL-019)', async ({
+  page,
+}) => {
+  const targetTitle = await fileReport(page.request);
+  const dupeTitle = `Lifecycle dupe ${Date.now()}`;
+  await page.request.post('/api/v1/feedback', {
+    data: { message: dupeTitle },
+    headers: { 'x-user-id': 'reporter-e2e-2' },
+  });
+
+  const queue = await page.request.get('/api/v1/admin/lifecycle', { headers: AS_ADMIN });
+  const { items } = (await queue.json()) as { items: { _id: string; sourceTitle: string }[] };
+  const targetId = items.find((i) => i.sourceTitle === targetTitle)!._id;
+  const dupeId = items.find((i) => i.sourceTitle === dupeTitle)!._id;
+
+  const merged = await page.request.patch(`/api/v1/admin/lifecycle/${dupeId}`, {
+    data: { action: 'merge', targetId },
+    headers: AS_ADMIN,
+  });
+  expect(merged.status()).toBe(200);
+
+  const asDupeReporter = await page.request.get('/api/v1/lifecycle', {
+    headers: { 'x-user-id': 'reporter-e2e-2' },
+  });
+  const wire = await asDupeReporter.text();
+  expect(wire).toContain('mergedTargetStage');
+  // The whole point of D14: a status, and nothing else about someone else's report.
+  expect(wire).not.toContain(targetTitle);
+  expect(wire).not.toContain(targetId);
+});
+
+// ── US7 — work outlives an erased account ────────────────────────────────────
+
+test('an erased reporter’s in-flight work survives, detached, and still advances (FR-FL-059/061)', async ({
+  page,
+}) => {
+  const title = await fileReport(page.request);
+  const queue = await page.request.get('/api/v1/admin/lifecycle?stage=new', { headers: AS_ADMIN });
+  const { items } = (await queue.json()) as { items: { _id: string; sourceTitle: string }[] };
+  const id = items.find((i) => i.sourceTitle === title)!._id;
+
+  await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+    data: { action: 'accept' },
+    headers: AS_ADMIN,
+  });
+
+  // Erase the reporter, then purge — the two-phase erasure of spec 011.
+  await page.request.post('/api/v1/admin/users/reporter-e2e/erase', { headers: AS_ADMIN });
+  await page.request.post('/api/v1/admin/users/purge', { headers: AS_ADMIN });
+
+  const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
+  expect(after.status()).toBe(200);
+  const item = (await after.json()) as { stage: string; sourceTitle: string };
+  // It survived, and carries nothing identifying.
+  expect(item.sourceTitle).not.toContain(title);
+
+  const advanced = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+    data: { action: 'advance' },
+    headers: AS_ADMIN,
+  });
+  expect(advanced.status()).toBe(200);
+});

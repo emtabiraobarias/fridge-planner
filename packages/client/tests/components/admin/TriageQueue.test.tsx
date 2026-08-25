@@ -13,7 +13,8 @@ import { fetchQueue, applyLifecycleAction } from '../../../src/services/lifecycl
 const mockQueue = vi.mocked(fetchQueue);
 const mockAct = vi.mocked(applyLifecycleAction);
 
-function item(over: Record<string, unknown> = {}): never {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function item(over: Record<string, unknown> = {}): any {
   return {
     _id: 'i1',
     userId: 'reporter-1',
@@ -23,8 +24,7 @@ function item(over: Record<string, unknown> = {}): never {
     stage: 'new',
     updatedAt: '2026-08-25T10:00:00Z',
     ...over,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any;
+  };
 }
 
 beforeEach(() => {
