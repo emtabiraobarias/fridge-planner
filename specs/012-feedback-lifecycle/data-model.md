@@ -6,8 +6,14 @@ Phase 1 output. Evolves the existing `pipeline_items` collection in place (resea
 
 ## LifecycleItem
 
-**Collection**: `pipeline_items` (unchanged — the model renames, the collection does not, so no
+**Collection**: `pipelineitems` (unchanged — the model renames, the collection does not, so no
 data move and no dual-write).
+
+> ⚠️ **`pipelineitems`, not `pipeline_items`.** The shipped `PipelineItem` model sets no explicit
+> collection, so Mongoose's default pluralisation is what production actually holds. The plan and
+> this document both said `pipeline_items` until implementation caught it — the model test now
+> asserts the two models agree rather than matching a literal, which is a property a wrong guess
+> cannot satisfy.
 
 ```typescript
 {

@@ -6,6 +6,7 @@ import { UserDataPanel } from '../components/admin/UserDataPanel';
 import { OpsPanel } from '../components/admin/OpsPanel';
 import { AccountsPanel } from '../components/admin/AccountsPanel';
 import { SettingsPanel } from '../components/admin/SettingsPanel';
+import { TriageQueue } from '../components/admin/TriageQueue';
 import {
   fetchAdminFeedback,
   promoteFeedback,
@@ -188,6 +189,10 @@ export function AdminPage(): React.JSX.Element {
             onCloseSupport={() => setSupportUserId(null)}
           />
         )}
+        {/* Spec 012 US1. The lifecycle queue sits alongside the record list rather than in its
+            own tab: D7 puts triage AND delivery on one maintainer surface, and splitting the
+            two halves of triage across tabs would undo that. */}
+        {tab === 'triage' && <TriageQueue />}
         {tab === 'ops' && <OpsPanel />}
         {/* Prefilled with whoever is under investigation in triage — the common path
             into this tab is "this reporter asked to be erased". */}

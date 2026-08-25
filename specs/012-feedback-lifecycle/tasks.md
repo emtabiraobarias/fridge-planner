@@ -36,7 +36,7 @@ data, and every story below adds more of that data.
 - [X] T009 [P] **(RED)** Purge tests in `packages/client/tests/server/unit/account-purge.test.ts`: the five delete-list models are deleted; the lifecycle item **survives**, loses reporter-identifying content, and gains `reporterErasedAt` (FR-FL-059/060)
 - [X] T010 **(GREEN)** Split `packages/client/src/server/lib/account-purge.ts` into `USER_KEYED_MODELS` (delete) and `USER_DETACHED_MODELS` (detach). ⚠️ Erasure currently **deletes** lifecycle items, directly contradicting D15 (research R4)
 - [X] T011 Update `CLAUDE.md` §5 — the "six user-keyed collections, adding a seventh means adding a line there" rule now covers **two lists with different semantics**; a future model filed under the wrong one either leaks or destroys data
-- [ ] T012 Extend `packages/client/src/server/lib/audit.ts` usage so every lifecycle transition records actor + time (FR-FL-005) via the existing append-only `record()` — **deferred into T014**: there is no controller yet to wire the call into, and a wrapper with no caller would be untestable
+- [X] T012 Extend `packages/client/src/server/lib/audit.ts` usage so every lifecycle transition records actor + time (FR-FL-005) via the existing append-only `record()` — **done with T014**, as planned. Added `lifecycle.transition`/`edit`/`rank` to `ADMIN_AUDIT_ACTIONS` and a `lifecycle` subject type; `pipeline.transition` is kept because the trail is append-only and historic entries cannot be relabelled
 
 **Checkpoint**: ✅ stage graph green (158 assertions), model migrated, erasure no longer destroys lifecycle work. T012 rides with T014.
 
@@ -47,21 +47,21 @@ data, and every story below adds more of that data.
 **Goal**: a report can be accepted or dismissed, and the decision is recorded rather than implied by silence.
 **Independent test**: submit as one user; as maintainer accept it and see `accepted`; dismiss another and see `dismissed` with a reason.
 
-- [ ] T013 [P] [US1] **(RED)** Contract tests in `packages/client/tests/server/lifecycle-triage.test.ts`: accept `new→accepted` (FR-FL-008); dismiss with each reason, stored distinguishably (FR-FL-016/017); illegal transition → 409 unchanged (FR-FL-003); concurrent transitions → exactly one applies (FR-FL-004); non-admin → **403 not 401** (FR-FL-055). Reset the limiter key in `beforeEach` — it is module-level state surviving between tests
-- [ ] T014 [US1] **(GREEN)** `packages/client/src/server/controllers/lifecycle.ts` — atomic guarded `findOneAndUpdate` per action, `problem()` refusals, `isGateApproval` derived server-side (FR-FL-013)
-- [ ] T015 [US1] Create a lifecycle item at stage `new` when a record reaches `complete` (research R2), in `packages/client/src/server/controllers/feedback.ts`
-- [ ] T016 [P] [US1] **(RED)** Queue tests in `packages/client/tests/server/admin-lifecycle.test.ts`: cross-user listing (FR-FL-023), `?stage=` filter, **rank ordering** (FR-FL-022 — a ranked queue, not a P1/P2/P3 label scale)
-- [ ] T017 [US1] **(GREEN)** `packages/client/src/server/controllers/admin-lifecycle.ts` — cross-user queue, summaries without the transition log
-- [ ] T018 [US1] Route handlers `packages/client/app/api/v1/admin/lifecycle/route.ts` (GET queue) and `[id]/route.ts` (GET full · PATCH action union), both `requirePrincipalAdmin` + `withRoute` + `connectDb`
-- [ ] T019 [US1] `edit-source` and `set-rank` actions in the controller — edits allowed pre-`briefed` only, attributed to the maintainer (FR-FL-020/021); `set-rank` positions the item in the queue (FR-FL-022)
-- [ ] T020 [US1] Refuse deletion of a feedback record whose item is in an active stage (FR-FL-006) in `packages/client/src/server/controllers/feedback.ts`
-- [ ] T021 [P] [US1] `packages/client/src/services/lifecycle.ts` — browser fetchers via `apiFetch`/`ensureOk`
-- [ ] T022 [US1] **(RED→GREEN)** `packages/client/tests/components/admin/TriageQueue.test.tsx` + `packages/client/src/components/admin/TriageQueue.tsx` — queue, accept, dismiss-with-reason, priority
-- [ ] T023 [US1] Add the triage tab to `packages/client/src/views/AdminPage.tsx` (research R6)
-- [ ] T024 [US1] **Playwright** `packages/client/e2e/lifecycle.e2e.ts` — accept and dismiss journeys **driven through the UI**, asserting the server's answer changed
-- [ ] T073 [US1] **(RED→GREEN)** Source-record status side effect in `packages/client/tests/server/lifecycle-triage.test.ts` + `packages/client/src/server/controllers/lifecycle.ts`: accepting sets the record to `reviewed` (FR-FL-062) and **dismissing does too** (FR-FL-063). Added by analyze finding C1 — the transition was asserted in the API contract with no requirement and no task behind it, because `003` reached `reviewed` "on first promotion" and `012` removed promotion. A dismissed record left at `complete` is indistinguishable from one nobody has read
+- [X] T013 [P] [US1] **(RED)** Contract tests in `packages/client/tests/server/lifecycle-triage.test.ts`: accept `new→accepted` (FR-FL-008); dismiss with each reason, stored distinguishably (FR-FL-016/017); illegal transition → 409 unchanged (FR-FL-003); concurrent transitions → exactly one applies (FR-FL-004); non-admin → **403 not 401** (FR-FL-055). Reset the limiter key in `beforeEach` — it is module-level state surviving between tests
+- [X] T014 [US1] **(GREEN)** `packages/client/src/server/controllers/lifecycle.ts` — atomic guarded `findOneAndUpdate` per action, `problem()` refusals, `isGateApproval` derived server-side (FR-FL-013)
+- [X] T015 [US1] Create a lifecycle item at stage `new` when a record reaches `complete` (research R2), in `packages/client/src/server/controllers/feedback.ts`
+- [X] T016 [P] [US1] **(RED)** Queue tests in `packages/client/tests/server/admin-lifecycle.test.ts`: cross-user listing (FR-FL-023), `?stage=` filter, **rank ordering** (FR-FL-022 — a ranked queue, not a P1/P2/P3 label scale)
+- [X] T017 [US1] **(GREEN)** `packages/client/src/server/controllers/admin-lifecycle.ts` — cross-user queue, summaries without the transition log
+- [X] T018 [US1] Route handlers `packages/client/app/api/v1/admin/lifecycle/route.ts` (GET queue) and `[id]/route.ts` (GET full · PATCH action union), both `requirePrincipalAdmin` + `withRoute` + `connectDb`
+- [X] T019 [US1] `edit-source` and `set-rank` actions in the controller — edits allowed pre-`briefed` only, attributed to the maintainer (FR-FL-020/021); `set-rank` positions the item in the queue (FR-FL-022)
+- [X] T020 [US1] Refuse deletion of a feedback record whose item is in an active stage (FR-FL-006) in `packages/client/src/server/controllers/feedback.ts`
+- [X] T021 [P] [US1] `packages/client/src/services/lifecycle.ts` — browser fetchers via `apiFetch`/`ensureOk`
+- [X] T022 [US1] **(RED→GREEN)** `packages/client/tests/components/admin/TriageQueue.test.tsx` + `packages/client/src/components/admin/TriageQueue.tsx` — queue, accept, dismiss-with-reason, priority
+- [X] T023 [US1] Add the triage tab to `packages/client/src/views/AdminPage.tsx` (research R6)
+- [X] T024 [US1] **Playwright** `packages/client/e2e/lifecycle.e2e.ts` — accept and dismiss journeys **driven through the UI**, asserting the server's answer changed
+- [X] T073 [US1] **(RED→GREEN)** Source-record status side effect in `packages/client/tests/server/lifecycle-triage.test.ts` + `packages/client/src/server/controllers/lifecycle.ts`: accepting sets the record to `reviewed` (FR-FL-062) and **dismissing does too** (FR-FL-063). Added by analyze finding C1 — the transition was asserted in the API contract with no requirement and no task behind it, because `003` reached `reviewed` "on first promotion" and `012` removed promotion. A dismissed record left at `complete` is indistinguishable from one nobody has read
 
-**Checkpoint**: US1 independently shippable — MVP.
+**Checkpoint**: ✅ US1 independently shippable — MVP complete. 97 test files / 1191 tests, lint clean.
 
 ---
 

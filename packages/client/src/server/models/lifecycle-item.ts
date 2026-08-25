@@ -17,7 +17,8 @@ import {
 /**
  * Spec 012's lifecycle item — the SAME collection the pipeline items already live in.
  *
- * The model renames, the collection does not (research R1). The old and new stage sets nest
+ * The model renames, the collection does not (research R1) — and the collection is
+ * `pipelineitems`, Mongoose's default pluralisation of the old model name. The stage sets nest
  * almost perfectly: only `approved` changed, to `accepted`, migrated once by
  * `scripts/migrate-lifecycle-stages.mjs`. A second collection would have bought dual-write, a
  * join on every maintainer view, and two answers to "what stage is this in".
@@ -112,7 +113,10 @@ const lifecycleItemSchema = new Schema<ILifecycleItem>(
 
     reporterErasedAt: { type: Date },
   },
-  { timestamps: true, collection: 'pipeline_items' },
+  // `pipelineitems`, not `pipeline_items`: the shipped PipelineItem model set no explicit
+  // collection, so Mongoose's default pluralisation is what production actually holds. Naming it
+  // explicitly here stops the two models drifting onto different collections.
+  { timestamps: true, collection: 'pipelineitems' },
 );
 
 // One item per record, enforced in the DATABASE — this is what makes acceptance idempotent

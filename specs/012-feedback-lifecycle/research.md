@@ -7,7 +7,7 @@ decision, why, and what else was considered. **D7 remains deliberately unresolve
 
 ## R1 — Does the lifecycle get a new collection, or evolve `pipeline_items`?
 
-**Decision: evolve `pipeline_items` in place.** Rename the model `PipelineItem` → `LifecycleItem`
+**Decision: evolve the existing pipeline collection (`pipelineitems`) in place.** Rename the model `PipelineItem` → `LifecycleItem`
 (same collection), widen the stage enum, add the new fields, and run a one-time stage migration.
 
 **Rationale.** The old and new stage sets are not disjoint — they nest almost perfectly:

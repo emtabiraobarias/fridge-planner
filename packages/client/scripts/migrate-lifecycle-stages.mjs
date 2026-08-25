@@ -30,7 +30,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 
 try {
   await mongoose.connect(uri);
-  const collection = mongoose.connection.collection('pipeline_items');
+  const collection = mongoose.connection.collection('pipelineitems');
 
   const pending = await collection.countDocuments({ stage: 'approved' });
   console.log(`${pending} item(s) on the old \`approved\` stage`);

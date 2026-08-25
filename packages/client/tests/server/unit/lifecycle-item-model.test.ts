@@ -5,6 +5,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 
 let mongod: MongoMemoryServer;
 let LifecycleItem: typeof import('@server/models/lifecycle-item').LifecycleItem;
+let PipelineItem: typeof import('@server/models/pipeline-item').PipelineItem;
 
 const REPORTER = 'reporter-1';
 
@@ -16,6 +17,7 @@ beforeAll(async () => {
   const db = await import('@server/db');
   await db.connectDb();
   ({ LifecycleItem } = await import('@server/models/lifecycle-item'));
+  ({ PipelineItem } = await import('@server/models/pipeline-item'));
   // Mongoose builds indexes asynchronously. Without this the unique-index assertion races the
   // build and passes or fails depending on suite timing — green in isolation, red in a full run.
   await LifecycleItem.init();
@@ -44,9 +46,12 @@ function base(over: Record<string, unknown> = {}): Record<string, unknown> {
 
 describe('LifecycleItem model', () => {
   it('uses the same collection the pipeline items already live in (research R1)', () => {
-    // The model renames; the collection does not. A second collection would mean dual-write
-    // and a join on every maintainer view, to avoid renaming one stage value.
-    expect(LifecycleItem.collection.name).toBe('pipeline_items');
+    // Asserted against the SHIPPED model, never a literal. An earlier version of this test
+    // hard-coded 'pipeline_items' and passed while the two models sat on DIFFERENT collections —
+    // the old model sets no explicit name, so Mongoose pluralises it to `pipelineitems`.
+    // Comparing the two is the property that actually matters and cannot be self-satisfied.
+    expect(LifecycleItem.collection.name).toBe(PipelineItem.collection.name);
+    expect(LifecycleItem.collection.name).toBe('pipelineitems');
   });
 
   it('accepts every one of the eleven stages (FR-FL-001)', async () => {
