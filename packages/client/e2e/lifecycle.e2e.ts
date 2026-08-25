@@ -272,3 +272,51 @@ test('closing tells the reporter, and still works when the release list is down 
   const asReporter = await page.request.get('/api/v1/lifecycle', { headers: AS_REPORTER });
   expect(await asReporter.text()).toContain(item.closure!.excerpt);
 });
+
+// ── US3 — clauses are vetted before anything reaches spec ───────────────────
+
+test('advancing to spec is blocked until every clause is vetted (FR-FL-028, SC-FL-005)', async ({
+  page,
+}) => {
+  const title = await fileReport(page.request);
+  const queue = await page.request.get('/api/v1/admin/lifecycle?stage=new', { headers: AS_ADMIN });
+  const { items } = (await queue.json()) as { items: { _id: string; sourceTitle: string }[] };
+  const id = items.find((i) => i.sourceTitle === title)!._id;
+
+  for (const action of ['accept', 'advance']) {
+    await page.request.patch(`/api/v1/admin/lifecycle/${id}`, { data: { action }, headers: AS_ADMIN });
+  }
+
+  // The agent cannot be relied on here, so the clauses are seeded through the real endpoint —
+  // the assertion is about the VETTING GATE, not about drafting quality.
+  await page.request.post(`/api/v1/admin/lifecycle/${id}/clauses`, {
+    data: { text: 'The system shall collapse duplicate rows.', derivedFrom: 'rows duplicate' },
+    headers: AS_ADMIN,
+  });
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Delivery' }).click();
+  const panel = page.locator('div[aria-label="Clause vetting"]');
+  await expect(panel).toBeVisible();
+  // A manually authored clause is already vetted, so this one should read as accepted.
+  await expect(panel).toContainText(/can go to spec/i);
+
+  // Now add a PENDING one via the agent path and confirm the gate closes again.
+  await page.request.post(`/api/v1/admin/lifecycle/${id}/clauses`, {
+    data: {},
+    headers: AS_ADMIN,
+  });
+  const blocked = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+    data: { action: 'advance' },
+    headers: AS_ADMIN,
+  });
+  // Either the agent drafted (409, pending) or it could not (200, nothing pending) — both are
+  // legitimate; what must never happen is advancing WITH something pending.
+  const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
+  const item = (await after.json()) as { stage: string; clauses: { vetted: string }[] };
+  const pending = item.clauses.filter((c) => c.vetted === 'pending').length;
+  if (pending > 0) {
+    expect(blocked.status()).toBe(409);
+    expect(item.stage).toBe('briefed');
+  }
+});

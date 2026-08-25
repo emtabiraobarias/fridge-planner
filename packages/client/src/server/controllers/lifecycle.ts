@@ -2,6 +2,7 @@ import 'server-only';
 import { z } from 'zod';
 import { LifecycleItem } from '../models/lifecycle-item';
 import { FeedbackRecord } from '../models/feedback-record';
+import { draftClauses } from '../services/feedback-collector';
 import { problem, type ControllerResult } from '../http';
 import { record as auditRecord } from '../lib/audit';
 import {
@@ -246,6 +247,44 @@ function buildTransition(
   };
 }
 
+
+/**
+ * FR-FL-028 / SC-FL-005 — nothing reaches `in-spec` on unvetted clauses.
+ *
+ * Checked here rather than in the stage graph because it depends on the item's CONTENT, not on
+ * the stage pair: the same transition is legal or not depending on what has been vetted.
+ */
+function refuseIfUnvetted(
+  from: LifecycleStage,
+  to: LifecycleStage,
+  clauses: readonly { vetted: string }[],
+): ControllerResult | null {
+  if (from !== 'briefed' || to !== 'in-spec') return null;
+  const pending = clauses.filter((c) => c.vetted === 'pending').length;
+  if (pending === 0) return null;
+  return problem(409, ILLEGAL, `${pending} clause(s) still need vetting before this can go to spec.`);
+}
+
+
+/**
+ * Everything that can refuse a transition BEFORE anything is written: the item must exist, the
+ * destination must be legal, and `briefed → in-spec` must not carry unvetted clauses.
+ *
+ * Grouped so `applyAction` reads as resolve → write → record rather than as a run of guards.
+ */
+async function preflight(
+  id: string,
+  body: Exclude<ActionRequest, NonTransitionRequest>,
+): Promise<{ from: LifecycleStage; to: LifecycleStage } | ControllerResult> {
+  const current = await LifecycleItem.findById(id).lean();
+  if (!current) return problem(404, 'Not Found', 'No such lifecycle item.');
+
+  const destination = resolveDestination(body, current.stage, current.parkedFromStage);
+  if ('status' in destination) return destination;
+
+  return refuseIfUnvetted(destination.from, destination.to, current.clauses) ?? destination;
+}
+
 /** Apply a maintainer action to one item. Every refusal leaves state unchanged. */
 export async function applyAction(
   id: string,
@@ -256,12 +295,9 @@ export async function applyAction(
     return applyNonTransition(id, adminUserId, body);
   }
 
-  const current = await LifecycleItem.findById(id).lean();
-  if (!current) return problem(404, 'Not Found', 'No such lifecycle item.');
-
-  const destination = resolveDestination(body, current.stage, current.parkedFromStage);
-  if ('status' in destination) return destination;
-  const { from, to } = destination;
+  const checked = await preflight(id, body);
+  if ('status' in checked) return checked;
+  const { from, to } = checked;
 
   const built = await buildStageUpdate(id, body, from, to, adminUserId);
   if ('status' in built) return built;
@@ -392,4 +428,119 @@ export async function setReply(
   if (!updated) return problem(404, 'Not Found', 'No such lifecycle item.');
   await auditRecord(adminUserId, 'lifecycle.edit', { id, type: 'lifecycle' });
   return { status: 200, body: { ok: true } };
+}
+
+
+// ─── Clauses (US3) ────────────────────────────────────────────────────────────
+
+/**
+ * Draft clauses for an item at `briefed` (FR-FL-024).
+ *
+ * Drafting is an ASSIST, never a precondition: if the agent returns nothing the item still sits
+ * at `briefed` and the maintainer writes the clauses by hand (FR-FL-031). Existing clauses are
+ * never overwritten — vetting work must not be lost to a re-draft.
+ */
+export async function draftClausesFor(id: string, adminUserId: string): Promise<ControllerResult> {
+  const item = await LifecycleItem.findById(id).lean();
+  if (!item) return problem(404, 'Not Found', 'No such lifecycle item.');
+  if (item.stage !== 'briefed') {
+    return problem(409, ILLEGAL, 'Clauses are drafted at the briefed stage.');
+  }
+
+  const record = await FeedbackRecord.findById(item.feedbackRecordId).lean();
+  if (!record) return problem(404, 'Not Found', 'The source record is gone.');
+
+  const drafted = await draftClauses({
+    ...(record.title ? { title: record.title } : {}),
+    ...(record.problemStatement ? { problemStatement: record.problemStatement } : {}),
+    ...(record.acceptanceCriteria ? { acceptanceCriteria: record.acceptanceCriteria } : {}),
+  });
+
+  // Provisional ids only — nothing unvetted may wear a real `FR-` number (FR-FL-027).
+  const existing = item.clauses.length;
+  const clauses = drafted.map((d, i) => ({
+    provisionalId: `C-${String(existing + i + 1).padStart(2, '0')}`,
+    text: d.text,
+    derivedFrom: d.derivedFrom,
+    inferred: d.inferred,
+    vetted: 'pending' as const,
+  }));
+
+  const updated = await LifecycleItem.findOneAndUpdate(
+    { _id: id },
+    { $push: { clauses: { $each: clauses } } },
+    { new: true },
+  ).lean();
+
+  await auditRecord(adminUserId, 'lifecycle.edit', { id, type: 'lifecycle' });
+  return { status: 200, body: { clauses: updated!.clauses, drafted: clauses.length } };
+}
+
+export const vetSchema = z.object({
+  vetted: z.enum(['accepted', 'rejected']),
+  editedText: z.string().min(1).max(600).optional(),
+});
+
+/** Vet one clause (FR-FL-029). A rejected clause stays visible — it is part of the record. */
+export async function vetClause(
+  id: string,
+  provisionalId: string,
+  adminUserId: string,
+  body: z.infer<typeof vetSchema>,
+): Promise<ControllerResult> {
+  const updated = await LifecycleItem.findOneAndUpdate(
+    { _id: id, 'clauses.provisionalId': provisionalId },
+    {
+      $set: {
+        'clauses.$.vetted': body.vetted,
+        'clauses.$.vettedBy': adminUserId,
+        'clauses.$.vettedAt': new Date(),
+        ...(body.editedText ? { 'clauses.$.editedText': body.editedText } : {}),
+      },
+    },
+    { new: true },
+  ).lean();
+
+  if (!updated) return problem(404, 'Not Found', 'No such clause on that item.');
+  await auditRecord(adminUserId, 'lifecycle.edit', { id, type: 'lifecycle' });
+  return { status: 200, body: { clauses: updated.clauses } };
+}
+
+export const manualClauseSchema = z.object({
+  text: z.string().min(1).max(600),
+  derivedFrom: z.string().min(1).max(2000),
+});
+
+/**
+ * Author a clause by hand (FR-FL-031).
+ *
+ * Recorded as already `accepted`: the maintainer wrote it, so there is nothing to vet it
+ * against — vetting exists to check the AGENT's derivation, not the human's own words.
+ */
+export async function addManualClause(
+  id: string,
+  adminUserId: string,
+  body: z.infer<typeof manualClauseSchema>,
+): Promise<ControllerResult> {
+  const item = await LifecycleItem.findById(id).lean();
+  if (!item) return problem(404, 'Not Found', 'No such lifecycle item.');
+
+  const clause = {
+    provisionalId: `C-${String(item.clauses.length + 1).padStart(2, '0')}`,
+    text: body.text,
+    derivedFrom: body.derivedFrom,
+    inferred: false,
+    vetted: 'accepted' as const,
+    vettedBy: adminUserId,
+    vettedAt: new Date(),
+  };
+
+  const updated = await LifecycleItem.findOneAndUpdate(
+    { _id: id },
+    { $push: { clauses: clause } },
+    { new: true },
+  ).lean();
+
+  await auditRecord(adminUserId, 'lifecycle.edit', { id, type: 'lifecycle' });
+  return { status: 200, body: { clauses: updated!.clauses } };
 }

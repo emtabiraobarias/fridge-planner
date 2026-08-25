@@ -8,6 +8,7 @@ import {
   type LifecycleSummary,
 } from '../../services/lifecycle';
 import { ClosureComposer } from './ClosureComposer';
+import { ClauseVetting } from './ClauseVetting';
 
 /**
  * Delivery — the second half of the maintainer surface (spec 012 US4, D7).
@@ -189,6 +190,10 @@ export function DeliveryPanel(): React.JSX.Element {
                 </button>
               )}
             </div>
+
+            {/* At `briefed` the clauses ARE the work — shown inline rather than behind a
+                click, since advancing is blocked until they are vetted (FR-FL-028). */}
+            {item.stage === 'briefed' && <ClauseVetting itemId={item._id} />}
 
             {closing === item._id && (
               <ClosureComposer

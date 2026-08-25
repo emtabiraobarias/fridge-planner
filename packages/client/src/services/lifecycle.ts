@@ -137,3 +137,42 @@ export async function fetchReleaseList(): Promise<ReleaseList> {
   const res = await apiFetch('/api/v1/admin/releases');
   return (await ensureOk(res, 'load the release list').json()) as ReleaseList;
 }
+
+export interface Clause {
+  provisionalId: string;
+  text: string;
+  /** The record text this was derived from — displayed BESIDE the clause (FR-FL-025). */
+  derivedFrom: string;
+  inferred: boolean;
+  vetted: 'pending' | 'accepted' | 'rejected';
+  editedText?: string;
+}
+
+export async function fetchClauses(id: string): Promise<Clause[]> {
+  const res = await apiFetch(`/api/v1/admin/lifecycle/${id}/clauses`);
+  return ((await ensureOk(res, 'load the clauses').json()) as { clauses: Clause[] }).clauses;
+}
+
+/** Ask the agent to draft. Returns however many it managed — zero is a valid answer. */
+export async function draftClauses(id: string): Promise<Clause[]> {
+  const res = await apiFetch(`/api/v1/admin/lifecycle/${id}/clauses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  return ((await ensureOk(res, 'draft clauses').json()) as { clauses: Clause[] }).clauses ?? [];
+}
+
+export async function vetClause(
+  id: string,
+  provisionalId: string,
+  vetted: 'accepted' | 'rejected',
+  editedText?: string,
+): Promise<Clause[]> {
+  const res = await apiFetch(`/api/v1/admin/lifecycle/${id}/clauses/${provisionalId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vetted, ...(editedText ? { editedText } : {}) }),
+  });
+  return ((await ensureOk(res, 'vet the clause').json()) as { clauses: Clause[] }).clauses;
+}
