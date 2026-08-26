@@ -380,21 +380,43 @@ export interface ReporterView {
   updatedAt: Date;
 }
 
-/** Reporter-facing stage vocabulary (FR-FL-035). "Being specified" vs "being built" is the
- *  distinction D12 buys the reporter — it is the difference they actually feel. */
+/**
+ * Reporter-facing stage vocabulary (FR-FL-035). "Being specified" vs "being built" is the
+ * distinction D12 buys the reporter — it is the difference they actually feel.
+ *
+ * The wording is the design's "Reporter sees" column verbatim, so the contract table and the
+ * app cannot drift into saying different things to the same person.
+ */
 const REPORTER_LABEL: Record<LifecycleStage, string> = {
-  new: 'Received',
-  accepted: 'Accepted',
+  new: 'Waiting to be looked at',
+  accepted: 'Accepted — queued',
   briefed: 'Being specified',
   'in-spec': 'Being specified',
   'in-progress': 'Being built',
   'in-review': 'In review',
   shipped: 'Shipped',
-  closed: 'Closed',
+  closed: 'Done',
   dismissed: 'Not being built',
   merged: 'Merged with another report',
-  parked: 'Paused',
+  parked: 'On hold',
 };
+
+/**
+ * Dismissal has two meanings, and they are not the same sentence to a reporter: one
+ * acknowledges, the other declines. Same terminal position, different words — which is the
+ * whole reason FR-FL-016 makes the maintainer choose (FR-FL-065).
+ */
+const DISMISSAL_LABEL: Record<string, string> = {
+  'no-action-required': 'No action required',
+  declined: 'Not being built',
+};
+
+function reporterLabel(stage: LifecycleStage, dismissalReason?: string): string {
+  if (stage === 'dismissed' && dismissalReason) {
+    return DISMISSAL_LABEL[dismissalReason] ?? REPORTER_LABEL.dismissed;
+  }
+  return REPORTER_LABEL[stage];
+}
 
 /**
  * Project one item for its reporter.
@@ -408,7 +430,7 @@ async function toReporterView(item: ILifecycleItem & { _id: unknown }): Promise<
     _id: String(item._id),
     sourceTitle: item.sourceTitle,
     stage: item.stage,
-    stageLabel: REPORTER_LABEL[item.stage],
+    stageLabel: reporterLabel(item.stage, item.dismissalReason),
     updatedAt: item.updatedAt,
     // The reason IS the closing of the loop for declined work (FR-FL-065). Without it a
     // reporter sees only "not being built" and learns nothing.

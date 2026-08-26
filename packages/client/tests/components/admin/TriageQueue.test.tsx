@@ -221,6 +221,15 @@ describe('TriageQueue — filtering by stage (FR-AD-009)', () => {
     expect(screen.queryByRole('button', { name: /^parked/i })).not.toBeInTheDocument();
   });
 
+  it('identifies a title-less draft by the reporter’s own words', async () => {
+    mockQueue.mockResolvedValue([]);
+    // A record has no title until the conversation completes, so without the excerpt every
+    // draft rendered as "(untitled draft)" and the list could not be used.
+    renderQueue([draft({ excerpt: 'The calendar scrolls oddly on my tablet' })]);
+    expect(await screen.findByText(/calendar scrolls oddly/i)).toBeInTheDocument();
+    expect(screen.queryByText(/untitled draft/i)).not.toBeInTheDocument();
+  });
+
   it('keeps not-yet-enqueued drafts reachable', async () => {
     // A record that never completes has no lifecycle item (FR-FL-001). Dropping `draft` would
     // make abandoned conversations unreachable from the admin surface entirely.

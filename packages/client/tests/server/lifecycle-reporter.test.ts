@@ -81,12 +81,33 @@ describe('US2 — reporter visibility', () => {
     expect(res.status).toBe(404);
   });
 
+  // The design's "Reporter sees" column, verbatim and in full. Partial coverage is how the
+  // wording drifted from the contract table unnoticed: three of these were wrong and every
+  // test still passed, because only the three that happened to be right were asserted.
   it.each([
+    ['new', 'Waiting to be looked at'],
+    ['accepted', 'Accepted — queued'],
     ['briefed', 'Being specified'],
+    ['in-spec', 'Being specified'],
     ['in-progress', 'Being built'],
-    ['dismissed', 'Not being built'],
+    ['in-review', 'In review'],
+    ['shipped', 'Shipped'],
+    ['closed', 'Done'],
+    ['parked', 'On hold'],
+    ['merged', 'Merged with another report'],
   ])('describes %s to the reporter as "%s" (FR-FL-035)', async (stage, label) => {
-    const id = await seed(A, { stage, ...(stage === 'dismissed' ? { dismissalReason: 'declined' } : {}) });
+    const id = await seed(A, { stage });
+    const res = await ONE.GET(as(A), ctx(id));
+    expect((await res.json()).stageLabel).toBe(label);
+  });
+
+  // Same terminal position, very different sentence — which is the whole reason FR-FL-016
+  // makes the maintainer choose between them.
+  it.each([
+    ['no-action-required', 'No action required'],
+    ['declined', 'Not being built'],
+  ])('says "%s" dismissal as "%s" (FR-FL-017/065)', async (dismissalReason, label) => {
+    const id = await seed(A, { stage: 'dismissed', dismissalReason });
     const res = await ONE.GET(as(A), ctx(id));
     expect((await res.json()).stageLabel).toBe(label);
   });

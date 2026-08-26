@@ -45,7 +45,10 @@ interface Row {
 function draftRow(r: AdminFeedbackRow): Row {
   return {
     id: r._id,
-    title: r.title ?? '(untitled draft)',
+    // A record has no `title` until the conversation completes (FR-F-003), so fall back to what
+    // the reporter actually said. Without it every draft read "(untitled draft)" and the list
+    // could be seen but not used.
+    title: r.title ?? r.excerpt ?? '(untitled draft)',
     userId: r.userId,
     meta: [r.type, r.affectedArea].filter(Boolean).join(' · ') || 'conversation not finished',
     stage: 'draft',

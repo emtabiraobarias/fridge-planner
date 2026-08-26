@@ -208,7 +208,7 @@ describe('US1 — triage', () => {
   });
 
   it('lists across ALL reporters, in rank order (FR-FL-022/023)', async () => {
-    await seed({ rank: 2 });
+    const first = await seed({ rank: 2 });
     const second = await LifecycleItem.create({
       userId: 'reporter-2',
       feedbackRecordId: 'rec-other',
@@ -219,13 +219,31 @@ describe('US1 — triage', () => {
       rank: 1,
     });
 
+    // An UNRANKED item too. Without one this test cannot see the bug it exists to catch:
+    // Mongo sorts a missing field as null, which precedes every number ascending, so a plain
+    // `.sort({ rank: 1 })` put unranked items FIRST — the inverse of what FR-FL-022 wants.
+    const unranked = await LifecycleItem.create({
+      userId: 'reporter-3',
+      feedbackRecordId: 'rec-unranked',
+      sourceTitle: 'Never ranked',
+      sourceType: 'bug',
+      sourceAffectedArea: 'grocery',
+      stage: 'new',
+    });
+
     const res = await QUEUE.GET(admin('GET'));
     expect(res.status).toBe(200);
     const { items } = (await res.json()) as { items: { _id: string; userId: string }[] };
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(3);
     // The queue is the maintainer's, so it spans reporters — that is the point of it.
-    expect(items[0]!._id).toBe(String(second._id));
-    expect(new Set(items.map((i) => i.userId))).toEqual(new Set([REPORTER, 'reporter-2']));
+    expect(items.map((i) => i._id)).toEqual([
+      String(second._id), // rank 1
+      String(first), // rank 2
+      String(unranked._id), // unranked — last, not first
+    ]);
+    expect(new Set(items.map((i) => i.userId))).toEqual(
+      new Set([REPORTER, 'reporter-2', 'reporter-3']),
+    );
   });
 
   it('refuses to delete a record whose item is ACTIVE (FR-FL-006)', async () => {

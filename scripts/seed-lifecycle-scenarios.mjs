@@ -7,6 +7,13 @@ await mongoose.connect('mongodb://localhost:27017/fridge-planner');
 const records = mongoose.connection.collection('feedbackrecords');
 const items = mongoose.connection.collection('pipelineitems');
 
+// Flush first, every time. Walking the scenarios CONSUMES them — B2 dismisses the item B1
+// needs at `new`, C1 renames the item C2 looks for — so a seeder that appends leaves the
+// second run failing on its own leftovers rather than on anything real.
+await records.deleteMany({});
+await items.deleteMany({});
+console.log('  flushed feedback records and lifecycle items');
+
 /** A complete record + its lifecycle item at `new`, exactly as FR-FL-001 would enqueue it. */
 async function seed({ id, user, title, type, area, problem, given, when, then }) {
   const now = new Date();

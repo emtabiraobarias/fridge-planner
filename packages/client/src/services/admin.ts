@@ -24,6 +24,8 @@ export interface AdminFeedbackRow {
   type?: string;
   affectedArea?: string;
   priority?: string;
+  /** The reporter's opening line — how a title-less draft is identified in triage. */
+  excerpt?: string;
   pipelineStage: string | null;
   createdAt?: string;
   updatedAt?: string;

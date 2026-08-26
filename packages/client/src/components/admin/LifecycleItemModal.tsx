@@ -125,8 +125,10 @@ function EditSourceForm({ item, onSave, onCancel }: EditFormProps): React.JSX.El
         ))}
       </select>
 
+      {/* FR-FL-022 — the queue is presented in this order, unranked last. The comment sits
+          OUTSIDE the label: inside, it left a trailing space in the accessible name. */}
       <label className="text-muted mt-3 block text-xs font-semibold" htmlFor={`edit-rank-${item._id}`}>
-        Rank {/* FR-FL-022 — the queue is presented in this order, unranked last. */}
+        Rank
       </label>
       {/* Its own control, not folded into Save: rank is a separate server action, and firing
           two PATCHes from one click leaves their order — and the refresh between them — to chance. */}

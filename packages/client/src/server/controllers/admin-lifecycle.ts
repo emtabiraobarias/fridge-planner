@@ -35,16 +35,25 @@ export function parseQueueFilters(params: URLSearchParams): QueueFilters {
  *
  * Unranked items sort last rather than first: a maintainer who has ranked nothing should see the
  * most recent work, not an arbitrary slice of everything ever filed.
+ *
+ * That requires substituting a sort key, NOT `.sort({ rank: 1 })`. Mongo treats a missing field
+ * as null, and null sorts *before* any number ascending — so a plain rank sort buried every
+ * ranked item beneath every unranked one, the exact inverse of the paragraph above. The
+ * original test compared two items that both had a rank, so it never saw it.
  */
+const UNRANKED_LAST = Number.MAX_SAFE_INTEGER;
+
 export async function listQueue(filters: QueueFilters = {}): Promise<ControllerResult> {
   const query: Record<string, unknown> = {};
   if (filters.stage) query['stage'] = filters.stage;
   if (filters.userId) query['userId'] = filters.userId;
 
-  const items = await LifecycleItem.find(query)
-    .select('-transitions -clauses')
-    .sort({ rank: 1, updatedAt: -1 })
-    .lean();
+  const items = await LifecycleItem.aggregate([
+    { $match: query },
+    { $addFields: { _rankKey: { $ifNull: ['$rank', UNRANKED_LAST] } } },
+    { $sort: { _rankKey: 1, updatedAt: -1 } },
+    { $project: { transitions: 0, clauses: 0, _rankKey: 0 } },
+  ]);
 
   return { status: 200, body: { items } };
 }

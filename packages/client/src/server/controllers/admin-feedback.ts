@@ -57,8 +57,12 @@ export async function adminListFeedback(
   if (parsed.data.status) filter['status'] = parsed.data.status;
   if (parsed.data.userId) filter['userId'] = parsed.data.userId;
 
+  // The FIRST transcript line only, not the whole transcript. A record has no `title` until the
+  // conversation completes (FR-F-003), so without this every draft in the triage list rendered as
+  // "(untitled draft)" — a list the maintainer cannot read is not the cross-user visibility
+  // FR-AD-009 asks for. `$slice: 1` keeps the size saving that dropping transcripts was for.
   const docs = await FeedbackRecord.find(filter)
-    .select('-transcript')
+    .select({ transcript: { $slice: 1 } })
     .sort({ updatedAt: -1 })
     .limit(parsed.data.limit ?? 100)
     .lean();
@@ -70,9 +74,12 @@ export async function adminListFeedback(
     .lean();
   const stageByRecord = new Map(items.map((i) => [String(i.feedbackRecordId), i.stage]));
 
-  const feedback = docs.map((d) => ({
-    ...d,
-    pipelineStage: stageByRecord.get(String(d._id)) ?? null,
+  const feedback = docs.map(({ transcript, ...rest }) => ({
+    ...rest,
+    pipelineStage: stageByRecord.get(String(rest._id)) ?? null,
+    ...(transcript?.[0]?.content
+      ? { excerpt: transcript[0]!.content.slice(0, 140) }
+      : {}),
   }));
 
   await auditRecord(adminUserId, 'feedback.list');

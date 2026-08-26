@@ -23,14 +23,28 @@ const AS_REPORTER = { 'x-user-id': 'reporter-e2e' };
 const ERASE_REPORTER = { 'x-user-id': 'reporter-e2e-erase' };
 
 /** File a report as an ordinary reporter and return its title. */
-async function fileReport(request: APIRequestContext): Promise<string> {
+async function fileReport(
+  request: APIRequestContext,
+  as: Record<string, string> = AS_REPORTER,
+): Promise<string> {
   const title = `Lifecycle ${randomUUID().slice(0, 8)}`;
   const res = await request.post('/api/v1/feedback', {
     data: { message: title },
-    headers: AS_REPORTER,
+    headers: as,
   });
-  expect(res.status()).toBeLessThan(300);
+  expect(res.status(), 'filing a report').toBeLessThan(300);
   return title;
+}
+
+/**
+ * A reporter identity used by exactly one test.
+ *
+ * Feedback chat is rate-limited per user (`feedback-chat:${userId}`, 10/min), so several tests
+ * filing as the shared `reporter-e2e` inside one minute get a 429 partway — and the failure
+ * surfaces wherever the missing report was needed, not where the limit was hit.
+ */
+function ownReporter(): Record<string, string> {
+  return { 'x-user-id': `reporter-e2e-${randomUUID().slice(0, 8)}` };
 }
 
 
@@ -45,6 +59,36 @@ async function idFor(page: Page, title: string): Promise<string> {
   const id = items.find((i) => i.sourceTitle === title)?._id;
   if (!id) throw new Error(`no lifecycle item for ${title}`);
   return id;
+}
+
+async function stageOf(page: Page, id: string): Promise<string> {
+  const r = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
+  return ((await r.json()) as { stage: string }).stage;
+}
+
+async function recordIdFor(page: Page, id: string): Promise<string> {
+  const r = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
+  return ((await r.json()) as { feedbackRecordId: string }).feedbackRecordId;
+}
+
+interface ReporterItem {
+  sourceTitle: string;
+  stageLabel: string;
+  reply?: { text: string };
+  closure?: { excerpt: string };
+}
+
+/** What the REPORTER sees — the projection, never the admin document. */
+async function reporterView(
+  page: Page,
+  title: string,
+  as: Record<string, string> = AS_REPORTER,
+): Promise<ReporterItem> {
+  const r = await page.request.get('/api/v1/lifecycle', { headers: as });
+  const { items } = (await r.json()) as { items: ReporterItem[] };
+  const found = items.find((i) => i.sourceTitle === title);
+  if (!found) throw new Error(`reporter cannot see ${title}`);
+  return found;
 }
 
 async function openItem(page: Page, section: string, title: string): Promise<Locator> {
@@ -444,4 +488,236 @@ test('the closure form never trips the iOS auto-zoom floor (SC-RS-003)', async (
       .map((c) => `${c.getAttribute('aria-label') ?? c.id ?? c.tagName}: ${getComputedStyle(c).fontSize}`),
   );
   expect(tooSmall, 'sub-16px controls in the closure form — iOS will auto-zoom').toEqual([]);
+});
+
+// ── The controls the surface was missing until 2026-08-26 ──────────────────
+//
+// `edit-source` and `set-rank` existed server-side and in `services/lifecycle.ts` from the
+// start, but nothing called them: reachable by curl, invisible in the app. That is the same
+// gap class that let spec 011 ship three unbuilt panels behind green server tests, so these
+// drive the real controls.
+
+test('a title-less draft is listed and identifiable, but has nothing to act on', async ({
+  page,
+}) => {
+  // DRAFT_HOLD_TRIGGER keeps the mocked agent asking, so the record never completes — which
+  // is the only way to get a genuinely title-less record (FR-F-003).
+  const said = `The calendar scrolls oddly ${randomUUID().slice(0, 8)} DRAFT_HOLD_TRIGGER`;
+  const filed = await page.request.post('/api/v1/feedback', {
+    data: { message: said },
+    headers: { 'x-user-id': 'reporter-draft-e2e' },
+  });
+  expect(((await filed.json()) as { status: string }).status).toBe('draft');
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: /^Draft \(\d+\)$/ }).click();
+
+  // A record has no title until the conversation completes, so the reporter's own words are
+  // what identifies it — every draft otherwise reads "(untitled draft)".
+  const row = page.locator('section[aria-label="Triage queue"] li', { hasText: said });
+  await expect(row).toBeVisible();
+  // No lifecycle item yet, so there is nothing to open.
+  await expect(row.getByRole('button').first()).toBeDisabled();
+});
+
+test('a report can be edited before it briefs, and not after (FR-FL-020)', async ({ page }) => {
+  const title = await fileReport(page.request);
+  const id = await idFor(page, title);
+
+  await page.goto('/admin');
+  const dialog = await openItem(page, 'Triage queue', title);
+  await dialog.getByRole('button', { name: /Edit details/ }).click();
+
+  const edited = `${title} (clarified)`;
+  await dialog.getByLabel(/^Title$/).fill(edited);
+  await dialog.getByRole('button', { name: /Save details/ }).click();
+  await expect(dialog).toContainText(edited);
+
+  // The SERVER's answer, not the rendered label.
+  const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
+  expect(((await after.json()) as { sourceTitle: string }).sourceTitle).toBe(edited);
+
+  // Past `briefed` the text is off-limits: clauses were derived from it, so editing it would
+  // silently invalidate what was vetted.
+  for (const action of ['accept', 'advance']) {
+    await page.request.patch(`/api/v1/admin/lifecycle/${id}`, { data: { action }, headers: AS_ADMIN });
+  }
+  await page.reload();
+  await page.getByRole('tab', { name: 'Delivery' }).click();
+  const briefed = await openItem(page, 'Delivery', edited);
+  await expect(briefed.getByRole('button', { name: /Edit details/ })).toHaveCount(0);
+});
+
+test('a ranked item precedes an unranked one, however old (FR-FL-022)', async ({ page }) => {
+  // A CONTROL filed after the ranked one, so recency alone would put it first. Asserting
+  // relative order rather than absolute position keeps this independent of whatever else the
+  // suite has already ranked — the requirement is an ordering, not a claim about position 1.
+  const me = ownReporter();
+  const ranked = await fileReport(page.request, me);
+  const unranked = await fileReport(page.request, me);
+
+  await page.goto('/admin');
+  const dialog = await openItem(page, 'Triage queue', ranked);
+  await dialog.getByRole('button', { name: /Edit details/ }).click();
+  await dialog.getByLabel(/^Rank$/).fill('0');
+  await dialog.getByRole('button', { name: /Set rank/ }).click();
+  await expect(dialog).toContainText(/rank 0/i);
+
+  const queue = await page.request.get('/api/v1/admin/lifecycle', { headers: AS_ADMIN });
+  const { items } = (await queue.json()) as { items: { sourceTitle: string }[] };
+  const titles = items.map((i) => i.sourceTitle);
+  // Mongo sorts a missing field before every number ascending, so a plain `.sort({ rank: 1 })`
+  // buried ranked items beneath unranked ones — the inverse of this requirement.
+  expect(titles.indexOf(ranked)).toBeLessThan(titles.indexOf(unranked));
+});
+
+// ── The contract table, row by row ─────────────────────────────────────────
+//
+// The design's §06 "Every state, and who can move it" is the contract: *any action not listed
+// against a state is refused*. These cover the rows the suite had no test for at all — park and
+// reopen, the reply at `shipped`, `closed` never reopening but being citable, the deletion
+// refusal, and the reporter-facing sentence for each state.
+
+async function walkTo(page: Page, id: string, actions: string[]): Promise<void> {
+  for (const action of actions) {
+    const r = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+      data: { action },
+      headers: AS_ADMIN,
+    });
+    expect(r.status(), action).toBe(200);
+  }
+}
+
+test('parking holds an item and reopening returns it to the exact stage it left (FR-FL-007)', async ({
+  page,
+}) => {
+  const me = ownReporter();
+  const title = await fileReport(page.request, me);
+  const id = await idFor(page, title);
+  await walkTo(page, id, ['accept', 'advance', 'advance', 'approve-spec']);
+  expect(await stageOf(page, id)).toBe('in-progress');
+
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Delivery' }).click();
+  const dialog = await openItem(page, 'Delivery', title);
+  await dialog.getByRole('button', { name: /^Park$/ }).click();
+  await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/Parked/i);
+
+  // The reporter is told it is held, not that it died.
+  const held = await reporterView(page, title, me);
+  expect(held.stageLabel).toBe('On hold');
+
+  await dialog.getByRole('button', { name: /^Reopen$/ }).click();
+  // Back to where it was — NOT to the front of the pipeline, which would silently re-cross
+  // a gate the maintainer already passed.
+  await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/In progress/i);
+  expect(await stageOf(page, id)).toBe('in-progress');
+});
+
+test('a reporter hears back: reply, then closure (FR-FL-036/048)', async ({ page }) => {
+  const me = ownReporter();
+  const title = await fileReport(page.request, me);
+  const id = await idFor(page, title);
+  await walkTo(page, id, ['accept', 'advance', 'advance', 'approve-spec', 'advance', 'approve-release']);
+
+  const replied = await page.request.put(`/api/v1/admin/lifecycle/${id}/reply`, {
+    data: { text: 'Thanks for this — it turned out to be a rounding bug.' },
+    headers: AS_ADMIN,
+  });
+  expect(replied.status()).toBe(200);
+
+  const seen = await reporterView(page, title, me);
+  expect(seen.reply?.text).toContain('rounding bug');
+  // Before this phase a reporter submitted into silence — nothing ever told them it was read.
+  expect(seen.stageLabel).toBe('Shipped');
+});
+
+test('closed never reopens, but a later report can cite it (FR-FL-050/051)', async ({ page }) => {
+  const me = ownReporter();
+  const title = await fileReport(page.request, me);
+  const id = await idFor(page, title);
+  await walkTo(page, id, ['accept', 'advance', 'advance', 'approve-spec', 'advance', 'approve-release']);
+  const closed = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+    data: { action: 'close', excerpt: 'Fixed and released.', releaseFallbackText: 'this week' },
+    headers: AS_ADMIN,
+  });
+  expect(closed.status()).toBe(200);
+
+  // Terminal means terminal: a wrongly-fixed problem is filed fresh, so each record describes
+  // exactly one round of work rather than being edited into ambiguity.
+  for (const action of ['reopen', 'advance', 'park']) {
+    const r = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, { data: { action }, headers: AS_ADMIN });
+    expect(r.status(), action).toBe(409);
+  }
+  expect(await stageOf(page, id)).toBe('closed');
+
+  // Citing is a reference, never a transition — and it is the ONLY way a recurrence relates to
+  // a closed item, so it has to work on a terminal one.
+  const recurrence = await fileReport(page.request, me);
+  const newId = await idFor(page, recurrence);
+  const cited = await page.request.patch(`/api/v1/admin/lifecycle/${newId}`, {
+    data: { action: 'cite', citedId: id },
+    headers: AS_ADMIN,
+  });
+  expect(cited.status()).toBe(200);
+  expect(await stageOf(page, newId)).toBe('new');
+
+  const reporterSees = await reporterView(page, title, me);
+  expect(reporterSees.stageLabel).toBe('Done');
+  expect(reporterSees.closure?.excerpt).toBe('Fixed and released.');
+});
+
+test('a record in an active stage cannot be deleted, and the refusal says what unblocks it (FR-FL-006)', async ({
+  page,
+}) => {
+  const me = ownReporter();
+  const title = await fileReport(page.request, me);
+  const id = await idFor(page, title);
+  const recordId = await recordIdFor(page, id);
+  await walkTo(page, id, ['accept']);
+
+  const refused = await page.request.delete(`/api/v1/feedback/${recordId}`, { headers: me });
+  expect(refused.status()).toBe(409);
+  // The refusal names the action that unblocks it rather than just saying no.
+  expect((await refused.text()).toLowerCase()).toMatch(/park/);
+
+  await page.request.patch(`/api/v1/admin/lifecycle/${id}`, { data: { action: 'park' }, headers: AS_ADMIN });
+  const allowed = await page.request.delete(`/api/v1/feedback/${recordId}`, { headers: me });
+  expect([204, 200]).toContain(allowed.status());
+});
+
+test('each state has the reporter-facing sentence the contract promises (FR-FL-035/065)', async ({
+  page,
+}) => {
+  const expected: Array<[string[], string]> = [
+    [[], 'Waiting to be looked at'],
+    [['accept'], 'Accepted — queued'],
+    [['accept', 'advance'], 'Being specified'],
+    [['accept', 'advance', 'advance'], 'Being specified'],
+    [['accept', 'advance', 'advance', 'approve-spec'], 'Being built'],
+    [['accept', 'advance', 'advance', 'approve-spec', 'advance'], 'In review'],
+  ];
+
+  for (const [actions, label] of expected) {
+    const me = ownReporter();
+    const title = await fileReport(page.request, me);
+    const id = await idFor(page, title);
+    await walkTo(page, id, actions);
+    expect((await reporterView(page, title, me)).stageLabel, actions.join('→') || 'new').toBe(label);
+  }
+
+  // Dismissal's two meanings are the same terminal position but a very different sentence.
+  for (const [reason, label] of [
+    ['no-action-required', 'No action required'],
+    ['declined', 'Not being built'],
+  ] as const) {
+    const me = ownReporter();
+    const title = await fileReport(page.request, me);
+    const id = await idFor(page, title);
+    await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+      data: { action: 'dismiss', reason },
+      headers: AS_ADMIN,
+    });
+    expect((await reporterView(page, title, me)).stageLabel, reason).toBe(label);
+  }
 });

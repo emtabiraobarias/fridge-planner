@@ -1,7 +1,7 @@
 # Spec 012 — manual test scenarios
 
 Dev only, against `http://localhost:3001`. Feedback data was flushed and reseeded on
-2026-08-26; reseed at any time with `node scripts/seed-lifecycle-scenarios.mjs` (flush first — it appends) (records are inserted
+2026-08-26; reseed at any time with `node scripts/seed-lifecycle-scenarios.mjs`, which flushes first — walking the scenarios consumes them, so reseed before each pass (records are inserted
 directly, but **every stage transition below was driven through the real API**, so
 transitions and audit entries are genuine).
 
