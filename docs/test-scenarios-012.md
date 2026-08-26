@@ -93,7 +93,18 @@ clauses intact** (FR-FL-014).
 **E2 — approve the spec (S8 again, or S9's predecessor).** **Approve spec** → `in-progress`.
 Note `advance` is *not* a legal path past this gate — the API returns 409.
 
-**E3 — ready for review (S9).** → `in-review`.
+**E3 — ready for review (S9, `in-progress`).** The button is **disabled** until a pull request
+is attached (FR-FL-067) — the one conditional advance in the whole graph. Paste anything into
+**Attach pull request** (the app never follows it), then advance. Try the API without one:
+
+```
+curl -s -X PATCH -H 'x-user-id: maintainer' -H 'x-user-roles: admin' \
+  -H 'content-type: application/json' -d '{"action":"advance"}' \
+  localhost:3001/api/v1/admin/lifecycle/<S9-id>    # → 409, "Attach the pull request before…"
+```
+
+**E3b — attach a draft spec (S8, `in-spec`).** The same control, typed for a spec path. Both
+references render as **text, never links** — the app has not dereferenced them.
 
 **E4 — changes needed (S10, `in-review`).** → back to `in-progress` (FR-FL-064).
 

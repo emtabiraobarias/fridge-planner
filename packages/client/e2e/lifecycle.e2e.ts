@@ -91,6 +91,33 @@ async function reporterView(
   return found;
 }
 
+/**
+ * Walk an item forward through the API.
+ *
+ * Attaches a pull request before an `advance` that would leave `in-progress`, because that is
+ * the one conditional edge in the graph (FR-FL-067). Tests whose subject is something else —
+ * the gates, injection-safety, closure — should not each have to know that; the one test that
+ * IS about the condition asserts the refusal directly.
+ */
+async function walkTo(page: Page, id: string, actions: string[]): Promise<void> {
+  for (const action of actions) {
+    if (action === 'advance' && (await stageOf(page, id)) === 'in-progress') {
+      await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+        data: {
+          action: 'attach-artifact',
+          artifact: { type: 'pull-request', ref: 'https://example.invalid/pull/1' },
+        },
+        headers: AS_ADMIN,
+      });
+    }
+    const r = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+      data: { action },
+      headers: AS_ADMIN,
+    });
+    expect(r.status(), action).toBe(200);
+  }
+}
+
 async function openItem(page: Page, section: string, title: string): Promise<Locator> {
   await page
     .locator(`section[aria-label="${section}"] li`, { hasText: title })
@@ -191,13 +218,23 @@ test('the maintainer walks an item to shipped through the gates, and a rejection
   const queue = await page.request.get('/api/v1/admin/lifecycle?stage=new', { headers: AS_ADMIN });
   const { items } = (await queue.json()) as { items: { _id: string; sourceTitle: string }[] };
   const id = items.find((i) => i.sourceTitle === title)!._id;
-  for (const action of ['accept', 'advance', 'advance', 'approve-spec', 'advance']) {
+  for (const action of ['accept', 'advance', 'advance', 'approve-spec']) {
     const r = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
       data: { action },
       headers: AS_ADMIN,
     });
     expect(r.status(), action).toBe(200);
   }
+  // `in-progress` advances only when a PR exists (FR-FL-067). This test is about the GATES,
+  // so it satisfies the condition rather than exercising its refusal — and the artifact
+  // survives the gate-3 rejection below, so the second advance needs no second attach.
+  await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+    data: { action: 'attach-artifact', artifact: { type: 'pull-request', ref: 'https://example.invalid/pull/1' } },
+    headers: AS_ADMIN,
+  });
+  expect(
+    (await page.request.patch(`/api/v1/admin/lifecycle/${id}`, { data: { action: 'advance' }, headers: AS_ADMIN })).status(),
+  ).toBe(200);
 
   await page.goto('/admin');
   await page.getByRole('tab', { name: 'Delivery' }).click();
@@ -314,13 +351,7 @@ test('closing tells the reporter, and still works when the release list is down 
   const { items } = (await queue.json()) as { items: { _id: string; sourceTitle: string }[] };
   const id = items.find((i) => i.sourceTitle === title)!._id;
 
-  for (const action of ['accept', 'advance', 'advance', 'approve-spec', 'advance', 'approve-release']) {
-    const r = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
-      data: { action },
-      headers: AS_ADMIN,
-    });
-    expect(r.status(), action).toBe(200);
-  }
+  await walkTo(page, id, ['accept', 'advance', 'advance', 'approve-spec', 'advance', 'approve-release']);
 
   // Force the picker to be unavailable at the network edge — closure must proceed regardless.
   await page.route('**/api/v1/admin/releases', (route) =>
@@ -468,9 +499,9 @@ test('the closure form never trips the iOS auto-zoom floor (SC-RS-003)', async (
   const title = await fileReport(page.request);
   const id = await idFor(page, title);
 
-  for (const action of ['accept', 'advance', 'advance', 'approve-spec', 'advance', 'approve-release']) {
-    await page.request.patch(`/api/v1/admin/lifecycle/${id}`, { data: { action }, headers: AS_ADMIN });
-  }
+  // walkTo asserts each step; the silent loop this replaced left the item at `in-progress`
+  // once FR-FL-067 landed, and the failure showed up as "Close never appeared".
+  await walkTo(page, id, ['accept', 'advance', 'advance', 'approve-spec', 'advance', 'approve-release']);
 
   await page.goto('/admin');
   await page.getByRole('tab', { name: 'Delivery' }).click();
@@ -578,15 +609,7 @@ test('a ranked item precedes an unranked one, however old (FR-FL-022)', async ({
 // reopen, the reply at `shipped`, `closed` never reopening but being citable, the deletion
 // refusal, and the reporter-facing sentence for each state.
 
-async function walkTo(page: Page, id: string, actions: string[]): Promise<void> {
-  for (const action of actions) {
-    const r = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
-      data: { action },
-      headers: AS_ADMIN,
-    });
-    expect(r.status(), action).toBe(200);
-  }
-}
+
 
 test('parking holds an item and reopening returns it to the exact stage it left (FR-FL-007)', async ({
   page,
@@ -720,4 +743,38 @@ test('each state has the reporter-facing sentence the contract promises (FR-FL-0
     });
     expect((await reporterView(page, title, me)).stageLabel, reason).toBe(label);
   }
+});
+
+test('in-progress will not advance without a pull request, and the control says so (FR-FL-067)', async ({
+  page,
+}) => {
+  const me = ownReporter();
+  const title = await fileReport(page.request, me);
+  const id = await idFor(page, title);
+  await walkTo(page, id, ['accept', 'advance', 'advance', 'approve-spec']);
+
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Delivery' }).click();
+  const dialog = await openItem(page, 'Delivery', title);
+
+  // Disabled rather than live-and-refused: the design's contract table makes this the only
+  // conditional advance, so the reason belongs before the click.
+  await expect(dialog.getByRole('button', { name: 'Ready for review' })).toBeDisabled();
+  const refused = await page.request.patch(`/api/v1/admin/lifecycle/${id}`, {
+    data: { action: 'advance' },
+    headers: AS_ADMIN,
+  });
+  expect(refused.status()).toBe(409);
+  expect(await stageOf(page, id)).toBe('in-progress');
+
+  // Attach through the REAL control — it had none at all before, so the reference the
+  // reviewer opens could only be attached by curl.
+  const ref = 'https://github.com/example/fridge-planner/pull/99';
+  await dialog.getByLabel(/attach pull request/i).fill(ref);
+  await dialog.getByRole('button', { name: 'Attach pull request' }).click();
+  await expect(dialog.getByLabel('Attached references')).toContainText(ref);
+
+  await dialog.getByRole('button', { name: 'Ready for review' }).click();
+  await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/In review/i);
+  expect(await stageOf(page, id)).toBe('in-review');
 });

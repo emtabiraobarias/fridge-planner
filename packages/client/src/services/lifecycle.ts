@@ -24,6 +24,14 @@ export type LifecycleStage =
 
 export type DismissalReason = 'no-action-required' | 'declined';
 
+export interface LifecycleArtifact {
+  type: 'draft-spec' | 'pull-request';
+  /** A reference the maintainer opens. Never dereferenced by the app (FR-FL-057). */
+  ref: string;
+  at: string;
+  note?: string;
+}
+
 export interface LifecycleSummary {
   _id: string;
   userId: string;
@@ -34,6 +42,7 @@ export interface LifecycleSummary {
   rank?: number;
   dismissalReason?: DismissalReason;
   reporterErasedAt?: string;
+  artifacts?: LifecycleArtifact[];
   updatedAt: string;
 }
 
@@ -58,7 +67,8 @@ export type LifecycleAction =
       releaseFallbackText?: string;
       unavailableReason?: string;
     }
-  | { action: 'cite'; citedId: string };
+  | { action: 'cite'; citedId: string }
+  | { action: 'attach-artifact'; artifact: { type: 'draft-spec' | 'pull-request'; ref: string } };
 
 export interface QueueQuery {
   stage?: LifecycleStage;

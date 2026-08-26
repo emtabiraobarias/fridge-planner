@@ -152,3 +152,50 @@ describe('DeliveryPanel — filtering by stage (FR-AD-009)', () => {
     expect(within(screen.getByRole('dialog')).getByLabelText('Clause vetting')).toBeInTheDocument();
   });
 });
+
+/** FR-FL-067 — a disabled button that says why beats a live one the server refuses. */
+describe('DeliveryPanel — advancing out of in-progress needs a pull request', () => {
+  const PR = { type: 'pull-request', ref: 'https://example.invalid/pull/42', at: '2026-08-26T00:00:00Z' };
+
+  it('withholds Ready for review until a pull request is attached', async () => {
+    mockQueue.mockResolvedValue([item({ stage: 'in-progress' })]);
+    render(<DeliveryPanel />);
+    await openItem();
+    // The server refuses this anyway; disabling says why BEFORE the click rather than after.
+    expect(screen.getByRole('button', { name: /ready for review/i })).toBeDisabled();
+  });
+
+  it('enables it once one is attached', async () => {
+    mockQueue.mockResolvedValue([item({ stage: 'in-progress', artifacts: [PR] })]);
+    render(<DeliveryPanel />);
+    await openItem();
+    expect(screen.getByRole('button', { name: /ready for review/i })).toBeEnabled();
+  });
+
+  it('offers a control to attach one — it was curl-only before', async () => {
+    mockQueue.mockResolvedValue([item({ stage: 'in-progress' })]);
+    render(<DeliveryPanel />);
+    await openItem();
+
+    await userEvent.type(screen.getByLabelText(/attach pull request/i), 'https://example.invalid/pull/7');
+    await userEvent.click(screen.getByRole('button', { name: /attach pull request/i }));
+
+    await waitFor(() =>
+      expect(mockAct).toHaveBeenCalledWith('i1', {
+        action: 'attach-artifact',
+        artifact: { type: 'pull-request', ref: 'https://example.invalid/pull/7' },
+      }),
+    );
+  });
+
+  it('shows an attached reference as text, never as a link (FR-FL-057)', async () => {
+    mockQueue.mockResolvedValue([item({ stage: 'in-progress', artifacts: [PR] })]);
+    render(<DeliveryPanel />);
+    await openItem();
+    const refs = within(screen.getByLabelText('Attached references'));
+    expect(refs.getByText(PR.ref)).toBeInTheDocument();
+    // The app must not invite a click on something it has never dereferenced.
+    expect(refs.queryByRole('link')).not.toBeInTheDocument();
+  });
+});
+

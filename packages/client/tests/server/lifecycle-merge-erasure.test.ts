@@ -143,7 +143,12 @@ describe('US7 — work survives an erased account', () => {
   });
 
   it('keeps the detached item ADVANCEABLE through the real endpoint (FR-FL-061)', async () => {
-    const id = await seed(A, { stage: 'in-progress' });
+    // The PR is what `in-progress` advances on (FR-FL-067); this test is about the ERASURE not
+    // blocking the advance, so it supplies one rather than exercising the missing-PR refusal.
+    const id = await seed(A, {
+      stage: 'in-progress',
+      artifacts: [{ type: 'pull-request', ref: 'https://example.invalid/pull/1', at: new Date() }],
+    });
     await purgeUserData(A);
 
     // Not just "the document still exists" — the maintainer can still carry it forward.

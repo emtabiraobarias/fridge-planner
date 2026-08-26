@@ -11,6 +11,20 @@ import type {
   LifecycleSummary,
 } from '../../services/lifecycle';
 
+/** Which artifact each stage expects, per the design's contract table. */
+const ARTIFACT_FOR: Partial<Record<LifecycleStage, { type: 'draft-spec' | 'pull-request'; label: string; placeholder: string }>> = {
+  'in-spec': { type: 'draft-spec', label: 'Attach draft spec', placeholder: 'specs/013-…/spec.md' },
+  'in-progress': {
+    type: 'pull-request',
+    label: 'Attach pull request',
+    placeholder: 'https://github.com/…/pull/42',
+  },
+};
+
+function hasPullRequest(item: LifecycleSummary): boolean {
+  return (item.artifacts ?? []).some((a) => a.type === 'pull-request');
+}
+
 /**
  * One item, opened (spec 012 US1/US4).
  *
@@ -40,7 +54,8 @@ const CONTROLS: Partial<Record<LifecycleStage, Control[]>> = {
     { label: 'Approve spec', action: { action: 'approve-spec' }, gate: true },
     { label: 'Reject spec', action: { action: 'reject-spec' } },
   ],
-  'in-progress': [{ label: 'Ready for review', action: { action: 'advance' } }],
+  // `in-progress` is handled in StageActions: its advance is conditional on a pull request
+  // existing (FR-FL-067), which CONTROLS cannot express — it depends on the item's content.
   'in-review': [
     { label: 'Approve release', action: { action: 'approve-release' }, gate: true },
     // FR-FL-064 — without this, review finding a problem has nowhere to send the work.
@@ -222,6 +237,32 @@ function ItemHeader({ item, titleId, onOpenReporter }: HeaderProps): React.JSX.E
   );
 }
 
+/**
+ * The one conditional advance in the contract table: `in-progress` moves on only when a pull
+ * request exists (FR-FL-067). Disabled rather than live-and-refused, so the reason arrives
+ * before the click instead of as a 409 after it.
+ */
+function ReadyForReview({
+  item,
+  onFire,
+}: {
+  item: LifecycleSummary;
+  onFire: (action: LifecycleAction) => void;
+}): React.JSX.Element {
+  const ready = hasPullRequest(item);
+  return (
+    <button
+      type="button"
+      onClick={() => onFire({ action: 'advance' })}
+      disabled={!ready}
+      title={ready ? undefined : 'Attach the pull request first'}
+      className={`${PLAIN_BUTTON} disabled:opacity-45`}
+    >
+      Ready for review
+    </button>
+  );
+}
+
 interface ActionsProps {
   item: LifecycleSummary;
   onFire: (action: LifecycleAction) => void;
@@ -232,6 +273,7 @@ function StageActions({ item, onFire, onStep }: ActionsProps): React.JSX.Element
   const terminal = TERMINAL.includes(item.stage);
   return (
     <>
+      {item.stage === 'in-progress' && <ReadyForReview item={item} onFire={onFire} />}
       {(CONTROLS[item.stage] ?? []).map((c) => (
         <button
           key={c.label}
@@ -317,6 +359,109 @@ function ChoiceStep({ step, mergeTargets, onFire, onCancel }: ChoiceProps): Reac
   );
 }
 
+function ArtifactSection({
+  item,
+  onAttach,
+}: {
+  item: LifecycleSummary;
+  onAttach: (action: LifecycleAction) => void;
+}): React.JSX.Element {
+  const [ref, setRef] = useState('');
+  const spec = ARTIFACT_FOR[item.stage];
+  const attached = item.artifacts ?? [];
+
+  return (
+    <div className="mt-4 rounded-lg border border-divider p-3" aria-label="Attached references">
+      <h3 className="font-heading text-sm text-ink">References</h3>
+
+      {attached.length === 0 && <p className="text-muted mt-1 text-xs">Nothing attached yet.</p>}
+      <ul className="mt-1 flex flex-col gap-1">
+        {attached.map((a) => (
+          <li key={`${a.type}-${a.ref}`} className="text-xs text-ink">
+            <span className="text-muted mr-2 font-mono">{a.type}</span>
+            {/* Rendered as TEXT, never as a link: the app must not invite a click it has not
+                verified, and it never dereferences the reference itself. */}
+            <span className="break-all">{a.ref}</span>
+          </li>
+        ))}
+      </ul>
+
+      {spec && (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="sr-only" htmlFor={`attach-${item._id}`}>
+            {spec.label}
+          </label>
+          <input
+            id={`attach-${item._id}`}
+            value={ref}
+            placeholder={spec.placeholder}
+            onChange={(e) => setRef(e.target.value)}
+            className={FIELD_CLASS}
+          />
+          <button
+            type="button"
+            disabled={ref.trim().length === 0}
+            onClick={() => {
+              onAttach({ action: 'attach-artifact', artifact: { type: spec.type, ref: ref.trim() } });
+              setRef('');
+            }}
+            className={`${PLAIN_BUTTON} shrink-0 disabled:opacity-45`}
+          >
+            {spec.label}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The panels that hang off a stage rather than off a button: the edit form, the clauses that
+ * ARE the work at `briefed`, the references, and the closure composer.
+ *
+ * Extracted so `LifecycleItemModal` stays a shell — each of these is a branch, and together
+ * they took it past the complexity limit.
+ */
+function StageExtras({
+  item,
+  step,
+  onFire,
+  onAction,
+  onStep,
+}: {
+  item: LifecycleSummary;
+  step: Step;
+  onFire: (action: LifecycleAction) => void;
+  onAction: (action: LifecycleAction) => void;
+  onStep: (step: Step) => void;
+}): React.JSX.Element {
+  const showArtifacts = Boolean(ARTIFACT_FOR[item.stage]) || (item.artifacts ?? []).length > 0;
+  return (
+    <>
+      {step === 'edit' && (
+        <EditSourceForm item={item} onSave={onFire} onCancel={() => onStep('none')} />
+      )}
+
+      {/* At `briefed` the clauses ARE the work — advancing is blocked until they are vetted
+          (FR-FL-028), so they open with the item rather than behind a further click. */}
+      {item.stage === 'briefed' && <ClauseVetting itemId={item._id} />}
+
+      {/* References the maintainer opens — the app never follows them (FR-FL-057). Until now
+          `attach-artifact` had no control at all, so the spec and PR links the contract table
+          calls for could only be attached by curl. */}
+      {showArtifacts && <ArtifactSection item={item} onAttach={onAction} />}
+
+      {step === 'close' && (
+        <ClosureComposer
+          sourceTitle={item.sourceTitle}
+          onCancel={() => onStep('none')}
+          onClose={onFire}
+        />
+      )}
+    </>
+  );
+}
+
 interface Props {
   item: LifecycleSummary;
   /** Other items, offered as merge targets. */
@@ -368,21 +513,7 @@ export function LifecycleItemModal({
         )}
       </div>
 
-      {step === 'edit' && (
-        <EditSourceForm item={item} onSave={fire} onCancel={() => setStep('none')} />
-      )}
-
-      {/* At `briefed` the clauses ARE the work — advancing is blocked until they are vetted
-          (FR-FL-028), so they open with the item rather than behind a further click. */}
-      {item.stage === 'briefed' && <ClauseVetting itemId={item._id} />}
-
-      {step === 'close' && (
-        <ClosureComposer
-          sourceTitle={item.sourceTitle}
-          onCancel={() => setStep('none')}
-          onClose={fire}
-        />
-      )}
+      <StageExtras item={item} step={step} onFire={fire} onAction={onAction} onStep={setStep} />
 
       <button type="button" onClick={onClose} className={`${PLAIN_BUTTON} mt-5 w-full sm:w-auto`}>
         Done

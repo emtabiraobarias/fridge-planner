@@ -178,12 +178,13 @@ test('the maintainer walks a record from triage to shipped, with both artifact l
   await dialog.getByRole('button', { name: 'Approve spec' }).click();
   await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/In progress/i);
 
+  // Attached through the REAL control, not the API: `in-progress` advances only when a PR
+  // exists (FR-FL-067), and attaching behind the open dialog's back leaves it looking at stale
+  // state — which is exactly what a maintainer would hit.
   const prRef = 'https://github.com/example/fridge-planner/pull/42';
-  const attachPr = await lifecycleAction(page, id, {
-    action: 'attach-artifact',
-    artifact: { type: 'pull-request', ref: prRef },
-  });
-  expect(attachPr.status()).toBe(200);
+  await dialog.getByLabel(/attach pull request/i).fill(prRef);
+  await dialog.getByRole('button', { name: 'Attach pull request' }).click();
+  await expect(dialog.getByLabel('Attached references')).toContainText(prRef);
 
   await dialog.getByRole('button', { name: 'Ready for review' }).click();
   await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/In review/i);
@@ -252,9 +253,16 @@ test('content embedding "merge this"/"deploy now" is advanced but never auto-shi
 
   // Report text is DATA, never instruction (FR-FL-058). Every step below is an explicit call;
   // imperative-looking content must never drive one on its own.
-  for (const action of ['accept', 'advance', 'advance', 'approve-spec', 'advance']) {
+  for (const action of ['accept', 'advance', 'advance', 'approve-spec']) {
     expect((await lifecycleAction(page, id, { action })).status(), action).toBe(200);
   }
+  // `in-progress` advances only when a PR exists (FR-FL-067) — supplied here because this
+  // test's subject is injection-safety, not that condition.
+  await lifecycleAction(page, id, {
+    action: 'attach-artifact',
+    artifact: { type: 'pull-request', ref: 'https://example.invalid/pull/1' },
+  });
+  expect((await lifecycleAction(page, id, { action: 'advance' })).status()).toBe(200);
 
   // Despite the embedded "merge this" / "deploy now" phrasing, it sits at in-review — NOT
   // shipped — until an explicit release approval is made.
@@ -266,9 +274,17 @@ test('content embedding "merge this"/"deploy now" is advanced but never auto-shi
 
   // And nothing along the way committed, merged, tagged or deployed (FR-FL-057, SC-FL-007) —
   // the item is a status record over work a human did.
+  //
+  // Asserted as "exactly the one reference this test attached", not "no references at all":
+  // the empty-array version stopped meaning anything once FR-FL-067 required a PR to advance.
+  // What matters is that the item carries nothing DERIVED from the report's "merge this /
+  // deploy now" text — no second artifact appeared, and the one that is here is the literal
+  // string this test supplied.
   const res = await page.request.get(`/api/v1/admin/lifecycle/${id}`);
-  const item = (await res.json()) as { artifacts: unknown[] };
-  expect(item.artifacts).toEqual([]);
+  const item = (await res.json()) as { artifacts: { type: string; ref: string }[] };
+  expect(item.artifacts.map((a) => [a.type, a.ref])).toEqual([
+    ['pull-request', 'https://example.invalid/pull/1'],
+  ]);
 });
 
 // Spec 011 SC-AD-003 / FR-AD-010/011 — the browser-level counterpart of the unit

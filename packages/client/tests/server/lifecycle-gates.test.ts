@@ -195,3 +195,59 @@ describe('US4 — gates and delivery', () => {
     expect(item).not.toHaveProperty('notifications');
   });
 });
+
+/**
+ * FR-FL-067 — the design's contract table gives `in-progress` the only conditional advance in
+ * the whole table: "advance **when a PR exists**". Without it, `in-review` means someone
+ * pressed a button rather than that there is something to review.
+ */
+describe('advancing out of in-progress needs a pull request (FR-FL-067)', () => {
+  const PR = { type: 'pull-request', ref: 'https://example.invalid/pull/42', at: new Date() };
+
+  it('refuses the advance when nothing is attached, and leaves the stage alone', async () => {
+    const id = await seed('in-progress');
+    const res = await ITEM.PATCH(as(ADMIN, { action: 'advance' }), ctx(id));
+
+    expect(res.status).toBe(409);
+    // The refusal names what unblocks it rather than just saying no.
+    expect(JSON.stringify(await res.json()).toLowerCase()).toContain('pull request');
+    expect((await LifecycleItem.findById(id).lean())!.stage).toBe('in-progress');
+  });
+
+  it('allows it once a pull request is attached', async () => {
+    const id = await seed('in-progress', { artifacts: [PR] });
+    const res = await ITEM.PATCH(as(ADMIN, { action: 'advance' }), ctx(id));
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).stage).toBe('in-review');
+  });
+
+  it('is not satisfied by a draft-spec — the condition is a PR specifically', async () => {
+    const id = await seed('in-progress', {
+      artifacts: [{ type: 'draft-spec', ref: 'specs/013-x/spec.md', at: new Date() }],
+    });
+    expect((await ITEM.PATCH(as(ADMIN, { action: 'advance' }), ctx(id))).status).toBe(409);
+  });
+
+  it('constrains only that one edge — every other advance is untouched', async () => {
+    for (const [stage, next] of [
+      ['accepted', 'briefed'],
+      ['briefed', 'in-spec'],
+    ] as const) {
+      const id = await seed(stage);
+      const res = await ITEM.PATCH(as(ADMIN, { action: 'advance' }), ctx(id));
+      expect(res.status, stage).toBe(200);
+      expect((await res.json()).stage).toBe(next);
+    }
+  });
+
+  it('never dereferences the reference — any string counts as attached (FR-FL-057)', async () => {
+    // The system checks that a PR was attached, not that it resolves. Fetching it would make
+    // report-supplied text into an outbound request.
+    const id = await seed('in-progress', {
+      artifacts: [{ type: 'pull-request', ref: 'not-a-url-at-all', at: new Date() }],
+    });
+    expect((await ITEM.PATCH(as(ADMIN, { action: 'advance' }), ctx(id))).status).toBe(200);
+  });
+});
+

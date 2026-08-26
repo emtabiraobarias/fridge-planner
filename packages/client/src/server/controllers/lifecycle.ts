@@ -293,10 +293,38 @@ function refuseIfUnvetted(
   return problem(409, ILLEGAL, `${pending} clause(s) still need vetting before this can go to spec.`);
 }
 
+/**
+ * `in-progress → in-review` needs a pull request to exist (FR-FL-067).
+ *
+ * The design's contract table gives `in-progress` the action "advance **when a PR exists**" —
+ * the only conditional advance in it. Without the condition, `in-review` means "someone pressed
+ * a button" rather than "there is something to review", and gate 3 then approves a release for
+ * work with no attached change.
+ *
+ * Existence only. The reference is never dereferenced, fetched, or validated against GitHub
+ * (FR-FL-057) — this asks whether the maintainer attached one, not whether it is any good.
+ * Like `refuseIfUnvetted`, it lives here rather than in the stage graph because it depends on
+ * the item's CONTENT, not on the stage pair.
+ */
+function refuseIfNoPullRequest(
+  from: LifecycleStage,
+  to: LifecycleStage,
+  artifacts: readonly { type: string }[],
+): ControllerResult | null {
+  if (from !== 'in-progress' || to !== 'in-review') return null;
+  if (artifacts.some((a) => a.type === 'pull-request')) return null;
+  return problem(
+    409,
+    ILLEGAL,
+    'Attach the pull request before sending this for review.',
+  );
+}
+
 
 /**
  * Everything that can refuse a transition BEFORE anything is written: the item must exist, the
- * destination must be legal, and `briefed → in-spec` must not carry unvetted clauses.
+ * destination must be legal, `briefed → in-spec` must not carry unvetted clauses, and
+ * `in-progress → in-review` must have a pull request attached.
  *
  * Grouped so `applyAction` reads as resolve → write → record rather than as a run of guards.
  */
@@ -310,7 +338,11 @@ async function preflight(
   const destination = resolveDestination(body, current.stage, current.parkedFromStage);
   if ('status' in destination) return destination;
 
-  return refuseIfUnvetted(destination.from, destination.to, current.clauses) ?? destination;
+  return (
+    refuseIfUnvetted(destination.from, destination.to, current.clauses) ??
+    refuseIfNoPullRequest(destination.from, destination.to, current.artifacts) ??
+    destination
+  );
 }
 
 /** Apply a maintainer action to one item. Every refusal leaves state unchanged. */
