@@ -38,6 +38,14 @@ async function seed({ id, user, title, type, area, problem, given, when, then })
   return { scenario: id, id: String(it.insertedId), title, user };
 }
 
+/** `in-progress` advances only when a PR exists (FR-FL-067) — the one conditional edge. */
+async function attachPr(id, n) {
+  return act(id, {
+    action: 'attach-artifact',
+    artifact: { type: 'pull-request', ref: `https://github.com/emtabiraobarias/fridge-planner/pull/${n}` },
+  });
+}
+
 async function act(id, body) {
   const res = await fetch(`${BASE}/admin/lifecycle/${id}`, {
     method: 'PATCH', headers: ADMIN, body: JSON.stringify(body),
@@ -100,12 +108,20 @@ await act(by('S7').id, { action: 'set-rank', rank: 1 });
 await act(by('S8').id, { action: 'accept' });
 await act(by('S8').id, { action: 'advance' });
 await act(by('S8').id, { action: 'advance' });                         // → in-spec
+await act(by('S8').id, {
+  action: 'attach-artifact',
+  artifact: { type: 'draft-spec', ref: 'specs/013-accented-search/spec.md' },
+});
 await act(by('S9').id, { action: 'accept' });
 for (const a of ['advance', 'advance', 'approve-spec']) await act(by('S9').id, { action: a }); // → in-progress
 await act(by('S10').id, { action: 'accept' });
-for (const a of ['advance', 'advance', 'approve-spec', 'advance']) await act(by('S10').id, { action: a }); // → in-review
+for (const a of ['advance', 'advance', 'approve-spec']) await act(by('S10').id, { action: a });
+await attachPr(by('S10').id, 101);
+await act(by('S10').id, { action: 'advance' });                        // → in-review
 await act(by('S11').id, { action: 'accept' });
-for (const a of ['advance', 'advance', 'approve-spec', 'advance', 'approve-release']) await act(by('S11').id, { action: a }); // → shipped
+for (const a of ['advance', 'advance', 'approve-spec']) await act(by('S11').id, { action: a });
+await attachPr(by('S11').id, 102);
+for (const a of ['advance', 'approve-release']) await act(by('S11').id, { action: a }); // → shipped
 
 const final = await (await fetch(`${BASE}/admin/lifecycle`, { headers: ADMIN })).json();
 const stageOf = Object.fromEntries(final.items.map((i) => [i._id, i.stage]));
