@@ -433,15 +433,15 @@ test('advancing to spec is blocked until every clause is vetted (FR-FL-028, SC-F
     data: { action: 'advance' },
     headers: AS_ADMIN,
   });
-  // Either the agent drafted (409, pending) or it could not (200, nothing pending) — both are
-  // legitimate; what must never happen is advancing WITH something pending.
+  // The stand-in agent answers the clause-drafting mode, so there IS something pending and the
+  // gate must close. This was previously written as "if the agent happened to draft, assert the
+  // refusal" — which quietly passed whenever it drafted nothing, i.e. every run, leaving
+  // SC-FL-005's headline guarantee unasserted end to end.
   const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
   const item = (await after.json()) as { stage: string; clauses: { vetted: string }[] };
-  const pending = item.clauses.filter((c) => c.vetted === 'pending').length;
-  if (pending > 0) {
-    expect(blocked.status()).toBe(409);
-    expect(item.stage).toBe('briefed');
-  }
+  expect(item.clauses.filter((c) => c.vetted === 'pending').length).toBeGreaterThan(0);
+  expect(blocked.status()).toBe(409);
+  expect(item.stage).toBe('briefed');
 });
 
 // ── The item modal on a phone ───────────────────────────────────────────────
@@ -770,11 +770,70 @@ test('in-progress will not advance without a pull request, and the control says 
   // Attach through the REAL control — it had none at all before, so the reference the
   // reviewer opens could only be attached by curl.
   const ref = 'https://github.com/example/fridge-planner/pull/99';
-  await dialog.getByLabel(/attach pull request/i).fill(ref);
-  await dialog.getByRole('button', { name: 'Attach pull request' }).click();
-  await expect(dialog.getByLabel('Attached references')).toContainText(ref);
+  await dialog.getByLabel(/pull request url/i).fill(ref);
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog.getByLabel(/pull request url/i)).toHaveValue(ref);
 
   await dialog.getByRole('button', { name: 'Ready for review' }).click();
   await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/In review/i);
   expect(await stageOf(page, id)).toBe('in-review');
+});
+
+test('a clause can be edited before it is accepted (FR-FL-029)', async ({ page }) => {
+  const me = ownReporter();
+  const title = await fileReport(page.request, me);
+  const id = await idFor(page, title);
+  await walkTo(page, id, ['accept', 'advance']);
+
+  // A hand-written clause is born accepted, so seed a PENDING one the way the agent would.
+  await page.request.post(`/api/v1/admin/lifecycle/${id}/clauses`, {
+    data: {},
+    headers: AS_ADMIN,
+  });
+  const before = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
+  const pending = ((await before.json()) as { clauses: { provisionalId: string; vetted: string }[] })
+    .clauses.filter((c) => c.vetted === 'pending');
+  // The stand-in agent answers the clause-drafting mode, so this is deterministic. It used to
+  // `test.skip` here — which meant the test never once ran.
+  expect(pending.length).toBeGreaterThan(0);
+
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Delivery' }).click();
+  const dialog = await openItem(page, 'Delivery', title);
+  const panel = dialog.locator('div[aria-label="Clause vetting"]');
+
+  await panel.getByRole('button', { name: 'Edit' }).first().click();
+  const edited = 'When a grocery row is checked off, the system shall collapse duplicates.';
+  await panel.getByLabel(/edit clause/i).first().fill(edited);
+  await panel.getByRole('button', { name: /Save and accept/ }).click();
+
+  // The SERVER's answer: the maintainer's wording is stored and the clause counts as vetted.
+  await expect(panel.getByText(edited)).toBeVisible();
+  const after = await page.request.get(`/api/v1/admin/lifecycle/${id}`, { headers: AS_ADMIN });
+  const clause = ((await after.json()) as {
+    clauses: { provisionalId: string; vetted: string; editedText?: string }[];
+  }).clauses.find((c) => c.provisionalId === pending[0]!.provisionalId)!;
+  expect(clause.editedText).toBe(edited);
+  expect(clause.vetted).toBe('accepted');
+});
+
+test('the modal is a centred dialog on a desktop-width window, not a bottom sheet (FR-RS-023)', async ({
+  page,
+}) => {
+  // 1100px: wider than iPad landscape, narrower than the old `xl:` switch. This window used to
+  // get a full-width sheet pinned across the bottom of a desktop screen.
+  await page.setViewportSize({ width: 1100, height: 800 });
+  const me = ownReporter();
+  const title = await fileReport(page.request, me);
+
+  await page.goto('/admin');
+  const dialog = await openItem(page, 'Triage queue', title);
+  await dialog.evaluate((el) =>
+    Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined))),
+  );
+
+  const box = (await dialog.boundingBox())!;
+  expect(box.width, 'a dialog is inset, not full-bleed').toBeLessThan(1100);
+  expect(box.y, 'a dialog is centred, not pinned to the bottom edge').toBeGreaterThan(0);
+  expect(Math.round(box.y + box.height)).toBeLessThan(800);
 });

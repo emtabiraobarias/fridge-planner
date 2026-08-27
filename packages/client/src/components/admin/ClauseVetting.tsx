@@ -20,6 +20,11 @@ export function ClauseVetting({ itemId }: Props): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // FR-FL-029 is accept / EDIT / reject. The edit was the missing third: `vetClause` has always
+  // taken `editedText` and the clause list has always rendered it, but nothing could set it —
+  // so a clause that was nearly right could only be accepted as-is or thrown away.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draftText, setDraftText] = useState('');
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -53,9 +58,14 @@ export function ClauseVetting({ itemId }: Props): React.JSX.Element {
     }
   }
 
-  async function vet(id: string, verdict: 'accepted' | 'rejected'): Promise<void> {
+  async function vet(
+    id: string,
+    verdict: 'accepted' | 'rejected',
+    editedText?: string,
+  ): Promise<void> {
     try {
-      setClauses(await vetClause(itemId, id, verdict));
+      setClauses(await vetClause(itemId, id, verdict, editedText));
+      setEditing(null);
     } catch {
       setError('That clause could not be updated.');
     }
@@ -104,25 +114,70 @@ export function ClauseVetting({ itemId }: Props): React.JSX.Element {
                     </span>
                   )}
                 </p>
-                {/* The comparison, side by side — this is the whole point of the step. */}
+                {/* The comparison, side by side — this is the whole point of the step. It stays
+                    visible while editing: the source text is what the wording is being corrected
+                    AGAINST, so hiding it would turn vetting back into a proofread. */}
                 <p className="text-muted mt-1 border-l-2 border-divider pl-2 text-xs italic">
                   from: “{c.derivedFrom}”
                 </p>
+
+                {editing === c.provisionalId && (
+                  <div className="mt-2">
+                    <label className="sr-only" htmlFor={`clause-${c.provisionalId}`}>
+                      Edit clause {c.provisionalId}
+                    </label>
+                    <textarea
+                      id={`clause-${c.provisionalId}`}
+                      value={draftText}
+                      onChange={(e) => setDraftText(e.target.value)}
+                      rows={3}
+                      // 16px on touch or iOS zooms toward the focused control (SC-RS-003).
+                      className="w-full rounded-lg border border-divider p-2 text-base text-ink dlg:text-sm"
+                    />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={draftText.trim().length === 0}
+                        onClick={() => void vet(c.provisionalId, 'accepted', draftText.trim())}
+                        className="min-h-[36px] rounded-full bg-accent px-3 text-xs font-semibold text-bg hover:bg-accent-600 disabled:opacity-45"
+                      >
+                        Save and accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(null)}
+                        className="text-muted min-h-[36px] px-2 text-xs font-semibold hover:text-ink"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {c.vetted === 'pending' ? (
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => void vet(c.provisionalId, 'accepted')}
-                    className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-bg hover:bg-accent-600"
+                    className="min-h-[36px] rounded-full bg-accent px-3 text-xs font-semibold text-bg hover:bg-accent-600"
                   >
                     Accept
                   </button>
                   <button
                     type="button"
+                    onClick={() => {
+                      setEditing(c.provisionalId);
+                      setDraftText(c.editedText ?? c.text);
+                    }}
+                    className="min-h-[36px] rounded-full border border-divider px-3 text-xs font-semibold text-ink hover:bg-ink/[0.07]"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => void vet(c.provisionalId, 'rejected')}
-                    className="text-xs font-semibold text-accent-700 hover:text-accent-800"
+                    className="min-h-[36px] px-2 text-xs font-semibold text-accent-700 hover:text-accent-800"
                   >
                     Reject
                   </button>

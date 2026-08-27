@@ -251,3 +251,52 @@ describe('advancing out of in-progress needs a pull request (FR-FL-067)', () => 
   });
 });
 
+/**
+ * The maintainer surface presents the pull request as a single FIELD, not an append-only list,
+ * so re-saving it corrects the value instead of stacking another stale link beside it.
+ */
+describe('the pull request behaves like a field (FR-FL-067)', () => {
+  it('replaces a previous pull request rather than accumulating them', async () => {
+    const id = await seed('in-progress');
+    for (const ref of ['https://example.invalid/pull/1', 'https://example.invalid/pull/2']) {
+      const res = await ITEM.PATCH(
+        as(ADMIN, { action: 'attach-artifact', artifact: { type: 'pull-request', ref } }),
+        ctx(id),
+      );
+      expect(res.status).toBe(200);
+    }
+
+    const item = await LifecycleItem.findById(id).lean();
+    const prs = item!.artifacts.filter((a) => a.type === 'pull-request');
+    expect(prs).toHaveLength(1);
+    expect(prs[0]!.ref).toBe('https://example.invalid/pull/2');
+  });
+
+  it('leaves a draft spec alone — one piece of work can produce several', async () => {
+    const id = await seed('in-spec');
+    for (const ref of ['specs/013-a/spec.md', 'specs/013-b/spec.md']) {
+      await ITEM.PATCH(
+        as(ADMIN, { action: 'attach-artifact', artifact: { type: 'draft-spec', ref } }),
+        ctx(id),
+      );
+    }
+    const item = await LifecycleItem.findById(id).lean();
+    expect(item!.artifacts.filter((a) => a.type === 'draft-spec')).toHaveLength(2);
+  });
+
+  it('does not disturb a draft spec when the pull request is replaced', async () => {
+    const id = await seed('in-progress', {
+      artifacts: [{ type: 'draft-spec', ref: 'specs/013-a/spec.md', at: new Date() }],
+    });
+    await ITEM.PATCH(
+      as(ADMIN, {
+        action: 'attach-artifact',
+        artifact: { type: 'pull-request', ref: 'https://example.invalid/pull/9' },
+      }),
+      ctx(id),
+    );
+    const item = await LifecycleItem.findById(id).lean();
+    expect(item!.artifacts.map((a) => a.type).sort()).toEqual(['draft-spec', 'pull-request']);
+  });
+});
+

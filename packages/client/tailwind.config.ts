@@ -31,6 +31,14 @@ export default {
         min900: '900px', // shipped 004 Kitchen two-column threshold
         lg: '1024px', // iPad landscape 1024–1279px
         xl: '1280px', // desktop       ≥1280px
+        // Overlay presentation: sheet on touch, centred dialog on a real pointer.
+        //
+        // The overlay used to switch on `xl:` alone, which asks the wrong question. Width does
+        // not distinguish a laptop from an iPad: a 1024–1279px laptop window got a bottom sheet
+        // pinned across the whole screen, and an 1280px+ touch device would get a dialog. What
+        // the design means by "desktop" here is a fine pointer, so this asks that directly and
+        // keeps a width floor so small windows still get the sheet.
+        dlg: { raw: '(min-width: 1024px) and (pointer: fine)' },
         phland: { raw: PHONE_LANDSCAPE_QUERY }, // phone landscape — KEEP LAST
       },
       colors: {

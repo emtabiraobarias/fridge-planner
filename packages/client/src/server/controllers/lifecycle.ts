@@ -93,12 +93,43 @@ type NonTransitionRequest = Extract<
  * Tabled rather than chained: each is two lines of intent and one of plumbing, and as a
  * branch-per-action they pushed `applyNonTransition` past the complexity limit.
  */
-function simpleUpdateFor(body: NonTransitionRequest): Record<string, unknown> | null {
+type SimpleUpdate = Record<string, unknown> | Record<string, unknown>[];
+
+function simpleUpdateFor(body: NonTransitionRequest): SimpleUpdate | null {
   switch (body.action) {
     case 'attach-artifact':
       // Records where the work HAPPENED, which a human did elsewhere. Stored as a string and
       // never dereferenced: no action may commit, merge, tag or deploy (FR-FL-057).
-      return { $push: { artifacts: { ...body.artifact, at: new Date() } } };
+      //
+      // A pull request REPLACES any previous one; a draft spec appends. The maintainer surface
+      // presents the PR as a single field — "the PR for this work" — and a field that quietly
+      // accumulated every value ever typed into it would leave the item carrying a list of
+      // stale links with no way to correct a typo. A piece of work can genuinely produce more
+      // than one draft spec, so those still stack.
+      //
+      // Written as an aggregation pipeline rather than `$pull` + `$push`: Mongo refuses two
+      // operators touching the same path in one update, and splitting it into two writes would
+      // lose atomicity.
+      return body.artifact.type === 'pull-request'
+        ? [
+            {
+              $set: {
+                artifacts: {
+                  $concatArrays: [
+                    {
+                      $filter: {
+                        input: { $ifNull: ['$artifacts', []] },
+                        as: 'a',
+                        cond: { $ne: ['$$a.type', 'pull-request'] },
+                      },
+                    },
+                    [{ ...body.artifact, at: new Date() }],
+                  ],
+                },
+              },
+            },
+          ]
+        : { $push: { artifacts: { ...body.artifact, at: new Date() } } };
     case 'cite':
       // A reference, never a transition (FR-FL-050/051) — and the only way a recurrence relates
       // to a `closed` item, so it must work on a terminal one.

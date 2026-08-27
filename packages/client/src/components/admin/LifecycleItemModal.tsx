@@ -11,18 +11,20 @@ import type {
   LifecycleSummary,
 } from '../../services/lifecycle';
 
-/** Which artifact each stage expects, per the design's contract table. */
-const ARTIFACT_FOR: Partial<Record<LifecycleStage, { type: 'draft-spec' | 'pull-request'; label: string; placeholder: string }>> = {
-  'in-spec': { type: 'draft-spec', label: 'Attach draft spec', placeholder: 'specs/013-…/spec.md' },
-  'in-progress': {
-    type: 'pull-request',
-    label: 'Attach pull request',
-    placeholder: 'https://github.com/…/pull/42',
-  },
-};
+/**
+ * The pull request for this work.
+ *
+ * A single field, not an attachment list: the maintainer types (or pastes) one URL and it
+ * replaces whatever was there. Draft specs are attachable through the API and are shown here
+ * when present, but the surface offers no control to add one — a spec path is something the
+ * chain produces, not something worth typing into a form.
+ */
+function pullRequestRef(item: LifecycleSummary): string {
+  return (item.artifacts ?? []).find((a) => a.type === 'pull-request')?.ref ?? '';
+}
 
 function hasPullRequest(item: LifecycleSummary): boolean {
-  return (item.artifacts ?? []).some((a) => a.type === 'pull-request');
+  return pullRequestRef(item).length > 0;
 }
 
 /**
@@ -359,57 +361,54 @@ function ChoiceStep({ step, mergeTargets, onFire, onCancel }: ChoiceProps): Reac
   );
 }
 
-function ArtifactSection({
+function PullRequestField({
   item,
-  onAttach,
+  onSave,
 }: {
   item: LifecycleSummary;
-  onAttach: (action: LifecycleAction) => void;
+  onSave: (action: LifecycleAction) => void;
 }): React.JSX.Element {
-  const [ref, setRef] = useState('');
-  const spec = ARTIFACT_FOR[item.stage];
-  const attached = item.artifacts ?? [];
+  const current = pullRequestRef(item);
+  const [ref, setRef] = useState(current);
+  const specs = (item.artifacts ?? []).filter((a) => a.type === 'draft-spec');
 
   return (
-    <div className="mt-4 rounded-lg border border-divider p-3" aria-label="Attached references">
-      <h3 className="font-heading text-sm text-ink">References</h3>
+    <div className="mt-4 rounded-lg border border-divider p-3" aria-label="Pull request">
+      <label className="text-muted block text-xs font-semibold" htmlFor={`pr-${item._id}`}>
+        Pull request URL
+      </label>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input
+          id={`pr-${item._id}`}
+          value={ref}
+          placeholder="https://github.com/…/pull/42"
+          onChange={(e) => setRef(e.target.value)}
+          className={FIELD_CLASS}
+        />
+        <button
+          type="button"
+          disabled={ref.trim().length === 0 || ref.trim() === current}
+          onClick={() =>
+            onSave({
+              action: 'attach-artifact',
+              artifact: { type: 'pull-request', ref: ref.trim() },
+            })
+          }
+          className={`${PLAIN_BUTTON} shrink-0 disabled:opacity-45`}
+        >
+          Save
+        </button>
+      </div>
+      {/* FR-FL-067 — this is what `Ready for review` waits for. */}
+      {!current && (
+        <p className="text-muted mt-2 text-xs">Needed before this can go for review.</p>
+      )}
 
-      {attached.length === 0 && <p className="text-muted mt-1 text-xs">Nothing attached yet.</p>}
-      <ul className="mt-1 flex flex-col gap-1">
-        {attached.map((a) => (
-          <li key={`${a.type}-${a.ref}`} className="text-xs text-ink">
-            <span className="text-muted mr-2 font-mono">{a.type}</span>
-            {/* Rendered as TEXT, never as a link: the app must not invite a click it has not
-                verified, and it never dereferences the reference itself. */}
-            <span className="break-all">{a.ref}</span>
-          </li>
-        ))}
-      </ul>
-
-      {spec && (
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="sr-only" htmlFor={`attach-${item._id}`}>
-            {spec.label}
-          </label>
-          <input
-            id={`attach-${item._id}`}
-            value={ref}
-            placeholder={spec.placeholder}
-            onChange={(e) => setRef(e.target.value)}
-            className={FIELD_CLASS}
-          />
-          <button
-            type="button"
-            disabled={ref.trim().length === 0}
-            onClick={() => {
-              onAttach({ action: 'attach-artifact', artifact: { type: spec.type, ref: ref.trim() } });
-              setRef('');
-            }}
-            className={`${PLAIN_BUTTON} shrink-0 disabled:opacity-45`}
-          >
-            {spec.label}
-          </button>
-        </div>
+      {specs.length > 0 && (
+        <p className="text-muted mt-2 break-all text-xs">
+          {/* Text, never a link: the app has never dereferenced it (FR-FL-057). */}
+          draft spec: {specs.map((sp) => sp.ref).join(', ')}
+        </p>
       )}
     </div>
   );
@@ -417,7 +416,7 @@ function ArtifactSection({
 
 /**
  * The panels that hang off a stage rather than off a button: the edit form, the clauses that
- * ARE the work at `briefed`, the references, and the closure composer.
+ * ARE the work at `briefed`, the pull request, and the closure composer.
  *
  * Extracted so `LifecycleItemModal` stays a shell — each of these is a branch, and together
  * they took it past the complexity limit.
@@ -435,7 +434,7 @@ function StageExtras({
   onAction: (action: LifecycleAction) => void;
   onStep: (step: Step) => void;
 }): React.JSX.Element {
-  const showArtifacts = Boolean(ARTIFACT_FOR[item.stage]) || (item.artifacts ?? []).length > 0;
+  const showPullRequest = item.stage === 'in-progress' || item.stage === 'in-review';
   return (
     <>
       {step === 'edit' && (
@@ -446,10 +445,9 @@ function StageExtras({
           (FR-FL-028), so they open with the item rather than behind a further click. */}
       {item.stage === 'briefed' && <ClauseVetting itemId={item._id} />}
 
-      {/* References the maintainer opens — the app never follows them (FR-FL-057). Until now
-          `attach-artifact` had no control at all, so the spec and PR links the contract table
-          calls for could only be attached by curl. */}
-      {showArtifacts && <ArtifactSection item={item} onAttach={onAction} />}
+      {/* The reference the reviewer opens — the app never follows it (FR-FL-057). Shown at
+          `in-review` too so a typo can still be corrected after the advance. */}
+      {showPullRequest && <PullRequestField item={item} onSave={onAction} />}
 
       {step === 'close' && (
         <ClosureComposer

@@ -182,9 +182,9 @@ test('the maintainer walks a record from triage to shipped, with both artifact l
   // exists (FR-FL-067), and attaching behind the open dialog's back leaves it looking at stale
   // state — which is exactly what a maintainer would hit.
   const prRef = 'https://github.com/example/fridge-planner/pull/42';
-  await dialog.getByLabel(/attach pull request/i).fill(prRef);
-  await dialog.getByRole('button', { name: 'Attach pull request' }).click();
-  await expect(dialog.getByLabel('Attached references')).toContainText(prRef);
+  await dialog.getByLabel(/pull request url/i).fill(prRef);
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog.getByLabel(/pull request url/i)).toHaveValue(prRef);
 
   await dialog.getByRole('button', { name: 'Ready for review' }).click();
   await expect(dialog.getByTestId(`modal-stage-${id}`)).toHaveText(/In review/i);

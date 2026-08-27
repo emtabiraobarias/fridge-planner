@@ -172,13 +172,13 @@ describe('DeliveryPanel — advancing out of in-progress needs a pull request', 
     expect(screen.getByRole('button', { name: /ready for review/i })).toBeEnabled();
   });
 
-  it('offers a control to attach one — it was curl-only before', async () => {
+  it('takes the pull request as a plain URL field', async () => {
     mockQueue.mockResolvedValue([item({ stage: 'in-progress' })]);
     render(<DeliveryPanel />);
     await openItem();
 
-    await userEvent.type(screen.getByLabelText(/attach pull request/i), 'https://example.invalid/pull/7');
-    await userEvent.click(screen.getByRole('button', { name: /attach pull request/i }));
+    await userEvent.type(screen.getByLabelText(/pull request url/i), 'https://example.invalid/pull/7');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() =>
       expect(mockAct).toHaveBeenCalledWith('i1', {
@@ -188,14 +188,36 @@ describe('DeliveryPanel — advancing out of in-progress needs a pull request', 
     );
   });
 
-  it('shows an attached reference as text, never as a link (FR-FL-057)', async () => {
+  it('pre-fills the field with the current value, and will not re-save it unchanged', async () => {
     mockQueue.mockResolvedValue([item({ stage: 'in-progress', artifacts: [PR] })]);
     render(<DeliveryPanel />);
     await openItem();
-    const refs = within(screen.getByLabelText('Attached references'));
-    expect(refs.getByText(PR.ref)).toBeInTheDocument();
+
+    // A field, not an attachment list: it shows what is set so a typo can be corrected.
+    expect(screen.getByLabelText(/pull request url/i)).toHaveValue(PR.ref);
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+
+  it('says why the field matters while it is empty (FR-FL-067)', async () => {
+    mockQueue.mockResolvedValue([item({ stage: 'in-progress' })]);
+    render(<DeliveryPanel />);
+    await openItem();
+    expect(screen.getByText(/needed before this can go for review/i)).toBeInTheDocument();
+  });
+
+  it('renders a draft spec as text, never as a link (FR-FL-057)', async () => {
+    mockQueue.mockResolvedValue([
+      item({
+        stage: 'in-progress',
+        artifacts: [PR, { type: 'draft-spec', ref: 'specs/013-a/spec.md', at: PR.at }],
+      }),
+    ]);
+    render(<DeliveryPanel />);
+    await openItem();
+    const panel = within(screen.getByLabelText('Pull request'));
+    expect(panel.getByText(/specs\/013-a\/spec\.md/)).toBeInTheDocument();
     // The app must not invite a click on something it has never dereferenced.
-    expect(refs.queryByRole('link')).not.toBeInTheDocument();
+    expect(panel.queryByRole('link')).not.toBeInTheDocument();
   });
 });
 

@@ -19,9 +19,9 @@ interface OverlayProps {
 }
 
 // Design §5.1 — one shared sheet/dialog shell, presentation by CSS ONLY: every
-// class below is always present in the DOM; the `xl:` variants are what make it
-// a centred dialog on desktop instead of a bottom sheet. There is no JS branch
-// on the viewport here (research D5) — that is what lets an orientation change
+// class below is always present in the DOM; the `dlg:` variants are what make it
+// a centred dialog on a real pointer instead of a bottom sheet. There is no JS
+// branch on the viewport here (research D5) — that is what lets an orientation change
 // swap sheet ↔ dialog without unmounting the panel, so state and the trapped
 // focus both survive (the spec's orientation-change edge case).
 // `overlay-scrim`/`overlay-panel` are plain marker classes (not Tailwind
@@ -41,7 +41,7 @@ const SCRIM_CLASS = [
   'overlay-scrim fixed inset-0 z-50 grid grid-cols-1 grid-rows-1',
   'items-end justify-stretch bg-neutral-900/45 px-0',
   'transition-opacity duration-[180ms]',
-  'xl:items-center xl:justify-center xl:px-4',
+  'dlg:items-center dlg:justify-center dlg:px-4',
 ].join(' ');
 
 const PANEL_CLASS = [
@@ -49,14 +49,14 @@ const PANEL_CLASS = [
   'overlay-panel relative w-full max-h-[88%] overflow-auto rounded-t-[30px] bg-bg p-[14px_22px_40px] shadow-lg',
   'animate-[overlay-sheet-in_260ms_cubic-bezier(.22,.61,.36,1)]',
   // desktop: centred dialog, all corners rounded
-  'xl:max-h-[88%] xl:rounded-[28px] xl:p-[26px]',
-  'xl:animate-[overlay-dialog-in_200ms_ease-out]',
+  'dlg:max-h-[88%] dlg:rounded-[28px] dlg:p-[26px]',
+  'dlg:animate-[overlay-dialog-in_200ms_ease-out]',
 ].join(' ');
 
 // Both widths are written out in full rather than composed, so Tailwind sees complete class
-// names — a constructed `xl:w-[min(${n}px,90%)]` would never be emitted.
-const WIDTH_CLASS = 'xl:w-[min(460px,90%)]';
-const WIDE_WIDTH_CLASS = 'xl:w-[min(760px,92%)]';
+// names — a constructed `dlg:w-[min(${n}px,90%)]` would never be emitted.
+const WIDTH_CLASS = 'dlg:w-[min(460px,90%)]';
+const WIDE_WIDTH_CLASS = 'dlg:w-[min(760px,92%)]';
 
 /**
  * Shared overlay shell (research D5, FR-RS-023): bottom sheet on touch / centred
@@ -105,7 +105,7 @@ export function Overlay({
         <span
           data-testid="overlay-grab-handle"
           aria-hidden="true"
-          className="mx-auto mb-[14px] block h-[5px] w-[42px] rounded-full bg-divider xl:hidden"
+          className="mx-auto mb-[14px] block h-[5px] w-[42px] rounded-full bg-divider dlg:hidden"
         />
         {children}
       </div>
