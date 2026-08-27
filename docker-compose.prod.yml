@@ -146,10 +146,14 @@ services:
   # it at FEEDBACK_AGENT_URL; if it's down the /api/v1/feedback chat endpoints 502 and
   # preserve drafts, so the rest of the app is unaffected.
   holodeck-feedback:
-    # ⚠ 1.0.1, NOT the higher-semver 1.1.0 — that tag is the BROKEN Claude-era build, so
-    #   semver order lies here. This is what prod runs and is verified working. Pinning is
-    #   what stops a `:latest` rebuild from silently promoting the broken one.
-    image: ${FEEDBACK_AGENT_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-feedback:1.0.1}
+    # 1.2.0 adds the spec-012 `draft-ears-clauses` mode. Until it, prod ran an agent that did
+    #   not know that mode: clause drafting degraded to zero clauses — safe, but the feature
+    #   did not work.
+    # ⚠ NEVER roll back to 1.1.0. That tag is the BROKEN Claude-era build, so semver order
+    #   lies between 1.0.1 and 1.2.0. 1.2.0 was chosen to clear it, so anything ≥ 1.2.0 is
+    #   safe to move to and the only valid rollback target below it is 1.0.1.
+    #   Pinning is what stops a `:latest` rebuild from silently promoting the broken one.
+    image: ${FEEDBACK_AGENT_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-feedback:1.2.0}
     restart: unless-stopped
     environment:
       HOLODECK_PORT: 8002
