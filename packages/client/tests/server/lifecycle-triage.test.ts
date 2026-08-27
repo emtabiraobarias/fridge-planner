@@ -144,13 +144,37 @@ describe('US1 — triage', () => {
 
   it('applies at most ONE of two concurrent transitions (FR-FL-004)', async () => {
     const id = await seed();
-    // Both read `new`; the guarded update pins that stage, so the loser matches nothing.
+    // TWO ACCEPTS, deliberately — not accept-versus-dismiss.
+    //
+    // `dismiss` is legal from `accepted` as well as from `new`, so if the two requests happen to
+    // SERIALISE rather than interleave, the dismiss lands legitimately on the accepted item and
+    // both return 200 — no concurrency violation, just a passing race the assertion misread as
+    // one. That is exactly what CI hit while this passed locally every time.
+    //
+    // `accept` is legal only from `new`, so a second one is refused however the two are
+    // scheduled: interleaved, the guarded update matches nothing; serialised, the stage graph
+    // refuses it. Either way at most one applies, which is what FR-FL-004 actually requires.
     const [a, b] = await Promise.all([
       ITEM.PATCH(admin('PATCH', { action: 'accept' }), ctx(id)),
-      ITEM.PATCH(admin('PATCH', { action: 'dismiss', reason: 'declined' }), ctx(id)),
+      ITEM.PATCH(admin('PATCH', { action: 'accept' }), ctx(id)),
     ]);
     const statuses = [a.status, b.status].sort();
     expect(statuses).toEqual([200, 409]);
+    const item = await LifecycleItem.findById(id).lean();
+    expect(item!.transitions).toHaveLength(1);
+    expect(item!.stage).toBe('accepted');
+  });
+
+  // The serialised half of the case above, asserted directly rather than left to whether the
+  // scheduler happens to interleave. A concurrency test that only ever exercises one ordering
+  // is a test that passes for a reason it does not state.
+  it('refuses the second of two SEQUENTIAL accepts (FR-FL-004)', async () => {
+    const id = await seed();
+    const first = await ITEM.PATCH(admin('PATCH', { action: 'accept' }), ctx(id));
+    const second = await ITEM.PATCH(admin('PATCH', { action: 'accept' }), ctx(id));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(409);
     const item = await LifecycleItem.findById(id).lean();
     expect(item!.transitions).toHaveLength(1);
   });
