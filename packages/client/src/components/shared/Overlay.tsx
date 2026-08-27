@@ -37,11 +37,18 @@ interface OverlayProps {
 // scrim (which is `inset-0`, so viewport-sized) makes the percentages resolve against the
 // viewport, which is what they always meant. Desktop restores centring, where the panel's width
 // is explicit and there is no circularity to begin with.
+// `justify-ITEMS`, not `justify-content`.
+//
+// `grid-cols-1` is `repeat(1, minmax(0, 1fr))`, so the single column already fills the scrim.
+// `justify-content` distributes TRACKS inside the container and therefore has nothing left to
+// do — while `justify-items` is what places the panel inside its track. With only
+// `justify-content: center` set, the panel (which carries an explicit width on desktop) fell
+// back to `justify-items: start` and sat against the left edge.
 const SCRIM_CLASS = [
   'overlay-scrim fixed inset-0 z-50 grid grid-cols-1 grid-rows-1',
-  'items-end justify-stretch bg-neutral-900/45 px-0',
+  'items-end justify-items-stretch bg-neutral-900/45 px-0',
   'transition-opacity duration-[180ms]',
-  'dlg:items-center dlg:justify-center dlg:px-4',
+  'dlg:items-center dlg:justify-items-center dlg:px-4',
 ].join(' ');
 
 const PANEL_CLASS = [

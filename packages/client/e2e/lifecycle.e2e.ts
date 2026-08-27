@@ -834,6 +834,15 @@ test('the modal is a centred dialog on a desktop-width window, not a bottom shee
 
   const box = (await dialog.boundingBox())!;
   expect(box.width, 'a dialog is inset, not full-bleed').toBeLessThan(1100);
-  expect(box.y, 'a dialog is centred, not pinned to the bottom edge').toBeGreaterThan(0);
-  expect(Math.round(box.y + box.height)).toBeLessThan(800);
+
+  // BOTH axes. The first version of this test checked only the width and the top edge, so it
+  // passed while the panel sat hard against the left edge — `justify-content` centres tracks,
+  // and the single track already filled the scrim, so nothing centred the panel itself.
+  const leftGap = box.x;
+  const rightGap = 1100 - (box.x + box.width);
+  expect(Math.abs(leftGap - rightGap), 'equal gaps left and right').toBeLessThanOrEqual(2);
+
+  const topGap = box.y;
+  const bottomGap = 800 - (box.y + box.height);
+  expect(Math.abs(topGap - bottomGap), 'equal gaps top and bottom').toBeLessThanOrEqual(2);
 });

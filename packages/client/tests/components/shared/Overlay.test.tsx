@@ -85,6 +85,9 @@ describe('Overlay (research D5, FR-RS-023, SC-RS-004)', () => {
     expect(screen.getByTestId('overlay-grab-handle')).toBeInTheDocument();
     // Desktop overrides present in the SAME class string, not a different tree.
     expect(scrim.className).toContain('dlg:items-center');
+    // justify-ITEMS places the panel in its track; justify-content would only move tracks,
+    // and the single track already fills the scrim — which left the panel against the edge.
+    expect(scrim.className).toContain('dlg:justify-items-center');
     expect(dialog.className).toContain('dlg:rounded-[28px]');
 
     // A viewport change (e.g. rotation) never remounts the panel: state survives.
