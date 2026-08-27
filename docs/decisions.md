@@ -116,6 +116,84 @@ what hid the stalled rollout above for a full day.
 
 ---
 
+## The feedback lifecycle (spec 012) — why it exists and what was decided
+
+The shipped feedback feature collected reports and then did almost nothing coherent with them:
+*"the overall flow from feedback to admin approval to spec-driven development to completion loop
+is not defined at all."* That was a **missing lifecycle**, not four broken screens — `003` had
+already proved a report could be captured well. So `003` was scoped back to capture, `012` took
+everything that happens to a record afterwards, and `011` kept owning *who may act*.
+
+**The twenty design decisions (2026-08-23)** are recorded in full in
+`specs/012-feedback-lifecycle/spec.md` → Clarifications. The ones that shaped the code most:
+
+- **D1 genuinely multi-user.** Reporters the operator does not know, so privacy between them is a
+  requirement rather than a nicety. It replaced `003`'s single-maintainer assumption.
+- **D3 the app never runs the work.** It assembles a brief; a human starts every run. No job
+  runner, no scheduler, no agent holding repository credentials.
+- **D5 three gates**, D9 **explicit closure** — nothing auto-closes on merge or release.
+- **D13 `closed` never reopens.** A wrongly-fixed problem is a NEW report that *cites* the closed
+  one, so each record describes exactly one round of work.
+- **D15 work outlives an erased account.** See the erasure entry below — this one contradicted
+  shipped code.
+- **D17 closure names a release**, which introduced the app's first outbound third-party call.
+- **D18 quick capture asks before it interrupts** — resolved to *ask in the modal, before
+  sending*. The alternative (send first, ask only if the assistant came back with a question)
+  optimises a case that barely occurs: the agent's prompt mandates a clarifying question whenever
+  detail is missing, and `003` records that it "almost always" asks one, so it would have asked
+  nearly every time anyway — after a wait bounded by the 60s agent timeout.
+
+### Decisions that overturned earlier fixed ones
+
+Recorded because silent reversals are how documents drift apart:
+
+- `003` SC-F-007 promised *"zero hand-maintained tracking."* D4 keeps stage advancement
+  hand-driven, so that criterion was **retired, not inherited** — `012` SC-FL-004 restates the
+  achievable half. Carrying an unmet success criterion forward would have been worse than
+  admitting it.
+- `003` Assumption 9 excluded a maintainer-facing spec editor; D8 brings one in and D20 goes
+  further, drafting EARS clauses at `briefed` and vetting them clause by clause.
+- D4 ruled out GitHub integration; **D17 narrowly reopened it** — read-only, one endpoint, for the
+  release picker alone, and it never drives a stage.
+
+### Erasure: the shipped code did the opposite of what D15 requires
+
+`lib/account-purge.ts` listed the lifecycle collection in `USER_KEYED_MODELS` and `deleteMany`'d
+it, so erasing a reporter **destroyed every item their report had started**, including maintainer
+work in flight that other people were waiting on. D15 settles it the other way, and the purge now
+has **two tables with different semantics**: delete, and detach. A detached item is not an orphan
+for `011` FR-AD-018 — detachment is the *defined* outcome. Anonymising by hashing the userId was
+rejected: a hash is still a per-user key, so it re-identifies the same person across collections.
+
+This was sequenced FIRST in the implementation, before any user story, because every story after
+it adds more data that would have been eaten.
+
+### The release picker publishes tags, not Releases
+
+D17 says closure picks "a release from the repository's published releases". Run against the real
+repository, the picker returned `available: true` and **zero entries**: this project has 0 GitHub
+Release objects and 15 tags, because `deploy-nextjs.yml` tags `nextjs-v*` and never calls
+`gh release create`. Falling back to tags is faithful rather than a workaround — per CLAUDE.md
+§14 the **tag IS the release here**, and it is what CI builds. Entries carry
+`source: 'release' | 'tag'` so the UI can say which it is offering.
+
+The whole service is shaped by one rule: **closure is never gated on a third party**
+(FR-FL-045). It never throws, never retries, reports unavailability as a normal answer, and the
+readiness probe reports it as **non-gating** — letting an unreachable GitHub mark the app
+not-ready would hand a third party the power to take the deployment down.
+
+### Two models, one collection
+
+`012` evolved the existing collection rather than adding one: the stage sets nest almost
+perfectly, and only `approved → accepted` actually changed. The trap found during
+implementation: the collection is **`pipelineitems`**, Mongoose's default pluralisation — the
+design documents all said `pipeline_items`, and a model test asserted that literal and *passed
+while being wrong*, because it was checking its own setting rather than the shipped model. The
+test now asserts `LifecycleItem.collection.name === PipelineItem.collection.name`, a property a
+wrong guess cannot satisfy. **Only `LifecycleItem` may write `stage`** — the old enum predates the
+new values and rejects them, which is why the deprecated `promote` endpoint returns its idempotent
+response instead of trying to accept.
+
 ## Testing failures that produced the rules in CLAUDE.md §8
 
 - **A refusal matrix that silently tested nothing.** `it.each` expands at *collection* time

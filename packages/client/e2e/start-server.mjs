@@ -15,6 +15,27 @@ const PORT = process.env.E2E_PORT ?? '3100';
 // lets tests deterministically seed a draft (incomplete) record when needed.
 const DRAFT_HOLD_MARKER = 'DRAFT_HOLD_TRIGGER';
 
+// The 012 clause-drafting turn (services/feedback-collector.ts frames it with this line).
+// Without a stand-in reply the vetting tests could only assert "the agent drafted nothing",
+// which is the degraded path — the one case that needs no UI at all.
+const CLAUSE_MODE_MARKER = 'MODE: draft-ears-clauses';
+
+function buildClauses() {
+  return [
+    {
+      text: 'When a grocery row is checked off, the system shall not duplicate it.',
+      derivedFrom: 'the reported problem statement',
+      inferred: false,
+    },
+    {
+      // Something the record did not state, so the maintainer can see the flag working.
+      text: 'While a refresh is in flight, the system shall keep the list stable.',
+      derivedFrom: 'the reported problem statement',
+      inferred: true,
+    },
+  ];
+}
+
 function buildCompleteRecord(title) {
   const safeTitle = title.slice(0, 120);
   return {
@@ -39,6 +60,19 @@ function buildCompleteRecord(title) {
  * Always finalizes on the first turn (status:'complete') unless the framed transcript
  * contains DRAFT_HOLD_MARKER, in which case it stays 'collecting' — deterministic, no LLM.
  */
+function respond(res, content) {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      content,
+      session_id: 'e2e-mock-session',
+      tool_calls: [],
+      tokens_used: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      execution_time_ms: 1,
+    }),
+  );
+}
+
 function startMockFeedbackAgent() {
   const server = createServer((req, res) => {
     if (req.method !== 'POST' || !(req.url ?? '').includes('/agent/feedback-collector/chat')) {
@@ -60,6 +94,11 @@ function startMockFeedbackAgent() {
       const userLines = [...message.matchAll(/\[USER\] (.+)/g)].map((m) => m[1]);
       const latestUser = userLines[userLines.length - 1] ?? 'Untitled E2E feedback';
 
+      if (message.includes(CLAUSE_MODE_MARKER)) {
+        respond(res, JSON.stringify({ status: 'clauses', clauses: buildClauses() }));
+        return;
+      }
+
       const content = message.includes(DRAFT_HOLD_MARKER)
         ? JSON.stringify({
             status: 'collecting',
@@ -72,16 +111,7 @@ function startMockFeedbackAgent() {
             record: buildCompleteRecord(latestUser),
           });
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          content,
-          session_id: 'e2e-mock-session',
-          tool_calls: [],
-          tokens_used: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-          execution_time_ms: 1,
-        }),
-      );
+      respond(res, content);
     });
   });
   return server;
@@ -103,6 +133,20 @@ const child = spawn('npx', ['next', 'start', '-p', PORT], {
     MONGODB_URI: uri,
     AUTH_MODE: 'dev',
     AUTH_ALLOW_DEV: 'true',
+    // Pinned to CI's values so a developer's `packages/client/.env.local` cannot leak a
+    // dev-seam identity into the e2e build. `next start` reads `.env.local` (CLAUDE.md §2) but
+    // does not override variables already present in the environment, so setting them here wins.
+    //
+    // This is not hypothetical: `AUTH_DEV_ROLES=admin` in a local `.env.local` made every
+    // `page.goto('/admin')` an administrator, so lifecycle.e2e.ts passed locally for a reason
+    // CI does not have. A test must state its own identity — see the `test.use` there.
+    // `'anonymous'` is what `auth.ts` falls back to when this is unset, which is what CI gets.
+    // NOT `''` — the fallback is `??`, which does not fire on an empty string, so an empty
+    // value gives every unidentified request a broken `''` identity instead.
+    AUTH_DEV_USER_ID: 'anonymous',
+    // `''` IS right here: the roles list is `.filter(Boolean)`-ed, so empty means no roles,
+    // exactly as unset does.
+    AUTH_DEV_ROLES: '',
     FEEDBACK_AGENT_URL: `http://127.0.0.1:${mockFeedbackAgentPort}`,
   },
 });

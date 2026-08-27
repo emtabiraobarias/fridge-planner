@@ -22,6 +22,11 @@ export const ADMIN_AUDIT_ACTIONS = [
   'feedback.promote',
   'feedback.export',
   'pipeline.transition',
+  // Spec 012. `pipeline.transition` is kept for entries written before the rename — the audit
+  // trail is append-only, so historic actions cannot be relabelled.
+  'lifecycle.transition',
+  'lifecycle.edit',
+  'lifecycle.rank',
   'user.data.view',
   'user.export',
   'user.erase',
@@ -37,6 +42,7 @@ export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number];
 export const ADMIN_SUBJECT_TYPES = [
   'feedback',
   'pipelineItem',
+  'lifecycle',
   'account',
   'setting',
   'cache',

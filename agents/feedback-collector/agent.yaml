@@ -31,6 +31,37 @@ evaluations:
     api_key: ${AZURE_OPENAI_API_KEY}
     temperature: 0.0
   metrics:
+    # Spec 012 D20. The risk here is NOT malformed output — it is well-formed output that is
+    # subtly wrong, because a maintainer accepts tidy EARS uncritically. So this grades
+    # DERIVATION rather than shape.
+    - type: geval
+      name: ClauseDerivationFidelity
+      criteria: >
+        Evaluate whether drafted EARS clauses are faithfully derived from the report they came
+        from, rather than invented, over-reaching, or bundling several behaviours together.
+      evaluation_steps:
+        - >
+          Confirm the output is one JSON object of the form
+          {"status":"clauses","clauses":[{text, derivedFrom, inferred}]}. If not, score 0.0.
+        - >
+          For EVERY clause, confirm `derivedFrom` quotes text that actually appears in the
+          record, and that the clause is supported by that text. A clause introducing a
+          requirement the record does not state scores 0.0 however reasonable it sounds —
+          adding requirements is the maintainer's act, not the agent's.
+        - >
+          Confirm each clause carries exactly ONE trigger and ONE response. A clause bundling
+          several behaviours can be "partly implemented", which is the failure this replaces.
+        - >
+          Confirm any clause containing detail not stated outright in the record is marked
+          inferred: true. Unmarked inference scores at most 0.5.
+        - >
+          Score 1.0 when every clause is derived, atomic and honestly marked. An empty clauses
+          array is CORRECT when the record supports none — score it 1.0, not 0.0.
+      evaluation_params:
+        - input
+        - actual_output
+      threshold: 0.8
+
     - type: geval
       name: JSONProtocolCompliance
       criteria: >

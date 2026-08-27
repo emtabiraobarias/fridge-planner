@@ -193,3 +193,23 @@ describe('auditing (FR-AD-021)', () => {
     expect(await AdminAuditLog.countDocuments({})).toBe(0);
   });
 });
+
+describe('a title-less draft is still identifiable (FR-AD-009)', () => {
+  it('carries the reporter’s opening line as an excerpt', async () => {
+    await FeedbackRecord.create({
+      userId: 'reporter-x',
+      status: 'draft',
+      transcript: [{ role: 'user', content: 'The calendar scrolls oddly on my tablet', at: new Date() }],
+    });
+
+    const res = await ADMIN_LIST(req('/api/v1/admin/feedback'));
+    const { feedback } = (await res.json()) as { feedback: { excerpt?: string; transcript?: unknown }[] };
+    const row = feedback.find((f) => f.excerpt);
+    // Without this every draft rendered as "(untitled draft)" — a list that can be seen but
+    // not used is not the cross-user visibility the requirement asks for.
+    expect(row?.excerpt).toContain('calendar scrolls oddly');
+    // and the size saving that dropping transcripts was for is kept
+    expect(feedback.every((f) => f.transcript === undefined)).toBe(true);
+  });
+});
+

@@ -141,10 +141,16 @@ US5 = quick note still ends up usable (P1)
     draft** — that is the dead end the 2026-07-28 revision removed, and re-creating it would
     undo SC-F-009.
   - `FR-F-019c`/`d` already hold and must keep holding.
-  - **Blocked on a decision**: whether the consent question is asked in the modal *before*
-    sending, or only *after* the assistant returns a question. Deferred by the operator to the
-    `012` specification workflow — do not pick one here.
-  - Playwright coverage of both branches is part of this task, not a follow-up.
+  - **UNBLOCKED 2026-08-24.** Placement settled: the question is asked **in the capture modal,
+    before the note is sent** — not after an assistant turn. The reporter must never wait on the
+    agent to learn whether they are done. Send-first was rejected because the agent's prompt
+    mandates a clarifying question whenever detail is missing and `003` records that it "almost
+    always" asks one, so it would have asked nearly every time anyway, after a wait bounded by the
+    60s agent timeout. See `012` Clarifications and `012` research R8.
+  - Concretely: the modal gains a two-button consent step (`Yes, help me finish` /
+    `Just file it`). `Just file it` sends with the finalize flag; `Yes` sends normally and routes
+    to the existing `?resume=<id>` hand-off, which is already built.
+  - Playwright coverage of **both** branches is part of this task, not a follow-up.
 
 ## Dependencies
 `T003 → T004`; export `T005 → T006`; service `T007 → T008`; controller `T009 → T010 → T011`

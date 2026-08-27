@@ -72,14 +72,31 @@ describe('readiness (FR-AD-022/024/025)', () => {
       version: string;
       dependencies: Array<{ name: string; status: string }>;
     };
+    // `release-list` added by spec 012 FR-FL-047 — the closure picker's outbound dependency.
     expect(body.dependencies.map((d) => d.name).sort()).toEqual([
       'feedback-agent',
       'meal-recommender',
       'mongodb',
       'recipe-providers',
+      'release-list',
     ]);
     expect(body.version).toBeTruthy();
     expect(typeof body.ready).toBe('boolean');
+  });
+
+  it('a degraded release list does NOT make the app not-ready (FR-FL-045/047)', async () => {
+    // The app's only outbound third-party call. Letting it gate readiness would hand a third
+    // party the ability to take the deployment down, and nothing user-facing blocks on it —
+    // closure falls back to free text.
+    const { readiness } = await import('@server/lib/health-checks');
+    const report = await readiness();
+    const release = report.dependencies.find((d) => d.name === 'release-list');
+    expect(release).toBeDefined();
+    if (release && release.status !== 'ok') {
+      const others = report.dependencies.filter((d) => d.name !== 'release-list');
+      const othersFine = others.every((d) => d.status === 'ok' || d.status === 'not-configured');
+      expect(report.ready).toBe(othersFine);
+    }
   });
 
   it('reports mongodb ok while connected', async () => {

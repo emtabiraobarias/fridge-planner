@@ -157,7 +157,19 @@ export async function promoteFromFeedback(
   const ownerId: string = record.userId;
 
   const existing = await PipelineItem.findOne({ userId: ownerId, feedbackRecordId: feedbackId });
-  if (existing) return { status: 200, body: { pipelineItem: serialize(existing) } };
+  if (existing) {
+    // ⚠️ DEPRECATED, spec 012. A lifecycle item now exists from the moment the record reaches
+    // `complete` (FR-FL-001), so this branch is ALWAYS taken and promotion is never the call
+    // that creates one — it returns the existing item, which is the documented idempotent
+    // response for the deprecation window (contracts/api.md).
+    //
+    // It deliberately does NOT move the stage. An earlier attempt to make it perform gate-1
+    // acceptance was unsound: this model's enum predates the new stages, so writing `accepted`
+    // through it fails validation. Acceptance belongs to
+    // `PATCH /admin/lifecycle/:id {action:'accept'}`, which uses the model that knows the
+    // stages. Two models share this collection during the migration; only one may write stages.
+    return { status: 200, body: { pipelineItem: serialize(existing) } };
+  }
 
   if (!assertPromotable(record)) {
     return problem(

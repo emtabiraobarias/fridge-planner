@@ -2,7 +2,8 @@ import 'server-only';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { FeedbackRecord } from '../models/feedback-record';
-import { PipelineItem } from '../models/pipeline-item';
+import { LifecycleItem } from '../models/lifecycle-item';
+import { isTerminal } from '../lib/lifecycle-stages';
 import { sendToFeedbackAgent } from '../services/feedback-collector';
 import { renderFeedbackMarkdown } from '../lib/feedback-export';
 import { FEEDBACK_STATUSES, type AgentReply, type IFeedbackMessage } from '../types/feedback';
@@ -49,6 +50,37 @@ function applyComplete(
   doc.affectedArea = r.affectedArea;
   doc.priority = r.priority;
   doc.status = 'complete';
+}
+
+/**
+ * Put a completed record into the triage queue at stage `new` (spec 012, research R2).
+ *
+ * FR-FL-001 says a *completed* report becomes a lifecycle item, and gate 1 then accepts it.
+ * Creating it here rather than at acceptance is what gives the queue something to list — the
+ * decision the queue exists to support cannot be the thing that makes it visible.
+ *
+ * Never throws: the reporter's record is saved and confirmed either way. A queue insert failing
+ * must not turn a successful capture into an error for someone who just typed out a bug report.
+ */
+async function enqueueForTriage(doc: InstanceType<typeof FeedbackRecord>): Promise<void> {
+  try {
+    // The {userId, feedbackRecordId} unique index makes this idempotent in the DATABASE, so a
+    // retried completion cannot queue the same report twice.
+    await LifecycleItem.updateOne(
+      { userId: doc.userId, feedbackRecordId: String(doc._id) },
+      {
+        $setOnInsert: {
+          sourceTitle: doc.title ?? '(untitled)',
+          sourceType: doc.type ?? 'improvement',
+          sourceAffectedArea: doc.affectedArea ?? 'other',
+          stage: 'new',
+        },
+      },
+      { upsert: true },
+    );
+  } catch (err) {
+    console.error('[feedback] could not enqueue for triage', { id: String(doc._id), err });
+  }
 }
 
 function serialize(doc: InstanceType<typeof FeedbackRecord>): Record<string, unknown> {
@@ -122,6 +154,9 @@ async function runAgentTurn(doc: InstanceType<typeof FeedbackRecord>): Promise<C
   doc.transcript.push({ role: 'agent', content: reply.reply, at: new Date() });
   if (reply.status === 'complete') applyComplete(doc, reply);
   await doc.save();
+  // Only once it is actually persisted as complete — the queue must never hold an item whose
+  // record did not save (spec 012 FR-FL-001, research R2).
+  if (doc.status === 'complete') await enqueueForTriage(doc);
 
   return {
     status: doc.status === 'complete' ? 200 : 201,
@@ -166,8 +201,11 @@ export async function deleteFeedback(userId: string, id: string): Promise<Contro
   if (!mongoose.isValidObjectId(id))
     return problem(404, 'Not Found', 'Feedback conversation not found');
 
-  const pipelineItem = await PipelineItem.findOne({ userId, feedbackRecordId: id });
-  if (pipelineItem && pipelineItem.stage !== 'parked') {
+  // FR-FL-006: refused while the item is in an ACTIVE stage. `parked` and the three terminal
+  // stages are not active, so those cascade — updated from the old `!== 'parked'` check, which
+  // predates closed/dismissed/merged existing and would have protected finished work forever.
+  const item = await LifecycleItem.findOne({ userId, feedbackRecordId: id });
+  if (item && item.stage !== 'parked' && !isTerminal(item.stage)) {
     return problem(
       409,
       'Pipeline Active',
@@ -178,7 +216,7 @@ export async function deleteFeedback(userId: string, id: string): Promise<Contro
   const doc = await FeedbackRecord.findOneAndDelete({ _id: id, userId });
   if (!doc) return problem(404, 'Not Found', 'Feedback conversation not found');
 
-  if (pipelineItem) await PipelineItem.deleteOne({ _id: pipelineItem._id });
+  if (item) await LifecycleItem.deleteOne({ _id: item._id });
 
   return { status: 204, body: null };
 }

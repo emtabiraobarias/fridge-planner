@@ -80,6 +80,10 @@ services:
       FEEDBACK_AGENT_URL: http://holodeck-feedback:8002
       # Recipe-URL verification for meal recommendations (Option A groundedness). Optional:
       # unset → meals return without a recipeUrl (no error). See src/server/services/recipe-verifier.ts.
+      # Spec 012 D17: repo whose published releases populate the closure picker.
+      # Read-only, unauthenticated, no credential. Unset => picker unavailable and
+      # closure falls back to free text; it must never block on a third party.
+      GITHUB_REPO: ${GITHUB_REPO:-emtabiraobarias/fridge-planner}
       BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
       SPOONACULAR_API_KEY: ${SPOONACULAR_API_KEY:-}
       # `iss` the tokens actually carry — must match the public issuer URL exactly.

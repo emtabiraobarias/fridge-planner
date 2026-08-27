@@ -527,3 +527,16 @@ Production deploys via a **staged runbook driven by an orchestrator**, so most f
 - CD is **edition-aware**: Portainer **CE** can't use stack webhooks (Business-only). On CE, keep the self-hosted-runner compose rollout (an admin installs the runner once) or stop at build-push and do Portainer **Pull and redeploy** by hand; **BE** could POST a redeploy webhook behind the gate.
 - The prod stack deploys **through Portainer**; the dev `docker compose` commands in §2 are for local development only.
 
+
+## Active Technologies
+- TypeScript 5.x strict, Node 20, Next.js 15 (App Router Route Handlers), React 18, Mongoose 8, Zod, jose, Tailwind
+- MongoDB — spec 012 evolves the existing `pipeline_items` collection in place rather than adding one
+
+## Recent Changes
+- **012 Feedback Lifecycle** (`012-implement`): plan + research + data model + contracts authored.
+  Adds no dependency and no collection. Two notes worth carrying:
+  - Erasure must **detach, not delete** the lifecycle item (D15) — `lib/account-purge.ts` currently
+    deletes it, so CLAUDE.md §5's single "user-keyed collections" list becomes two lists with
+    different semantics.
+  - `GITHUB_REPO` is the first outbound third-party dependency (read-only release list, D17). It
+    must degrade rather than block: closure can never be gated on it.

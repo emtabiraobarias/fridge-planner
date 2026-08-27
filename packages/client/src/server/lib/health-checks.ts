@@ -1,4 +1,5 @@
 import 'server-only';
+import { releaseListStatus } from '../services/release-list';
 import mongoose from 'mongoose';
 import { connectDb } from '../db';
 
@@ -81,15 +82,28 @@ export interface ReadinessReport {
   dependencies: DependencyReport[];
 }
 
+/**
+ * Dependencies REPORTED but not gating readiness (spec 012 FR-FL-047).
+ *
+ * The release list is the app's only outbound third-party call, and `FR-FL-045` says closure
+ * must never be gated on it — closure falls back to free text. So an unreachable GitHub must
+ * not make the whole app not-ready: that would let a third party take the deployment down.
+ * It is still reported, because "why is the picker empty?" needs an answer.
+ */
+const NON_GATING = new Set(['release-list']);
+
 export async function readiness(): Promise<ReadinessReport> {
   const dependencies = [
     await checkMongo(),
     await checkAgent('meal-recommender', 'HOLODECK_URL'),
     await checkAgent('feedback-agent', 'FEEDBACK_AGENT_URL'),
     checkRecipeProviders(),
+    { name: 'release-list', status: await releaseListStatus() },
   ];
   // `not-configured` is a deployment choice, not a fault — only a real failure or a
   // hang makes the app not-ready.
-  const ready = dependencies.every((d) => d.status === 'ok' || d.status === 'not-configured');
+  const ready = dependencies.every(
+    (d) => NON_GATING.has(d.name) || d.status === 'ok' || d.status === 'not-configured',
+  );
   return { ready, version: process.env['APP_VERSION'] ?? 'dev', dependencies };
 }

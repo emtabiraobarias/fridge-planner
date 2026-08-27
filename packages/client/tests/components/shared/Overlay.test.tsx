@@ -65,8 +65,12 @@ describe('Overlay (research D5, FR-RS-023, SC-RS-004)', () => {
     // trapped focus when a device rotates mid-overlay. A JS-driven swap
     // (`vp === 'desktop' ? <Dialog/> : <Sheet/>`) would remount and lose both;
     // this asserts the alternative — one static class list carrying both the
-    // touch (unprefixed) and desktop (`xl:`) rules, so the browser's own media
+    // touch (unprefixed) and desktop (`dlg:`) rules, so the browser's own media
     // query evaluation does the swapping, never React.
+    //
+    // `dlg:` is `(min-width: 1024px) and (pointer: fine)`, not the `xl:` this used to check.
+    // Width alone could not tell a laptop from an iPad, so a 1024–1279px desktop window got a
+    // bottom sheet pinned across the whole screen.
     render(
       <Overlay open onClose={vi.fn()} titleId="my-title">
         <h2 id="my-title">Title</h2>
@@ -80,8 +84,11 @@ describe('Overlay (research D5, FR-RS-023, SC-RS-004)', () => {
     expect(dialog.className).toContain('rounded-t-[30px]');
     expect(screen.getByTestId('overlay-grab-handle')).toBeInTheDocument();
     // Desktop overrides present in the SAME class string, not a different tree.
-    expect(scrim.className).toContain('xl:items-center');
-    expect(dialog.className).toContain('xl:rounded-[28px]');
+    expect(scrim.className).toContain('dlg:items-center');
+    // justify-ITEMS places the panel in its track; justify-content would only move tracks,
+    // and the single track already fills the scrim — which left the panel against the edge.
+    expect(scrim.className).toContain('dlg:justify-items-center');
+    expect(dialog.className).toContain('dlg:rounded-[28px]');
 
     // A viewport change (e.g. rotation) never remounts the panel: state survives.
     const input = screen.getByLabelText('preserve-me') as HTMLInputElement;

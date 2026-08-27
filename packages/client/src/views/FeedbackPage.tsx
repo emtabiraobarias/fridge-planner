@@ -7,7 +7,7 @@ import { ChatMessageList } from '../components/feedback/ChatMessageList';
 import { ChatInput } from '../components/feedback/ChatInput';
 import { CompletionCard } from '../components/feedback/CompletionCard';
 import { FeedbackHistory } from '../components/feedback/FeedbackHistory';
-import { PipelineStatusView } from '../components/feedback/PipelineStatusView';
+import { ReportStatusList } from '../components/feedback/ReportStatusList';
 
 export function FeedbackPage(): React.JSX.Element {
   const isAdmin = useIsAdmin();
@@ -71,7 +71,9 @@ export function FeedbackPage(): React.JSX.Element {
       )}
 
       <FeedbackHistory />
-      <PipelineStatusView />
+      {/* Spec 012 US2: read-only status for the reporter. The acting controls live on the
+          maintainer surface (research R6), so this component has none to hide. */}
+      <ReportStatusList />
     </div>
   );
 }

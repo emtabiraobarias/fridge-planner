@@ -10,7 +10,8 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "NEXT_DIST_DIR=.next-e2e next build && playwright test",
-    "test:e2e:run": "playwright test"
+    "test:e2e:run": "playwright test",
+    "migrate:lifecycle-stages": "node scripts/migrate-lifecycle-stages.mjs"
   },
   "overrides": {
     "react": "^18.3.0",

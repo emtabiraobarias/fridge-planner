@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectDb } from '@server/db';
 import { authenticate } from '@server/auth';
 import { requirePrincipalAdmin } from '@server/admin-guard';
-import { getPipelineItem, transitionPipelineItem } from '@server/controllers/pipeline';
+import { getPipelineItem } from '@server/controllers/pipeline';
 import { rateLimit } from '@server/rate-limit';
 import { withRoute, problemResponse } from '@server/route-helpers';
 
@@ -33,18 +33,34 @@ export async function GET(request: Request, ctx: RouteContext): Promise<NextResp
   });
 }
 
-// PATCH /api/v1/pipeline/:id — human-gated transition (action-union, FR-F-014/016/017).
-// Spec 011 FR-AD-011: stage transitions AND both gate approvals are administrator-only,
-// so no end user can advance their own record — least of all to `shipped` (SC-AD-003).
+// PATCH /api/v1/pipeline/:id — ⚠️ DEPRECATED AND REFUSED (spec 012, task T066).
+//
+// Stage transitions moved to `PATCH /api/v1/admin/lifecycle/:id`, which owns the stage graph.
+// This handler cannot simply forward: the old action set assumed `approved → in-spec →
+// in-review → shipped`, and the new model inserts `briefed` and `in-progress` between them, so
+// the same action name means a different destination. Silently doing something ADJACENT to what
+// a caller asked would be worse than refusing.
+//
+// It refuses with 410 Gone rather than 404: the resource existed and the caller is not wrong to
+// know about it — they are out of date, and the body says where it went.
+//
+// The admin guard runs FIRST and is deliberately kept, so a non-administrator still gets 403
+// (spec 011 FR-AD-011). Losing that would weaken a refusal that is asserted in the e2e suite.
 export async function PATCH(request: Request, ctx: RouteContext): Promise<NextResponse> {
   return withRoute(async () => {
-    const { userId } = await requirePrincipalAdmin(request);
-    const limited = RATE_LIMITED(userId);
-    if (limited) return limited;
-    await connectDb();
+    await requirePrincipalAdmin(request);
     const { id } = await ctx.params;
-    const body: unknown = await request.json().catch(() => null);
-    const result = await transitionPipelineItem(userId, id, body);
-    return NextResponse.json(result.body, { status: result.status });
+    return NextResponse.json(
+      {
+        type: 'https://fridge-planner.dev/errors/gone',
+        title: 'Endpoint Retired',
+        status: 410,
+        detail:
+          'Pipeline transitions moved to PATCH /api/v1/admin/lifecycle/:id (spec 012). The ' +
+          'stage model changed, so this endpoint cannot forward the request safely.',
+        instance: `/api/v1/admin/lifecycle/${id}`,
+      },
+      { status: 410, headers: { 'Content-Type': 'application/problem+json' } },
+    );
   });
 }
