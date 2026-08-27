@@ -247,9 +247,12 @@ an explicit approval and that no transition performs any repository action.
    is refused as an illegal transition and nothing changes.
 4. **Given** a rejected specification at gate 2, **When** it is rejected, **Then** the item
    returns to the clauses at `briefed` and never to the reporter.
-5. **Given** any transition, **When** it completes, **Then** no commit, merge, tag, or deploy
+5. **Given** an item at `in-progress` with no pull request attached, **When** advancement is
+   attempted, **Then** it is refused and the item stays at `in-progress`; once a pull request
+   is attached the same advancement succeeds.
+6. **Given** any transition, **When** it completes, **Then** no commit, merge, tag, or deploy
    has occurred.
-6. **Given** an active item, **When** the maintainer parks it, **Then** it moves to `parked`
+7. **Given** an active item, **When** the maintainer parks it, **Then** it moves to `parked`
    and can later be reopened to the stage it was parked from.
 
 ---
@@ -268,15 +271,15 @@ release list unavailable.
 
 **Acceptance scenarios**:
 
-1. **Given** a `shipped` item, **When** the maintainer opens closure, **Then** the excerpt
+2. **Given** a `shipped` item, **When** the maintainer opens closure, **Then** the excerpt
    field is pre-filled from the reporter's own title and problem statement.
-2. **Given** closure composition, **When** the maintainer picks a release, **Then** the choice
+3. **Given** closure composition, **When** the maintainer picks a release, **Then** the choice
    comes from the repository's published releases.
-3. **Given** the release list is unreachable, **When** the maintainer closes the item, **Then**
+4. **Given** the release list is unreachable, **When** the maintainer closes the item, **Then**
    closure proceeds with free text and states why the list was unavailable.
-4. **Given** a closed item, **When** any transition is attempted, **Then** it is refused —
+5. **Given** a closed item, **When** any transition is attempted, **Then** it is refused —
    `closed` is terminal.
-5. **Given** a closed item, **When** a later report cites it, **Then** the citation is a
+6. **Given** a closed item, **When** a later report cites it, **Then** the citation is a
    reference only and moves nothing.
 
 ---
@@ -294,11 +297,11 @@ sees a status and nothing else about the target.
 
 **Acceptance scenarios**:
 
-1. **Given** two reports describing one problem, **When** the maintainer merges one into the
+2. **Given** two reports describing one problem, **When** the maintainer merges one into the
    other, **Then** the merged item becomes terminal and names its target internally.
-2. **Given** a merged report, **When** its reporter views it, **Then** they see the target's
+3. **Given** a merged report, **When** its reporter views it, **Then** they see the target's
    **status only** — never its title, text, or reporter.
-3. **Given** a merged item, **When** any transition other than viewing is attempted, **Then**
+4. **Given** a merged item, **When** any transition other than viewing is attempted, **Then**
    it is refused.
 
 ---
@@ -316,11 +319,11 @@ still exists, still advances, and no longer carries reporter-identifying content
 
 **Acceptance scenarios**:
 
-1. **Given** an in-flight item whose reporter erases their account, **When** the erasure
+2. **Given** an in-flight item whose reporter erases their account, **When** the erasure
    completes, **Then** the item persists and remains advanceable.
-2. **Given** such an item, **When** it is viewed, **Then** it carries no reporter-identifying
+3. **Given** such an item, **When** it is viewed, **Then** it carries no reporter-identifying
    content.
-3. **Given** such an item, **When** the maintainer closes it, **Then** closure succeeds with no
+4. **Given** such an item, **When** the maintainer closes it, **Then** closure succeeds with no
    reporter to notify.
 
 ---
@@ -529,6 +532,25 @@ spec against the lifecycle drawing rather than against itself.
   > *"still exportable, promotable and complete"* — export is a property of a completed record,
   > not a reward for reaching `briefed`. Brief assembly is the richer artifact built on top,
   > not a replacement.
+
+#### Validated against the design artifact *(added 2026-08-26)*
+
+One further behaviour, found the same way: by walking the manual test scenarios against the
+implementation and checking each step against the design's §06 contract table.
+
+- **FR-FL-067**: If advancement from `in-progress` is requested while the item carries no
+  `pull-request` artifact, then the system shall refuse it and leave the stage unchanged.
+  > The design's contract table gives `in-progress` the action *"advance **when a PR exists**"* —
+  > the only conditional advance in the whole table, and the condition was dropped. Without it
+  > `in-review` means "someone pressed a button", not "there is something to review", and gate 3
+  > then approves a release for work with no attached change. It also makes `attach-artifact` do
+  > real work rather than being decoration: the PR reference is what the reviewer opens.
+  >
+  > Stated as a refusal rather than as a precondition on the gate, because `advance` out of
+  > `in-progress` is **not** a gate (`FR-FL-011` requires an explicit action for every stage
+  > change; only the three gates require an approval). The reference is still never
+  > dereferenced — `FR-FL-057` holds, and the system checks that one exists, never what it
+  > points at.
 
 #### The source record *(added 2026-08-24)*
 
