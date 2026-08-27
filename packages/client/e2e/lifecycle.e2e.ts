@@ -15,12 +15,23 @@ mkdirSync(SHOTS, { recursive: true });
  */
 test.describe.configure({ mode: 'serial' });
 
+// The PAGE is an administrator. Without this the browser sends no role at all and `/admin`
+// refuses, so every maintainer-surface test here waits 60s for a list that will never render.
+//
+// It passed locally anyway, which is the trap CLAUDE.md §2 names: `next start` reads
+// `.env.local`, so a developer's `AUTH_DEV_ROLES=admin` leaks a dev-seam identity into the e2e
+// build and the whole file appears to work. CI has no such file. `dev-loop.e2e.ts` had this
+// line from the start; this file did not.
+test.use({ extraHTTPHeaders: { 'x-user-roles': 'admin' } });
+
 const AS_ADMIN = { 'x-user-id': 'admin-e2e', 'x-user-roles': 'admin' };
-const AS_REPORTER = { 'x-user-id': 'reporter-e2e' };
+// `x-user-roles: ''` is load-bearing: per-request headers are MERGED with the context's, so
+// without it the admin role above rides along and a reporter request is not a reporter request.
+const AS_REPORTER = { 'x-user-id': 'reporter-e2e', 'x-user-roles': '' };
 // Erasure is destructive to the identity itself, so US7 uses its own reporter. Erasing the
 // shared one made every later test file as a deleted account — which is how this file first
 // went green in isolation and red in the suite.
-const ERASE_REPORTER = { 'x-user-id': 'reporter-e2e-erase' };
+const ERASE_REPORTER = { 'x-user-id': 'reporter-e2e-erase', 'x-user-roles': '' };
 
 /** File a report as an ordinary reporter and return its title. */
 async function fileReport(
@@ -44,7 +55,7 @@ async function fileReport(
  * surfaces wherever the missing report was needed, not where the limit was hit.
  */
 function ownReporter(): Record<string, string> {
-  return { 'x-user-id': `reporter-e2e-${randomUUID().slice(0, 8)}` };
+  return { 'x-user-id': `reporter-e2e-${randomUUID().slice(0, 8)}`, 'x-user-roles': '' };
 }
 
 
@@ -536,7 +547,7 @@ test('a title-less draft is listed and identifiable, but has nothing to act on',
   const said = `The calendar scrolls oddly ${randomUUID().slice(0, 8)} DRAFT_HOLD_TRIGGER`;
   const filed = await page.request.post('/api/v1/feedback', {
     data: { message: said },
-    headers: { 'x-user-id': 'reporter-draft-e2e' },
+    headers: { 'x-user-id': 'reporter-draft-e2e', 'x-user-roles': '' },
   });
   expect(((await filed.json()) as { status: string }).status).toBe('draft');
 
