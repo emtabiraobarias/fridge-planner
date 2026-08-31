@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import type { FeedbackRecord } from '../../services/feedback';
 import { fetchFeedbackExport } from '../../services/feedback';
-import { PromoteButton } from './PromoteButton';
 
 interface CompletionCardProps {
   record: FeedbackRecord;
@@ -95,7 +94,6 @@ export function CompletionCard({ record, onStartAnother }: CompletionCardProps):
         >
           Start another
         </button>
-        <PromoteButton record={record} />
       </div>
     </section>
   );

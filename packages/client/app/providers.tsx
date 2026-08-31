@@ -6,7 +6,6 @@ import { MealPlanProvider } from '../src/context/MealPlanContext';
 import { RecommendationsProvider } from '../src/context/RecommendationsContext';
 import { PlacementProvider } from '../src/context/PlacementContext';
 import { QuickAddProvider } from '../src/context/QuickAddContext';
-import { PipelineProvider } from '../src/context/PipelineContext';
 import { ToastProvider } from '../src/context/ToastContext';
 import { AuthBanner } from '../src/components/shared/AuthBanner';
 import { Toast } from '../src/components/shared/Toast';
@@ -24,11 +23,9 @@ export function Providers({ children }: ProvidersProps): React.JSX.Element {
             <RecommendationsProvider>
               <PlacementProvider>
                 <QuickAddProvider>
-                  <PipelineProvider>
                     <AuthBanner />
                     {children}
                     <Toast />
-                  </PipelineProvider>
                 </QuickAddProvider>
               </PlacementProvider>
             </RecommendationsProvider>
