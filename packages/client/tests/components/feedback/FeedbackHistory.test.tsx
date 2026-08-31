@@ -2,7 +2,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FeedbackProvider } from '../../../src/context/FeedbackContext';
-import { PipelineProvider } from '../../../src/context/PipelineContext';
 import { FeedbackHistory } from '../../../src/components/feedback/FeedbackHistory';
 import type { FeedbackRecord } from '../../../src/services/feedback';
 
@@ -13,13 +12,6 @@ vi.mock('../../../src/services/feedback', () => ({
   deleteFeedbackRecord: vi.fn(),
   fetchFeedbackRecord: vi.fn(),
   fetchFeedbackExport: vi.fn(),
-}));
-// PromoteButton reads the pipeline; it is not what these tests are about.
-vi.mock('../../../src/services/pipeline', () => ({
-  fetchPipeline: vi.fn().mockResolvedValue([]),
-  promoteFeedbackRecord: vi.fn(),
-  patchPipelineItem: vi.fn(),
-  fetchPipelineItem: vi.fn(),
 }));
 // Export and Promote are administrator-only, so `useIsAdmin()` -> `useMe()` -> this call
 // now decides whether they render at all. Default below is NON-admin: the reporter is the
@@ -54,9 +46,7 @@ function record(over: Partial<FeedbackRecord> = {}): FeedbackRecord {
 function setup(): void {
   render(
     <FeedbackProvider>
-      <PipelineProvider>
         <FeedbackHistory />
-      </PipelineProvider>
     </FeedbackProvider>,
   );
 }
@@ -111,14 +101,21 @@ describe('FeedbackHistory', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows Promote to development to an admin (FR-F-013)', async () => {
+  // Inverted deliberately. `FR-F-013`'s one-tap promote is obsolete under spec 012: FR-FL-001
+  // enqueues a lifecycle item the moment a record reaches `complete`, so promoting is an
+  // idempotent no-op returning the item that already exists. The control survived on the
+  // REPORTER's own list — offered to an admin reading their own report, on an item that may
+  // already be closed — which is both a dead action and a maintainer control on the reporter
+  // surface (FR-FL-052/053).
+  it('never offers Promote to development — enqueueing is automatic (FR-FL-001)', async () => {
     mockMe.mockResolvedValue({ userId: 'u1', isAdmin: true });
     mockList.mockResolvedValue([record({ status: 'complete', title: 'Dupe rows' })]);
     setup();
 
+    await screen.findByText('Dupe rows');
     expect(
-      await screen.findByRole('button', { name: /promote to development/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: /promote to development/i }),
+    ).not.toBeInTheDocument();
   });
 
   // `useIsAdmin()` is null until /api/v1/me answers. A control that renders during that

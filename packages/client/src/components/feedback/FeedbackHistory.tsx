@@ -4,7 +4,6 @@ import { useFeedback } from '../../context/FeedbackContext';
 import { useIsAdmin } from '../../hooks/useIsAdmin';
 import { fetchFeedbackExport } from '../../services/feedback';
 import type { FeedbackRecord } from '../../services/feedback';
-import { PromoteButton } from './PromoteButton';
 
 const STATUS_STYLES: Record<string, string> = {
   draft: 'bg-neutral-100 text-neutral-800',
@@ -123,7 +122,6 @@ export function FeedbackHistory(): React.JSX.Element {
                   Export
                 </button>
               )}
-              <PromoteButton record={r} />
               {pendingDelete === r._id ? (
                 <>
                   <button
