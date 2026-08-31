@@ -65,6 +65,15 @@ jobs:
           VERSION="${TAG#nextjs-v}"
           git fetch --quiet origin 'refs/heads/impl/nextjs:refs/remotes/origin/impl/nextjs'
 
+          # Re-fetch the tags as their REAL objects before judging them.
+          #
+          # `actions/checkout` resolves the triggering ref to a commit SHA and writes that
+          # into `refs/tags/<name>`, so the local tag is LIGHTWEIGHT even when the published
+          # one is annotated — and check 1 below then rejects every correctly-cut release.
+          # 4.15.0 was the first tag to reach this guard and it failed for exactly that
+          # reason, with `git ls-remote` showing a proper peeled tag object the whole time.
+          git fetch --quiet --force --tags origin
+
           # 1. Annotated, not lightweight. Not cosmetic: `git tag -a` is what the release
           #    path does, so a lightweight tag means the tag was made some other way —
           #    which is precisely how 4.14.0 got onto the wrong commit.
