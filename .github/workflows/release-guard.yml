@@ -1,0 +1,97 @@
+# Reusable release-tag guard.
+#
+# Rejects a release tag that is not a real release point, BEFORE any image is built. It exists
+# because two separate releases in this repo shipped from the wrong commit and every stage
+# downstream then behaved perfectly, which is what made them so hard to see:
+#
+#   • nextjs-v4.14.0 — a LIGHTWEIGHT tag on a commit 139 behind impl/nextjs and older than
+#     4.9.0. CI built that tree, published it, Portainer ran it, /api/health answered 200, and
+#     production served two-month-old code for a day.
+#   • agent-feedback-v1.1.0 — tagged on a commit that does NOT contain 1.0.1. That image is the
+#     known-broken build production still refuses to run; the compose file carries a ⚠ note
+#     saying semver order lies there. Nothing checked it at the time.
+#
+# The app's workflow carries its own inline copy of these checks, deliberately left alone: it is
+# proven on a real release and cannot be re-tested without cutting one. Consolidating it onto
+# this file is a follow-up once this has proven itself on an agent release.
+name: release guard
+
+on:
+  workflow_call:
+    inputs:
+      tag_prefix:
+        description: 'Release tag prefix, e.g. agent-feedback-v'
+        required: true
+        type: string
+      branch:
+        description: 'The branch a release must be cut from'
+        required: false
+        default: 'impl/nextjs'
+        type: string
+      cut_command:
+        description: 'What to tell the operator to use instead'
+        required: true
+        type: string
+
+jobs:
+  guard:
+    name: release tag sanity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need full history + all tags to test ancestry
+
+      - name: Assert the tag is a real release point
+        env:
+          PREFIX: ${{ inputs.tag_prefix }}
+          BRANCH: ${{ inputs.branch }}
+          CUT: ${{ inputs.cut_command }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#"$PREFIX"}"
+          git fetch --quiet origin "refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+
+          # Re-fetch the tags as their REAL objects before judging them.
+          #
+          # `actions/checkout` resolves the triggering ref to a commit SHA and writes THAT into
+          # `refs/tags/<name>`, so the tag is LIGHTWEIGHT in the runner's clone however it was
+          # cut — and check 1 then rejects every correctly-cut release. That is not theoretical:
+          # it is exactly how nextjs-v4.15.0 was blocked.
+          git fetch --quiet --force --tags origin
+
+          # 1. Annotated, not lightweight. `git tag -a` is what the release path does, so a
+          #    lightweight tag means the tag was made some other way — which is precisely how
+          #    4.14.0 got onto the wrong commit.
+          if [ "$(git cat-file -t "$TAG")" != tag ]; then
+            echo "::error::$TAG is a LIGHTWEIGHT tag. Release tags must be annotated (git tag -a) — use ${CUT}."
+            exit 1
+          fi
+          echo "✓ annotated"
+
+          # 2. The commit must actually be on the release branch. A tag on a side branch would
+          #    build code that was never merged.
+          if ! git merge-base --is-ancestor "$TAG^{commit}" "origin/${BRANCH}"; then
+            echo "::error::$TAG is not contained in ${BRANCH}. Release only from merged code."
+            exit 1
+          fi
+          echo "✓ contained in ${BRANCH}"
+
+          # 3. The release must move forward: it has to contain the highest release below it.
+          #    This is the check agent-feedback-v1.1.0 fails — it does not contain 1.0.1.
+          PREV_VERSION="$(
+            { git tag --list "${PREFIX}*" | sed "s|^${PREFIX}||" | grep -vFx "$VERSION"; echo "$VERSION"; } \
+              | grep -v '^$' | sort -V | grep -B1 -Fx "$VERSION" | head -1
+          )"
+          if [ -z "$PREV_VERSION" ] || [ "$PREV_VERSION" = "$VERSION" ]; then
+            echo "✓ no earlier release tag — ancestry check skipped"
+          elif git merge-base --is-ancestor "${PREFIX}${PREV_VERSION}^{commit}" "$TAG^{commit}"; then
+            echo "✓ contains ${PREFIX}${PREV_VERSION}"
+          else
+            echo "::error::$TAG does not contain ${PREFIX}${PREV_VERSION} — it is tagged on a commit older than the release it supersedes. The tag is on the wrong commit."
+            exit 1
+          fi
+
+          echo "Release point: $(git log -1 --format='%H %s' "$TAG^{commit}")"
