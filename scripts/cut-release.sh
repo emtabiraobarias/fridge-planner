@@ -18,8 +18,14 @@
 # strictly forward from the previous one.
 #
 # Usage:
-#   scripts/cut-release.sh 4.15.0             # check, then create + push the annotated tag
-#   scripts/cut-release.sh 4.15.0 --dry-run   # run every check, create nothing
+#   scripts/cut-release.sh 4.15.0                            # the app   -> nextjs-v4.15.0
+#   scripts/cut-release.sh --target feedback-agent 1.2.1     #           -> agent-feedback-v1.2.1
+#   scripts/cut-release.sh --target meal-agent 1.4.0         #           -> agent-v1.4.0
+#   scripts/cut-release.sh 4.15.0 --dry-run                  # every check, create nothing
+#
+# The agent targets exist because the same failure happened to them, unwatched:
+# `agent-feedback-v1.1.0` is tagged on a commit that does NOT contain 1.0.1 — the 4.14.0
+# shape exactly — and that image is the known-broken one production still refuses to run.
 #
 # On success it prints the remaining release steps. It deliberately does NOT bump the pin in
 # docker-compose.prod.yml: the image must exist on GHCR before the pin moves, or Portainer's
@@ -29,11 +35,29 @@ set -uo pipefail
 BRANCH='impl/nextjs'
 REMOTE='origin'
 
-VERSION="${1:?expected version, e.g. 4.15.0 (no leading v)}"
+TARGET_KIND='app'
 DRY_RUN=0
-[ "${2:-}" = '--dry-run' ] && DRY_RUN=1
+VERSION=''
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --target) TARGET_KIND="${2:?--target needs a value}"; shift 2 ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    *) VERSION="$1"; shift ;;
+  esac
+done
+VERSION="${VERSION:?expected version, e.g. 4.15.0 (no leading v)}"
 
-TAG="nextjs-v${VERSION}"
+# Each target is one image with its own tag namespace and its own pin in
+# docker-compose.prod.yml. The globs never overlap: `agent-v*` does not match
+# `agent-feedback-v…`, because that starts `agent-f`.
+case "$TARGET_KIND" in
+  app)            PREFIX='nextjs-v';         PIN_VAR='APP_IMAGE';            WORKFLOW='deploy-nextjs.yml' ;;
+  feedback-agent) PREFIX='agent-feedback-v'; PIN_VAR='FEEDBACK_AGENT_IMAGE'; WORKFLOW='agent-feedback-image.yml' ;;
+  meal-agent)     PREFIX='agent-v';          PIN_VAR='AGENT_IMAGE';          WORKFLOW='agent-image.yml' ;;
+  *) printf '\n❌ unknown --target %s (expected app, feedback-agent or meal-agent)\n' "$TARGET_KIND" >&2; exit 1 ;;
+esac
+
+TAG="${PREFIX}${VERSION}"
 
 die() { printf '\n❌ %s\n' "$1" >&2; exit 1; }
 ok()  { printf '  ✓ %s\n' "$1"; }
@@ -86,14 +110,14 @@ fi
 # contain it. 4.14.0 fails here outright: its commit predates 4.13.0, so it was not a
 # descendant of the release it claimed to supersede.
 PREV_VERSION="$(
-  { git tag --list 'nextjs-v*' | sed 's/^nextjs-v//' | grep -vFx "$VERSION"; echo "$VERSION"; } \
+  { git tag --list "${PREFIX}*" | sed "s|^${PREFIX}||" | grep -vFx "$VERSION"; echo "$VERSION"; } \
     | grep -v '^$' | sort -V | grep -B1 -Fx "$VERSION" | head -1
 )"
 
 if [ -z "$PREV_VERSION" ] || [ "$PREV_VERSION" = "$VERSION" ]; then
   ok "no earlier release tag — skipping the ancestry check"
 else
-  PREV_TAG="nextjs-v${PREV_VERSION}"
+  PREV_TAG="${PREFIX}${PREV_VERSION}"
   git merge-base --is-ancestor "${PREV_TAG}^{commit}" "$TARGET" \
     || die "$TARGET does not contain $PREV_TAG.
      A release must be a descendant of the release it supersedes. This is the exact
@@ -135,9 +159,11 @@ cat <<EOF
 ✅ ${TAG} is pushed. Remaining steps — the ORDER is load-bearing:
 
   1. Wait for CI green so the image exists on GHCR:
-       gh run list --workflow=deploy-nextjs.yml --limit 1
-  2. THEN bump the pin in docker-compose.prod.yml to ${VERSION} and merge it to ${BRANCH}.
-     That merge is the deploy; Portainer's poll does the rest.
+       gh run list --workflow=${WORKFLOW} --limit 1
+  2. THEN bump ${PIN_VAR}'s pin in docker-compose.prod.yml to ${VERSION} and merge it
+     to ${BRANCH}. That merge is the deploy; Portainer's poll does the rest.
   3. Verify from the LAN — a 200 from /api/health proves nothing:
-       scripts/verify-rollout.sh ${VERSION}
+       scripts/verify-rollout.sh <app version>
+     verify-rollout only reads the APP's baked-in version, so it cannot confirm an agent
+     rollout. For an agent, exercise the behaviour the new image adds.
 EOF

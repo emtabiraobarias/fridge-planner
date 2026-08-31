@@ -21,7 +21,17 @@ env:
   IMAGE: ghcr.io/emtabiraobarias/fridge-planner
 
 jobs:
+  # Nothing is built until the tag is proved to be a real release point. Both of this repo's
+  # wrong-commit releases were invisible downstream — including agent-feedback-v1.1.0, which is
+  # tagged on a commit that does not contain 1.0.1 and is the broken image prod still refuses.
+  guard:
+    uses: ./.github/workflows/release-guard.yml
+    with:
+      tag_prefix: 'agent-v'
+      cut_command: 'scripts/cut-release.sh --target meal-agent <version>'
+
   build-push:
+    needs: guard
     name: build & push agent image
     runs-on: ubuntu-latest
     timeout-minutes: 20
