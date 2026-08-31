@@ -69,7 +69,14 @@ services:
 
   # ── The app: pulled image (never built on the host) ───────────────────────
   app:
-    image: ${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client:4.14.2}
+    # 4.15.1 ships spec 012 (the feedback lifecycle). It pairs with feedback agent 1.2.0,
+    #   already deployed below — the agent went first so the app never calls a clause mode
+    #   the agent does not know.
+    # There is no 4.15.0 image. That tag exists but its build was rejected by the release
+    #   guard, which wrongly read every annotated tag as lightweight (fixed in ae2e09a).
+    #   The tag was left in place rather than re-pointed: re-pointing a published tag is the
+    #   thing this whole pinning scheme exists to prevent.
+    image: ${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client:4.15.1}
     restart: unless-stopped
     environment:
       NODE_ENV: production
