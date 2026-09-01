@@ -166,10 +166,14 @@ else
   echo "12) admin-only routes refuse an ordinary user with 403 — NOT 401 (FR-AD-003, SC-AD-001)"
   # 403 vs 401 is load-bearing: the client treats 401 as its FR-D-010 refresh-and-retry
   # trigger, so answering 401 here would burn a refresh on a request that can never work.
-  for path in "admin/feedback" "admin/audit" "admin/settings" "admin/usage" "admin/limits" "admin/users/$U/data" "admin/users/$U/export"; do
+  # `admin/lifecycle` replaced the `promote` probe below it. That route was removed once its
+  # deprecation window closed, and the capability it guarded — accepting a report into the
+  # lifecycle — is now `PATCH /admin/lifecycle/:id {action:'accept'}` (012 FR-FL-008, and
+  # 011 FR-AD-010 redirects to it). The 012 admin surface had no smoke coverage before this.
+  for path in "admin/feedback" "admin/audit" "admin/settings" "admin/usage" "admin/limits" "admin/users/$U/data" "admin/users/$U/export" "admin/lifecycle"; do
     chk "403 $path" 403 "$(code "${AS_USER[@]}" "$BASE/$path")"
   done
-  chk "403 promote (FR-AD-010 / 003 FR-F-013)" 403 "$(code -X POST "${AS_USER[@]}" "$BASE/feedback/000000000000000000000000/promote")"
+  chk "403 lifecycle action (FR-FL-055 / FR-AD-010)" 403 "$(code -X PATCH "${AS_USER[@]}" -H "Content-Type: application/json" -d '{"action":"accept"}' "$BASE/admin/lifecycle/000000000000000000000000")"
 
   echo "13) cross-user feedback triage (FR-AD-009) — the defect this feature exists to fix"
   c=$(code -X POST -H "X-User-Id: $OTHER_U" -H "X-User-Roles;" -H "Content-Type: application/json" \
