@@ -1,542 +1,690 @@
 # Fridge Planner — Claude AI Guide
 
-This file is the primary reference for AI assistants working in this repository. It covers codebase structure, development workflows, conventions, and rules that must be followed.
+Primary reference for AI assistants in this repo: structure, workflows, conventions, and
+rules that must be followed. **Branch: `impl/nextjs`** (some rules are branch-scoped).
+
+Deep background — *why* things are the way they are, superseded decisions, migration
+history — lives in **[`docs/decisions.md`](docs/decisions.md)**. Read it when a rule here
+surprises you; don't re-litigate a rule without it.
 
 ---
 
-## 1. Repository Overview
+## 1. Overview
 
-**Fridge Planner** is a full-stack TypeScript monorepo for meal planning. Users track fridge inventory (with expiration awareness), receive AI-powered meal suggestions, and assign meals to a drag-and-drop weekly calendar.
+Full-stack TypeScript monorepo for meal planning: fridge inventory with expiry awareness,
+AI meal suggestions, drag-and-drop weekly calendar, rolling grocery list.
 
-**Tech Stack:**
-- **Frontend:** React 18 + Next.js 15 (App Router) + Tailwind CSS (port 3000)
-- **Backend:** Next.js Route Handlers + Mongoose + MongoDB — served by the **same Next process** (port 3000). Endpoints live in `packages/client/app/api/v1/`; the server layer (models, libs, services, controllers) in `packages/client/src/server/`. **No standalone Express service** (retired in Phase C-bis — see §10/§14).
-- **AI Agent:** Holodeck with Claude Sonnet 4.6 (port 8001)
-- **Language:** TypeScript (strict mode throughout)
-- **Monorepo:** npm workspace (`packages/client`) — the Next app is the whole stack
+- **One process, port 3000** — React 18 + Next.js 15 (App Router) + Tailwind, with the API
+  as Route Handlers in the *same* Next app. No Express, no `:3001` (see §13).
+- **Backend layout:** endpoints in `packages/client/app/api/v1/`; server layer (models,
+  libs, services, controllers) in `packages/client/src/server/`.
+- **AI:** two Holodeck sidecars — meal-recommender (`:8001`) + feedback-collector (`:8002`),
+  both OpenAI `gpt-4o`.
+- **Monorepo:** one npm workspace, `packages/client` — the Next app is the whole stack.
 
 ---
 
 ## 2. Commands
 
-Run all commands from the **repo root** unless noted otherwise.
+Run from the **repo root** unless noted.
 
-### Development
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start the Next.js app (port 3000) — the whole stack |
-| `npm run client` | Same as `dev` (the app *is* the client package) |
-
-> Requires MongoDB (`:27017`) and Holodeck (`:8001`) running — `docker compose up -d mongodb holodeck`. The Next process reads `MONGODB_URI` + `HOLODECK_URL` (see `packages/client/.env.local`).
-
-### Quality
-| Command | Description |
-|---------|-------------|
-| `npm run lint` | ESLint on all `packages/*/src` (zero warnings) |
-| `npm run format` | Prettier on all TS/TSX/CSS source files |
-| `npm test` | Run all tests (client Vitest — includes node-env API tests under `tests/server/`) |
-
-### Per-Package
 ```bash
-npm -w packages/client run test          # all tests (Vitest)
-npm -w packages/client run test -- tests/server/inventory.test.ts  # filtered
-npm -w packages/client run build         # production build (next build)
+npm run dev            # the whole stack on :3000 (alias: npm run client)
+npm run lint           # ESLint, zero warnings
+npm run format         # Prettier
+npm test               # all Vitest (incl. node-env API tests in tests/server/)
+
+npm -w packages/client run test -- tests/server/inventory.test.ts   # filtered
+npm -w packages/client run build      # production build
+npm -w packages/client run test:e2e   # Playwright (builds into .next-e2e)
+
+bash scripts/validate-e2e.sh            # release gate: prod build + Mongo (+Holodeck) → smoke
+bash scripts/validate-e2e.sh --no-agent # deterministic core only — see docs/smoke-test.md
+
+docker compose up -d mongodb holodeck   # local deps (dev only — prod goes via Portainer, §14)
+docker compose up -d --build holodeck-feedback   # second agent, :8002
+docker compose logs -f holodeck
 ```
 
-### End-to-end validation (release gate)
-```bash
-bash scripts/validate-e2e.sh             # boot prod build + Mongo (+Holodeck) → shared smoke → teardown
-bash scripts/validate-e2e.sh --no-agent  # deterministic core only. See docs/smoke-test.md
-```
-
-### Docker (full stack)
-```bash
-docker compose up --build               # MongoDB + Holodeck + Next.js app (serves the API too)
-docker compose rm -fs holodeck          # Stop and remove Holodeck 0-=container
-docker compose up -d --build holodeck   # Rebuild and restart Holodeck
-docker compose ps holodeck              # Verify if Holodeck is healthy
-docker compose logs -f holodeck         # Check Holodeck logs
-```
+**Two traps, both cost an hour the first time:**
+- **Never run `npm run build` while `next dev` is running** — both use `.next` and the build
+  breaks the running server. `test:e2e` is safe (separate `.next-e2e`).
+- **Bare `npx playwright test` serves a stale `.next-e2e`.** Only `npm run test:e2e`
+  rebuilds. Note also that `.env.local` is read by `next start`, not just `next dev` — it
+  can leak dev-seam identity into an e2e build.
 
 ---
 
 ## 3. Project Structure
 
 ```
-fridge-planner/
-├── packages/
-│   └── client/                       # the whole app — UI + API (no separate server package)
-│       ├── app/                      # Next.js App Router entrypoint
-│       │   ├── layout.tsx            # Root layout (fonts, global providers)
-│       │   ├── page.tsx              # / → InventoryPage
-│       │   ├── providers.tsx         # Client-side context providers wrapper
-│       │   ├── nav.tsx               # Top navigation bar
-│       │   ├── calendar/page.tsx     # /calendar route
-│       │   ├── grocery/page.tsx      # /grocery route
-│       │   └── api/v1/               # ROUTE HANDLERS (the backend): inventory/, grocery-lists/[weekStart]/*,
-│       │                             # meal-plans/[weekStart]/*, recommendations/ — thin; call src/server controllers
-│       ├── src/
-│       │   ├── components/           # calendar/, grocery/, inventory/, recommendations/, shared/
-│       │   ├── context/              # InventoryContext, MealPlanContext, RecommendationsContext, GroceryListContext
-│       │   ├── views/                # InventoryPage, CalendarPage, GroceryListPage (all 'use client')
-│       │   ├── services/             # inventory.ts, meal-plans.ts, grocery-lists.ts (browser API fetch wrappers)
-│       │   ├── types/                # meal-plan.ts, meal-recommendation.ts, grocery-list.ts
-│       │   ├── lib/                  # date-utils.ts
-│       │   └── server/               # SERVER LAYER (Node-only; `import 'server-only'`):
-│       │       ├── db.ts             #   globalThis-cached Mongoose connection
-│       │       ├── auth.ts           #   authenticate(): OIDC JWT verify (jose) + dev seam (X-User-Id)
-│       │       ├── auth-errors.ts    #   AuthError → 401 (mapped by withRoute)
-│       │       ├── http.ts           #   ControllerResult + problem() (framework-agnostic)
-│       │       ├── route-helpers.ts  #   withRoute() error wrapper + problemResponse()
-│       │       ├── rate-limit.ts     #   in-memory fixed-window limiter
-│       │       ├── logger.ts         #   framework-neutral structured logger
-│       │       ├── controllers/      #   inventory, grocery-lists, meal-plans, recommendations (extracted logic)
-│       │       ├── models/           #   inventory-item, meal-plan, grocery-list (Mongoose; hot-reload guarded)
-│       │       ├── services/         #   meal-recommender (Holodeck client), recommendations-cache
-│       │       ├── lib/              #   expiration, ingredient-consumption, grocery-list-generator,
-│       │       │                     #   ingredient-categorizer, ingredient-matcher, unit-normalizer
-│       │       └── types/            #   meal-plan, meal-recommendation, grocery-list
-│       └── tests/                    # Vitest — components/, context/, lib/, views/, app/, and
-│                                     # tests/server/ (node-env API handler + unit tests vs mongodb-memory-server)
-│
-├── agents/meal-recommender/
-│   ├── agent.yaml                # Holodeck config (model, eval metrics, test cases)
-│   └── instructions/             # Claude system prompt
-│
-├── specs/001-meal-planner/       # spec.md, plan.md, checklists/
-│   BRANCHING_STRATEGY.md          # Two-impl (Vite + Next.js) branching model — canonical on `main`; READ FOR BRANCH WORK
-├── docker-compose.yml
-├── .env.example                  # All required env vars documented here
-├── constitution.md               # Core principles (source of truth)
-├── eslint.config.js              # ESLint flat config (v9)
-└── .prettierrc                   # Formatting rules
+packages/client/                  # the whole app — UI + API
+├── app/                          # App Router: layout, providers, page.tsx (/ → Inventory),
+│   │                             #   home/ calendar/ grocery/ feedback/ admin/ auth/ (OIDC callback)
+│   ├── nav.tsx                   # ONE nav, three positional modes (spec 010): portrait pill /
+│   │                             #   landscape rail / desktop collapsible sidebar (250↔76px)
+│   └── api/v1/                   # ROUTE HANDLERS (the backend) — thin; call src/server/controllers
+│                                 #   inventory/ meal-plans/ grocery-lists/ recommendations/
+│                                 #   quick-add/ feedback/ admin/ me/
+├── src/
+│   ├── components/               # account/ admin/ calendar/ feedback/ grocery/ home/ inventory/
+│   │                             #   recommendations/ shell/ (AppShell) shared/ (Overlay, Toast)
+│   ├── context/                  # Inventory, MealPlan, Recommendations, GroceryList, QuickAdd,
+│   │                             #   Auth, Feedback, Pipeline, Placement, Toast
+│   ├── hooks/                    # useViewportClass, useFocusTrap, useMe, useIsAdmin
+│   ├── views/                    # Home/Inventory/Calendar/GroceryList/Feedback/Admin ('use client')
+│   ├── services/                 # browser fetch wrappers (http.ts holds the token-refresh retry)
+│   ├── lib/                      # date-utils, quick-parse (NL parser), viewport, home-summary
+│   └── server/                   # SERVER LAYER — Node-only, every module `import 'server-only'`
+│       ├── db.ts                 #   globalThis-cached Mongoose connection
+│       ├── auth.ts               #   authenticate() → OIDC JWT verify (jose) + dev seam
+│       ├── http.ts               #   ControllerResult + problem() (framework-agnostic)
+│       ├── route-helpers.ts      #   withRoute() error wrapper
+│       ├── rate-limit.ts logger.ts
+│       ├── controllers/ models/ services/ types/
+│       └── lib/                  #   expiration, ingredient-*, grocery-list-generator,
+│                                 #   unit-normalizer, audit, account-purge
+├── tests/                        # Vitest — components/ context/ lib/ views/ app/ + tests/server/
+└── e2e/                          # Playwright *.e2e.ts
+
+agents/meal-recommender/ · agents/feedback-collector/   # agent.yaml + instructions/
+specs/                            # NNN-feature/{spec,plan,tasks}.md + checklists/
+                                  # BRANCHING_STRATEGY.md is canonical on `main` — read before branch work
+docker-compose.yml · docker-compose.prod.yml · deploy/ · docs/ · constitution.md · .env.example
 ```
 
 ---
 
 ## 4. API Endpoints
 
-Base URL: `http://localhost:3000/api/v1` (served by Next.js Route Handlers in the same process — no proxy, no `:3001`)
+Base URL `http://localhost:3000/api/v1` — same process, same origin, no proxy.
+All errors are **Problem JSON** (RFC 7807). Deep per-endpoint contracts live in the
+owning `specs/NNN-*/spec.md`; this table is the map, not the specification.
+
+**Rate limits:** recommendations 10/min · verify-links 30/min · quick-add parse 20/min ·
+feedback chat 10/min (`feedback-chat:${userId}`, shared across both chat endpoints) ·
+everything else 100/min.
 
 ### Inventory
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/inventory` | List items (query: `category`, `status`, `page`, `limit`) |
-| POST | `/inventory` | Create item |
-| PUT | `/inventory/:id` | Update item |
-| DELETE | `/inventory/:id` | Delete item |
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/inventory` | query: `category`, `status`, `page`, `limit` |
+| POST | `/inventory` | optional `mergeDuplicates:true` (009 FR-IR-012) merges into an existing non-expired, compatible-unit same-name item → 200 `{merged,item,mergedItemId,addedQuantity}`; otherwise the unchanged 201. Only Kitchen quick-add opts in |
+| PUT/DELETE | `/inventory/:id` | update / delete |
 
 ### Recommendations
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/recommendations` | Get AI meal suggestions (no body required) |
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/recommendations` | returns immediately, links NOT awaited. Optional `{ingredientItemIds}` (009 FR-IR-005..010) scopes to that live non-expired subset; absent/empty/all-expired → whole inventory |
+| POST | `/recommendations/verify-links` | FR-037 lazy phase: `{mealNames}` (≤10) → `{links, available}` |
 
-Rate limit: **10 req/min** (vs 100/min for other endpoints)
+### Quick-Add (spec 005)
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/quick-add/aliases` | learned category/location/unit + median shelf-life at ≥2 observations |
+| PUT | `/quick-add/aliases/:nameKey` | upsert a learned field / record `observedShelfLifeDays` (FIFO cap 5) |
+| POST | `/quick-add/parse` | AI assist, `{text}` ≤200 → `{interpretation\|null}`; **503 without `OPENAI_API_KEY`** (client fails open) |
 
 ### Meal Plans
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/meal-plans?weekStart=<ISO>` | Fetch weekly plan |
-| POST | `/meal-plans/:weekStart/entries` | Add meal entry to slot |
-| PUT | `/meal-plans/:weekStart` | Replace full entries array |
-| DELETE | `/meal-plans/:weekStart/entries/:slotId` | Remove meal entry |
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/meal-plans?weekStart=<ISO>` | fetch weekly plan |
+| POST | `/meal-plans/:weekStart/entries` | add entry to slot |
+| PUT | `/meal-plans/:weekStart` | replace entries array |
+| DELETE | `/meal-plans/:weekStart/entries/:slotId` | remove entry — **no inventory effect** (006 FR-MC-006/014) |
+| PATCH | `/meal-plans/:weekStart/entries/:slotId` | 006 lifecycle: `{action:'cook', consumption:[…]}` (atomic idempotent deduct + receipt) or `{action:'uncook'}` (exact restore; 409 for legacy receipt-less entries) |
+
+> **Spec 006 invariant:** planning is inventory-neutral. POST/PUT/DELETE never touch
+> inventory; deduction happens only at the cooked confirmation. PUT preserves server-held
+> `status`/`cookedAt`/`consumedItems` per surviving `slotId` and ignores client-sent
+> lifecycle fields.
 
 ### Grocery Lists
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/grocery-lists/:weekStart` | Fetch list; lazily generates from meal plan if none exists |
-| POST | `/grocery-lists/:weekStart/generate` | Force-regenerate list (preserves manually-added items) |
-| POST | `/grocery-lists/:weekStart/items` | Add a manual item |
-| PATCH | `/grocery-lists/:weekStart/items/:itemId` | Update item (checked state, quantity, etc.) |
-| DELETE | `/grocery-lists/:weekStart/items/:itemId` | Remove item |
-| POST | `/grocery-lists/:weekStart/complete` | Checkout — mark list complete and consume inventory |
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/grocery-lists/:weekStart` | **recomputes on every view** — generated needs date-scoped to today-or-later `planned` entries, persisted (008 FR-RG-001/002/008) |
+| POST | `/grocery-lists/:weekStart/generate` | same recompute path as GET (byte-identical for the same instant) — a resync, not a distinct generation |
+| POST | `/grocery-lists/:weekStart/items` | add manual item (day-anchored: stamps `addedOn`) |
+| PATCH | `…/items/:itemId` | update fields, or 007 purchase lifecycle: `{isPurchased:true, resolvedPurchase?}` adds/merges Kitchen inventory + stores `purchaseReceipt` (stamps `purchasedOn`); `{isPurchased:false}` reverses from the receipt → **409** same-day receipt-less/wrong-state, **404** once the row shed at a rollover (reversal window is same-day only) |
+| DELETE | `…/items/:itemId` | remove |
+| POST | `/grocery-lists/:weekStart/complete` | checkout: skip receipted rows, apply purchase rules to receipt-less rows, store receipts, mark purchased |
 
-All errors use **Problem JSON** (RFC 7807) via `lib/errors.ts`.
+### Feedback (spec 003 — the lifecycle that follows is spec 012, below)
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/feedback` · `/feedback/:id/messages` | start / continue a conversation; 409 once `complete` |
+| GET | `/feedback[?status]` · `/feedback/:id` · `/feedback/:id/export` | own records; export is spec-template markdown, 409 while `draft` |
+| DELETE | `/feedback/:id` | **409** if a non-`parked` LifecycleItem references it (FR-FL-006); the refusal names park as the unblock. A `parked` item cascades; else 204/404 |
+
+> `shipped` is reachable **only** via an explicit `approve-release`, never derived from
+> record content, and **no transition ever commits, merges, tags, or deploys**
+> (FR-F-016/017/018, SC-F-008).
+
+### Feedback Lifecycle (spec 012) — triage to closure
+
+**Two surfaces, and the split is the point (D7).** `/lifecycle/**` is reporter-facing
+(`authenticate()`, own items only, projected). `/admin/lifecycle/**` is maintainer-facing
+(`requirePrincipalAdmin`, cross-user, full detail). A non-admin on an admin route gets **403,
+never 401** — 401 is the client's refresh-retry trigger and would loop.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/lifecycle` · `/lifecycle/:id` | the reporter's OWN items, projected. A **merged** item returns `mergedTargetStage` and nothing else about the target (FR-FL-019). Another reporter's id → **404, not 403**, so existence is not disclosed |
+| GET | `/admin/lifecycle[?stage=&userId=]` | the cross-user triage queue, in maintainer-set rank order (FR-FL-022/023) |
+| GET/PATCH | `/admin/lifecycle/:id` | full item · the single action endpoint (below) |
+| GET/POST | `…/:id/clauses` · PATCH `…/clauses/:provisionalId` | drafted EARS clauses, each beside the record text it came from · vet one. `POST {}` drafts via the agent; `POST {text,derivedFrom}` authors by hand (FR-FL-031). Shares the `feedback-chat:${userId}` 10/min bucket so drafting cannot bypass the chat limit |
+| GET | `…/:id/brief` | `text/markdown`, carries only **accepted** clauses. **Content a human runs — never executed** (FR-FL-033) |
+| PUT | `…/:id/reply` | the maintainer's reply to the reporter (FR-FL-036/037) |
+| GET | `/admin/releases` | closure picker. **200 even when GitHub is unreachable** — `available:false` is a normal answer, because closure must never be gated on a third party (FR-FL-045) |
+
+**Actions** (`PATCH /admin/lifecycle/:id`, discriminated union, atomic guarded `findOneAndUpdate`):
+`accept` (**gate 1**) · `dismiss{reason}` · `merge{targetId}` · `advance` · `approve-spec`
+(**gate 2**) · `reject-spec` · `approve-release` (**gate 3**) · `reject-release` · `close{excerpt,…}`
+· `park` · `reopen` · `set-rank` · `edit-source` · `attach-artifact` · `cite`.
+Illegal/backward/gate-from-wrong-stage/concurrent → **409 `Illegal Transition`**, state unchanged.
+
+> **`shipped` is reachable only through a recorded release approval, and no action ever commits,
+> merges, tags or deploys** (FR-FL-057, SC-FL-006/007). `attach-artifact` stores a string and
+> never dereferences it.
+>
+> `briefed → in-spec` is refused while any clause is unvetted (FR-FL-028) — that is what makes
+> `briefed` a real stage rather than a label.
+
+### Administration (spec 011) — admin-only unless noted
+Requires the admin role via `requirePrincipalAdmin`. An authenticated-but-unprivileged
+caller gets **403, deliberately not 401** — the client treats 401 as its FR-D-010
+refresh-retry trigger, so 401 would loop. Role comes from a **verified token claim**
+(`AUTH_ROLES_CLAIM`, default `realm_access.roles`), never a request header in prod.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/me` | **not** admin-only — `{userId, isAdmin}`; the UI hides on this |
+| GET | `/admin/feedback` · `/admin/feedback/:id` | cross-user records `?status=&userId=`, lifecycle stage joined; a title-less draft carries `excerpt` (its first transcript line) so it is identifiable |
+| GET | `/admin/users/:userId/data` | read-only support view — **GET is the only verb** (FR-AD-015) |
+| GET | `/admin/users/:userId/export` | everything held, all six collections |
+| POST | `/admin/users/:userId/erase` · `/restore` · `/admin/users/purge` | two-phase soft delete (immediately inaccessible, purge after 30d) · undo inside the window, **410** after · explicit purge trigger (no scheduler exists) |
+| GET | `/admin/audit` | append-only — **no write verb exists** (FR-AD-022) |
+| GET/PATCH | `/admin/settings` | defaults in code; invalid values rejected whole |
+| GET | `/admin/usage` · DELETE `/admin/cache` · GET `/admin/limits` · DELETE `/admin/limits/:key` | AI call counts · flush caches (`?userId=`) · inspect/reset limiter buckets |
+
+**`GET /api/health/ready`** (public) — readiness with bounded per-dependency probes.
+**`/api/health` must never change shape** — the Docker healthcheck,
+`scripts/verify-rollout.sh`, and the smoke gate all depend on it exactly.
 
 ---
 
 ## 5. Data Models
 
-### InventoryItem (MongoDB)
+### InventoryItem
 ```typescript
-{
-  userId: string;          // indexed
-  name: string;
-  quantity: number;
-  unit: string;
-  category: string;        // enum: CATEGORIES
-  location: string;        // enum: LOCATIONS
-  expiresAt?: Date;        // indexed
-  expirationStatus: 'expired' | 'expiring-soon' | 'normal' | 'none';
-}
+{ userId /*indexed*/, name, quantity, unit,
+  category /*CATEGORIES*/, location /*LOCATIONS*/,
+  expiresAt?: Date /*indexed*/,
+  expirationStatus: 'expired'|'expiring-soon'|'normal'|'none' }
 ```
-- `expirationStatus` is auto-computed in a Mongoose pre-save hook via `lib/expiration.ts`
-- Expiry logic: `expired` = today or earlier (midnight cutoff), `expiring-soon` = tomorrow, `normal` = 2+ days
+- `expirationStatus` is auto-computed by Mongoose hooks via `lib/expiration.ts` — **never set it by hand** (§13).
+- `expired` = today or earlier (midnight cutoff) · `expiring-soon` = tomorrow · `normal` = 2+ days.
 
-### MealPlan (MongoDB)
+### MealPlan
 ```typescript
-{
-  userId: string;    // compound unique index with weekStart
-  weekStart: Date;
-  entries: {
-    slotId: string;
-    date: Date;
-    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
-    meal: MealRecommendation;
-  }[];
-}
+{ userId, weekStart,           // compound UNIQUE index
+  entries: [{ slotId, date, mealType: 'breakfast'|'lunch'|'dinner'|'snack',
+              meal: MealRecommendation,          // full snapshot
+              status?: 'planned'|'cooked',       // spec 006
+              cookedAt?: Date,
+              consumedItems?: ConsumptionReceiptLine[] }] }   // _id:false subdocs
 ```
-- Compound unique index on `(userId, weekStart)`
-- `entries` subdocs have `_id: false`; `meal` stores a full `MealRecommendation` snapshot
+- **`status` has no schema default on purpose** — an absent `status` means a legacy pre-006 entry and reads as `cooked` (FR-MC-011).
+- `consumedItems` is the consumption receipt: per-item actual deductions plus `depletedSnapshot` for items removed at zero. Snapshots never carry `expirationStatus`; the pre-save hook recomputes it on restore.
+- Meals may carry `groundedIngredients` (`{inventoryItemId,name,quantityToConsume,unit,resolution}`) — validated server-side by `lib/ingredient-grounding.ts`, **never trusted** from agent or client.
 
-### GroceryList (MongoDB)
+### GroceryList
 ```typescript
-{
-  userId: string;    // compound unique index with weekStart
-  weekStart: Date;
-  generatedAt: Date | null;
-  items: {
-    ingredientName: string;   // normalised key
-    displayName: string;      // human-readable label
-    quantity: number;
-    unit: string;             // default: 'servings'
-    category: GroceryCategory; // same enum as CATEGORIES on InventoryItem
-    isPurchased: boolean;
-    isManuallyAdded: boolean;
-    sourceMealNames: string[]; // which meals need this ingredient
-    notes: string;
-  }[];
-}
+{ userId, weekStart,           // compound UNIQUE index
+  generatedAt: Date|null,
+  items: [{ ingredientName /*normalised key*/, displayName, quantity,
+            unit /*default 'servings'*/, category, isPurchased, isManuallyAdded,
+            sourceMealNames: string[], notes,
+            purchaseReceipt?: { inventoryItemId, quantityAdded, unit, merged },
+            addedOn?: Date, purchasedOn?: Date }] }   // spec 008 day anchors
 ```
-- Compound unique index on `(userId, weekStart)`
-- Lazily created on first GET; `POST /:weekStart/generate` force-regenerates while preserving `isManuallyAdded` items
-- `POST /:weekStart/complete` marks all items purchased and triggers inventory consumption
+- Check-off is **inventory-positive** (007): ticking adds/merges inventory + stores the receipt; un-ticking reverses from it; checkout only adds receipt-less rows.
+- **Spec 008 rolling view:** content is recomputed on every GET and force-generate. Generated rows are **reconciled in place by `ingredientName`** (stable `_id`), not wiped-and-recreated. Manual/purchased rows survive same-day refreshes verbatim and are pruned — row *and* receipt, inventory untouched — at the next rollover once their anchor day is past. Legacy anchor-less rows are backfilled to the current day rather than shedding immediately.
+
+### FeedbackRecord
+```typescript
+{ userId, status: 'draft'|'complete'|'reviewed',      // {userId,status} index
+  transcript: [{ role:'user'|'agent', content, at }],
+  // structured spec-shaped fields, absent until the conversation completes (FR-F-003):
+  type?: 'bug'|'improvement', title?, problemStatement?, userStory?,
+  acceptanceCriteria?: [{given,when,then}], reproSteps?: string[],
+  expectedBehavior?, actualBehavior?,
+  affectedArea?: 'inventory'|'meal-plan'|'grocery'|'recommendations'|'auth'|'feedback'|'other',
+  priority?: 'P1'|'P2'|'P3' }
+```
+`draft` → `complete` when the agent returns a schema-valid record → `reviewed` on first
+promotion (a side effect of promotion, not a separate workflow).
+
+### LifecycleItem (spec 012 — was PipelineItem)
+```typescript
+{ userId,                          // the REPORTER. Detached, NOT deleted, on erasure (D15)
+  feedbackRecordId,                // UNIQUE with userId — makes acceptance idempotent in the DB
+  sourceTitle, sourceType, sourceAffectedArea,   // immutable snapshot taken at creation
+  stage: 'new'|'accepted'|'briefed'|'in-spec'|'in-progress'
+       | 'in-review'|'shipped'|'closed'|'dismissed'|'merged'|'parked',
+  parkedFromStage?, rank?,         // rank = a ranked QUEUE, not a P1/P2/P3 label (FR-FL-022)
+  dismissalReason?: 'no-action-required'|'declined',
+  mergedInto?,                     // NEVER projected to a reporter — they see its stage only
+  cites?: string[],                // reference only; citing moves nothing (FR-FL-050/051)
+  acceptedBy?, acceptedAt?,
+  transitions: [{ from, to, actor, actorUserId, at, isGateApproval, note? }],
+  clauses: [{ provisionalId, text, derivedFrom /* REQUIRED */, inferred, vetted, editedText? }],
+  reply?, closure?, artifacts?, reporterErasedAt? }
+```
+
+> ⚠️ **The collection is `pipelineitems`, NOT `pipeline_items`.** The old `PipelineItem` model set
+> no explicit collection, so Mongoose's default pluralisation is what production holds. The model
+> renamed; the collection did not. Both models still map the same collection during the migration
+> — **only `LifecycleItem` may write `stage`**, because the old enum predates the new values and
+> rejects them. `scripts/migrate-lifecycle-stages.mjs` renamed the one value that changed
+> (`approved → accepted`), once, as an admin task.
+
+> **`derivedFrom` is required on every clause.** Vetting is a *comparison* against the reporter's
+> own words (FR-FL-025); a clause with nothing to compare against silently degrades into a
+> proofread, and well-formed EARS is easy to accept uncritically.
+
+Indexes: `{userId,feedbackRecordId}` unique · `{userId,stage}` · `{userId,updatedAt:-1}` ·
+`{stage,updatedAt:-1}` for the cross-user triage queue, which is deliberately not user-scoped.
+
+### Administration collections (spec 011)
+| Collection | Shape | Note |
+|---|---|---|
+| `admin_audit_logs` | `{adminUserId, action, subjectUserId?, subjectType?, subjectId?, at}` | **TTL 90d**. Append-only because `lib/audit.ts` exports only `record`/`list` — there is no update/delete path |
+| `account_erasures` | `{userId (unique), erasedAt, purgeAfter, erasedBy, restoredAt?}` | Exists because there is **no `User` model** — a user is only a `userId` across six collections |
+| `runtime_settings` | `{key (unique), value, updatedAt, updatedBy}` | Defaults live in code, so an **empty collection reproduces today's behaviour** |
+| `ai_usage_counters` | `{day, feature, calls}` | Incremented at the kill-switch boundary — a blocked call is an uncounted call |
+
+> **The retention margin is load-bearing.** `AUDIT_RETENTION_DAYS` (90) **must** exceed
+> `ERASURE_WINDOW_DAYS` (30) so an erasure's audit entry outlives the moment that erasure
+> became irreversible. Both in `src/server/types/admin.ts`; a test asserts the relationship
+> from the constants.
+
+> **TWO lists in `lib/account-purge.ts`, with different semantics — put a new model in the
+> wrong one and you either leak data or destroy it:**
+> - `USER_KEYED_MODELS` (**deleted**): inventory-item, meal-plan, grocery-list, ingredient-alias,
+>   feedback-record.
+> - `USER_DETACHED_MODELS` (**detached, not deleted**): lifecycle-item.
+>
+> **Adding a model means adding a line to one of them** — omit it and erasure silently orphans
+> it. The split arrived with spec 012 D15: the lifecycle collection used to sit in the delete
+> list, so erasing a reporter destroyed every item their report had started, including maintainer
+> work in flight. A detached item is **not** an orphan for FR-AD-018's purposes — detachment is
+> the *defined* outcome, and the item keeps no reporter-identifying content while staying
+> advanceable and closable.
 
 ---
 
 ## 6. Environment Variables
 
-Copy `.env.example` to `.env` before running locally.
+Copy `.env.example` → `.env` at the **repo root** (never inside `packages/`). For local
+`next dev`, `MONGODB_URI` + `HOLODECK_URL` go in `packages/client/.env.local`.
 
-> **Location:** The root `.env` is loaded by `tsx --env-file ../../.env` (dev) and Docker Compose. Always edit the root file — never create `.env` inside `packages/`.
-
-| Variable | Default | Required |
-|----------|---------|----------|
+| Variable | Value / default | Required |
+|---|---|---|
 | `MONGODB_URI` | `mongodb://localhost:27017/fridge-planner` | Yes |
-| `HOLODECK_URL` | `http://localhost:8001` | Yes (AI features) |
-| `CLAUDE_CODE_OAUTH_TOKEN` | — | Preferred for AI |
-| `ANTHROPIC_API_KEY` | — | Fallback for AI |
-| `OPENAI_API_KEY` | — | Fallback if Anthropic unavailable in Holodeck |
-| `AUTH_ISSUER` | — | No (CR-001, production OIDC) |
-| `AUTH_AUDIENCE` | — | No (CR-001, production OIDC) |
-| `AUTH_JWKS_URI` | — | No (CR-001, production OIDC) |
-| `NODE_ENV` | `development` | No |
-| `LOG_LEVEL` | `info` | No |
-| `REDIS_URL` | `redis://localhost:6379` | No (P2+, not required for P1 MVP) |
+| `HOLODECK_URL` | `http://localhost:8001` locally — **no code default, throws if unset** | Yes (AI) |
+| `FEEDBACK_AGENT_URL` | `http://localhost:8002` locally — **no code default**; unset/unreachable ⇒ feedback chat returns 502 and preserves the draft | Yes (feedback chat) |
+| `OPENAI_API_KEY` | — | Yes for AI — the sole LLM credential (both agents + quick-add parse assist) |
+| `BRAVE_SEARCH_API_KEY` / `SPOONACULAR_API_KEY` | — | At least one, for usable recipe links |
+| `AUTH_ISSUER` / `AUTH_AUDIENCE` / `AUTH_JWKS_URI` | — | Production OIDC |
+| `AUTH_ADMIN_ROLE` | `admin` | No (spec 011) |
+| `AUTH_ROLES_CLAIM` | `realm_access.roles` | No — dotted path to the role array in the JWT |
+| `AUTH_DEV_USER_ID` / `AUTH_DEV_ROLES` | — | **LOCAL DEV ONLY.** A browser can't send `x-user-id`. Read only on the dev branch of `resolveMode()`. **NEVER set in prod** |
+| `GITHUB_REPO` | `owner/name` — the repo whose published releases fill the closure picker (spec 012 D17). **Read-only, unauthenticated, no credential.** Unset ⇒ picker unavailable and closure falls back to free text; it must never block on a third party | No |
+| `NODE_ENV` · `LOG_LEVEL` · `REDIS_URL` | `development` · `info` · — | No (Redis is P2+) |
 
-> Single Next process on `:3000`, same-origin — so **no `PORT`/`CORS_ORIGIN`/`BACKEND_URL`** (removed with Express in Phase C-bis). For local `next dev`, put `MONGODB_URI` + `HOLODECK_URL` in `packages/client/.env.local`.
+Single same-origin process ⇒ **no `PORT`/`CORS_ORIGIN`/`BACKEND_URL`**.
 
-> **Auth note (spec 002 / Phase D):** `src/server/auth.ts` `authenticate(request)` validates an OIDC Bearer JWT (`jose`: JWKS signature + `iss`/`aud`/`exp`) and returns the `sub` claim as `userId`. `AUTH_MODE=dev` (default off-production) keeps the `X-User-Id` seam for local dev + tests; `AUTH_MODE=oidc` is required in production (the dev seam is refused there). Handlers call `await authenticate(request)`; a failure throws `AuthError` → `withRoute` returns 401 Problem JSON.
+**Auth (spec 002).** Server: `authenticate(request)` validates an OIDC Bearer JWT with
+`jose` (JWKS signature + `iss`/`aud`/`exp`) and returns `sub` as `userId`; failure throws
+`AuthError` → `withRoute` → 401 Problem JSON. `AUTH_MODE=dev` keeps the `X-User-Id` seam
+for local dev and tests; `AUTH_MODE=oidc` is required in production, where the dev seam is
+refused. Client: `services/http.ts` transparently renews expired access tokens via the
+refresh grant (single-flight + one retry, FR-D-010); the 12h idle window is a Keycloak
+realm setting.
+
+**Session (spec 002 US4).** Sign-out is **RP-initiated** — it clears the local session
+*and* redirects to the IdP end-session endpoint, so the next sign-in prompts instead of
+silently restoring the same user. That redirect is also the mechanism for FR-D-016: six
+data-holding providers sit under `AuthProvider` and a page load destroys their state by
+construction, where per-context resets would not. The IdP must have the **post-logout
+redirect URI registered** (manual — `docs/deployment.md`); without it the local session
+still clears. The account surface lives on **Home + the desktop sidebar footer** and
+**must not** become a fifth nav item (FR-D-017).
 
 ---
 
 ## 7. Code Conventions
 
-### TypeScript Rules (enforced by ESLint + tsconfig)
-- **Strict mode** (`"strict": true`, `"noUncheckedIndexedAccess": true`, `"noImplicitOverride": true`, `"exactOptionalPropertyTypes": true`)
-- **No `any`** — use proper types or `unknown`
-- **Explicit return types** on all functions (not just exported)
-- **No unused variables** — args may be prefixed with `_` to suppress (`argsIgnorePattern: ^_`)
-- **No `console.log`** — use `console.warn` or `console.error`; bare log triggers ESLint warning
-- **`interface`** for object shapes; `type` for unions/intersections
-- **Cyclomatic complexity** limit: 10 per function
+**TypeScript** (ESLint + tsconfig enforce these): strict mode incl.
+`noUncheckedIndexedAccess`, `noImplicitOverride`, `exactOptionalPropertyTypes` · no `any`
+(use `unknown`) · **explicit return types on all functions** · no unused vars (`_` prefix
+to suppress) · no `console.log` (use `warn`/`error`) · `interface` for object shapes,
+`type` for unions · **cyclomatic complexity ≤ 10**.
 
-### Naming
-| Entity | Convention | Example |
-|--------|-----------|---------|
-| React components | PascalCase | `MealCard.tsx` |
-| Utilities / routes | kebab-case | `date-utils.ts`, `error-handler.ts` |
-| TypeScript interfaces | PascalCase | `InventoryItem`, `MealRecommendation` |
-| Tailwind classes | Mobile-first | `class="flex md:grid"` |
+**Naming:** components PascalCase (`MealCard.tsx`) · utilities/routes kebab-case
+(`date-utils.ts`) · interfaces PascalCase · Tailwind mobile-first.
 
-### Formatting (Prettier)
-- 2-space indentation
-- Single quotes
-- Trailing commas everywhere (`"trailingComma": "all"` — includes function parameters)
-- 100-character line width
-- Semicolons required
+**Prettier:** 2-space, single quotes, trailing commas everywhere (incl. function params),
+100-char width, semicolons.
 
-### React Patterns
-- **Functional components only** — no class components
-- **Context + hooks** for state — no Redux or Zustand
-- Each context exports a custom hook (`useInventory()`, `useMealPlan()`, `useRecommendations()`, `useGroceryList()`)
-- **Presentational vs container:** keep UI components pure; logic lives in hooks/context
-- `useCallback`/`useMemo` only when profiling justifies it
+**React:** functional components only · **Context + hooks, never Redux/Zustand** · each
+context exports its hook (`useInventory()`, …) · keep UI pure, logic in hooks/context ·
+`useCallback`/`useMemo` only when profiling justifies it.
 
-### Route Handler Patterns (Next.js)
-- **Thin handlers, extracted logic:** `app/api/v1/**/route.ts` handlers do only `connectDb()` → `await authenticate(request)` (→ userId, or `AuthError`) → parse body/params → call a `src/server/controllers/*` function → `NextResponse.json`. All real logic lives in the controllers (so it's testable without HTTP).
-- Controllers return a framework-agnostic `ControllerResult` (`{ status, body }`); use `problem()` (`src/server/http.ts`) for RFC-7807 errors.
-- Wrap each handler body in `withRoute(async () => { … })` (`src/server/route-helpers.ts`) so unhandled throws become a Problem JSON 500.
-- `async/await` throughout; **Zod** for request body/query validation before processing.
-- Rate-limit in the handler via `rateLimit(key, limit, windowMs)` (`src/server/rate-limit.ts`) — e.g. recommendations = 10/min.
-- Server-only modules (`db.ts`, `auth.ts`, controllers, services) start with `import 'server-only'`.
-- Next 15: route `params` is a **Promise** — `const { id } = await ctx.params`.
+**Route handlers:** thin. `connectDb()` → `await authenticate(request)` → parse/validate
+(**Zod**) → call a `src/server/controllers/*` function → `NextResponse.json`. Controllers
+return framework-agnostic `ControllerResult` (`{status, body}`) and use `problem()` for
+RFC-7807. Wrap every handler body in `withRoute()` so throws become Problem JSON 500.
+Rate-limit in the handler via `rateLimit(key, limit, windowMs)`. Server-only modules start
+with `import 'server-only'`. **Next 15: `params` is a Promise** — `const {id} = await ctx.params`.
+
+### Responsive viewport classes (spec 010)
+
+Declared in `tailwind.config.ts` → `theme.extend.screens`. Four are stock min-widths;
+phone landscape can't be expressed that way (width- *and* orientation- *and* height-bound).
+
+| Class | Prefix | Condition |
+|---|---|---|
+| Phone portrait | *(base)* | `< 640px` |
+| iPad portrait | `sm:` | `≥ 640px` |
+| iPad landscape | `lg:` | `≥ 1024px` |
+| Desktop | `xl:` | `≥ 1280px` |
+| Phone landscape | `phland:` | `(max-width:899px) and (orientation:landscape) and (max-height:500px)` |
+
+**Load-bearing, not stylistic:**
+- **`phland` must stay LAST in `extend.screens`.** A landscape phone is ~844px so it also
+  matches `sm:`; Tailwind emits screen variants in declaration order and the last-declared
+  query wins at equal specificity. `e2e/responsive.e2e.ts` proves it via the 844×390
+  wrapper computing `padding-left: 96px`.
+- **Use named screens, never arbitrary `min-[…]:`/`max-[…]:` variants.** A `screens` map
+  containing an object (the `phland` raw query) **silently disables arbitrary variants
+  build-wide** — that's why the shipped `min-[900px]:` became the named `min900:`.
+- **Layout:** the app root fills the viewport and `<main>` is the **only** scroll container
+  (`AppShell`), so the nav can never scroll away; the padded content wrapper carries
+  `box-border` or its padding overflows a `width:100%` box.
 
 ---
 
 ## 8. Testing
 
-All tests run under **Vitest** in the one `packages/client` package (Express + Jest are gone).
+All tests are **Vitest** in `packages/client` (Express + Jest are gone).
 
-### Server-layer tests (Vitest, node environment) — `tests/server/`
-- **Location:** `packages/client/tests/server/` (API handler tests) and `tests/server/unit/` (lib/service units).
-- First line `// @vitest-environment node`; in-memory MongoDB via `mongodb-memory-server`; `vitest.config.ts` aliases `@server` → `src/server` and stubs `server-only`.
-- **Handler tests** import the route handlers, set `process.env.MONGODB_URI` to the memory server, and call `GET/POST/…` with real `Request` objects — they exercise handler + controller + model end-to-end.
-- Mock the Holodeck agent: stub `getMealRecommendations` (controller fallback tests) **or** `global.fetch` (the agent-client's own fetch/parse logic).
+**Server layer — `tests/server/`** (handlers) and `tests/server/unit/` (libs/services):
+first line `// @vitest-environment node`; in-memory Mongo via `mongodb-memory-server`;
+`vitest.config.ts` aliases `@server` → `src/server` and stubs `server-only`. Handler tests
+import the route handler, point `process.env.MONGODB_URI` at the memory server, and call it
+with real `Request` objects — exercising handler + controller + model end-to-end. Mock
+Holodeck by stubbing `getMealRecommendations` (controller tests) **or** `global.fetch`
+(agent-client tests).
 
-```typescript
-// @vitest-environment node
-import { describe, it, expect } from 'vitest';
-import { getExpirationStatus } from '@server/lib/expiration';
+Three traps that make server tests lie:
+- **`db.ts` reads `MONGODB_URI` at module scope** — import routes *after* setting it, or the
+  suite silently binds to a real `localhost:27017` (passes locally, fails in CI).
+- **The rate limiter is module-level state that survives between tests.** Reset the key in
+  `beforeEach` (`resetLimiterKey`) or the Nth call gets a 429 and the assertion checks an
+  action that never happened.
+- **`it.each` expands at collection time.** A table built in `beforeAll` registers *zero*
+  cases. Build matrices at module scope.
 
-describe('getExpirationStatus', () => {
-  it('returns expired for past dates', () => {
-    expect(getExpirationStatus(new Date(Date.now() - 86400000))).toBe('expired');
-  });
-});
-```
+**Client — `tests/`** (components/, context/, lib/, views/, app/): jsdom, setup at
+`tests/setup.ts` (mocks `next/navigation` and `next/link` — required for anything using
+router hooks). **Coverage threshold 70%**; `src/services/` excluded — mock API calls. Test
+interactions and rendered output, not implementation details.
 
-### Client / component tests (Vitest + React Testing Library)
-- **Location:** `packages/client/tests/` (components/, context/, lib/, views/, app/)
-- **Coverage threshold:** 70%
-- Environment: `jsdom`; setup file at `tests/setup.ts`
-- `tests/setup.ts` mocks `next/navigation` and `next/link` — required for any component using Next.js router hooks
-- Services layer (`src/services/`) excluded from coverage; mock all API calls (services layer)
-- Test user interactions and rendered output — avoid testing implementation details
+**Playwright — `e2e/*.e2e.ts`:**
+- **Every new user-facing feature MUST add or extend Playwright coverage of its primary
+  journey, as part of the story tasks. A feature is not done without it.**
+- **Drive the real controls, not `page.request`.** An e2e that only calls the API proves
+  the server works, never that anyone can *reach* it. Spec 011 shipped in 4.12.0 with three
+  panels unbuilt (one with its task box already ticked): every server test passed, the smoke
+  gate stayed green, and two user stories were curl-only for a whole release. Click the
+  button, then assert the **server's** answer changed.
+- Stay deterministic: seed through the real API/UI, mock Holodeck-dependent calls at the
+  network edge, never hit external services, and **never hardcode a date** — compute
+  expiries relative to run time or the test becomes a time bomb.
+- **CI runs the full suite** (`E2E browser tests (Playwright)` in `.github/workflows/ci-nextjs.yml`)
+  on every push/PR to `impl/nextjs`, alongside the curl-based `validate-e2e.sh` smoke — they
+  are separate gates. New `*.e2e.ts` files are enforced by the required `verify` check, not
+  only at release.
 
-```typescript
-// Component test example
-import { render, screen } from '@testing-library/react';
-import MealCard from '../../src/components/recommendations/MealCard';
-
-it('shows expiring badge when ingredient expires soon', () => {
-  render(<MealCard meal={mockMeal} hasExpiringSoon />);
-  expect(screen.getByText(/expiring soon/i)).toBeInTheDocument();
-});
-```
-
-### Pre-commit Hook
-`husky` runs `lint-staged` on every commit — it auto-fixes ESLint errors and Prettier formats all staged `.ts/.tsx/.css` files. **Never skip hooks.**
+**Pre-commit:** husky runs `lint-staged` (ESLint fix + Prettier) on staged files.
+**Never skip hooks.**
 
 ---
 
-## 9. AI Agent (Holodeck / Meal Recommender)
+## 9. AI Agents (Holodeck)
 
-- **Config:** `agents/meal-recommender/agent.yaml`
-- **Instructions:** `agents/meal-recommender/instructions/system-prompt.md`
-- **Model:** Claude Sonnet 4.6 (`claude-sonnet-4-6`)
-- **Temperature:** 0.5, **Max tokens:** 2000
-- **Auth:** OAuth token preferred (`CLAUDE_CODE_OAUTH_TOKEN`); falls back to `ANTHROPIC_API_KEY`
+Two agents, one Holodeck instance each. Both `provider: openai`, `gpt-4o`,
+`api_key: ${OPENAI_API_KEY}`, **no web tools** (the backend exposes none for non-Claude
+providers — which also removes an injection amplifier).
 
-The agent receives inventory data (sorted by expiry date) and returns a JSON array of `MealRecommendation` objects. It must **never** return markdown or prose — only raw JSON.
+### Meal Recommender — `agents/meal-recommender/`, port 8001, temp 0.5, max 2000
+Receives inventory sorted by expiry, returns a JSON array of `MealRecommendation`.
+**Never markdown or prose — raw JSON only** (§13). Active eval: `ExpiryPrioritisation`
+(G-Eval via Azure OpenAI at temp 0.0, threshold 0.8); others defined but commented out.
+Tracing/metrics/logs export via OTLP. Image published by `.github/workflows/agent-image.yml`
+(tag `agent-v*`, linux/amd64).
 
-**Evaluation metrics** (G-Eval, evaluated by Azure OpenAI at temperature 0.0 — separate from the inference model for independence):
-- `ExpiryPrioritisation` — uses ingredients expiring soonest (threshold: 0.8) — **active**
-- `Practicality`, `MissingIngredientMinimization`, `IngredientVariety`, `RecipeUrlConformance` — defined in `agent.yaml` but currently disabled (commented out)
+- **Caching:** `services/recommendations-cache.ts`, keyed `(userId, ingredients)`, **15-min
+  TTL**, invalidated per-user on any inventory mutation.
+- **Ingredient grounding (006):** inventory lines carry `[id:<_id>]` tags and
+  `usesIngredients` is an object array `{inventoryItemId,name,quantityToConsume,unit}`. All
+  of it is **untrusted**: `lib/ingredient-grounding.ts` re-validates against live inventory
+  (user-scoped id → deterministic name match → learned alias pairing via a cached
+  `gpt-4o-mini` lookup, fail-open) and clamps amounts before caching. Legacy string arrays
+  still parse. Prompt/schema changes need an `agent-v*` release; the app tolerates both
+  shapes during rollout.
+- **Recipe URLs:** the agent **must never author `recipeUrl`/`imageUrl`** — no web search
+  means fabricated links. `services/recipe-verifier.ts` attaches one server-side only when a
+  real page is found (Brave `site:`-restricted over 4 approved domains → Spoonacular
+  fallback, gated on title similarity), else omits the field. **FR-037:** results return
+  without awaiting verification (5–10 candidate net); the client then POSTs
+  `/recommendations/verify-links` (1h per-name server cache), attaches links as they arrive,
+  and **removes any meal left unlinked**. `POPULAR_RECIPES` fallbacks carry hand-verified
+  links and skip the lazy phase.
 
-One active test case ("Prioritise expiring chicken") is defined in `agent.yaml` under `test_cases`.
+### Feedback Collector — `agents/feedback-collector/`, port 8002, temp 0.3
+Collects bug/improvement feedback conversationally into spec-shaped records (exportable as
+`/speckit.specify` markdown). Evals: `JSONProtocolCompliance`, `ClarifyingQuestionQuality`,
+`SpecReadiness`.
 
-**Caching:** `services/recommendations-cache.ts` caches results by `(userId, ingredients)` key with a **15-minute TTL**. Cache is invalidated per-user (`invalidateUser(userId)`) on any inventory mutation.
+- **Protocol (raw JSON only):** the backend is **stateless** — it replays the whole
+  transcript each turn, framed with untrusted-data markers. The agent returns exactly one
+  object: `{status:"collecting",reply,missing[]}` or `{status:"complete",reply,record{…}}`.
+  At the ~30-turn cap the backend appends `FINALIZE NOW`.
+- **Wiring:** `services/feedback-collector.ts` (fence-strip + Zod discriminated union),
+  `controllers/feedback.ts`, `models/feedback-record.ts`, `lib/feedback-export.ts`, routes
+  under `app/api/v1/feedback/**`, UI at `/feedback`.
+- **Prod:** image from `.github/workflows/agent-feedback-image.yml` (tag
+  `agent-feedback-v*`); runs as internal service `holodeck-feedback` in
+  `docker-compose.prod.yml`.
 
-**Agent capabilities:** `WebSearch` and `WebFetch` are enabled — the agent looks up real recipes from approved domains (panlasangpinoy.com, recipetineats.com, kawalingpinoy.com, taste.com.au). `extended_thinking` is disabled. `claude.max_turns` is 15; `setting_sources: []` ensures no inheritance from local Claude settings.
-
-**Observability:** Full tracing enabled in `agent.yaml` — traces, metrics, and structured logs are exported via OTLP to `${OTLP_ENDPOINT}`. Evaluation results are saved to `agents/meal-recommender/results/`.
-
-**Deployment:** Agent is containerised for GCP Cloud Run (`linux/arm64`), published to `ghcr.io/emtabiraobarias/fridge-planner`.
+> **Keep the `pip install "holodeck-ai[openai-agents]==<base version>"` line in BOTH agent
+> Dockerfiles.** Holodeck 0.7.x routes `provider: openai` to the OpenAI Agents SDK backend,
+> which is an optional extra the base image doesn't bundle. Without it the container passes
+> `/health` (lazy init) and then **fails on the first chat turn** with
+> `No module named 'agents'`.
 
 ---
 
 ## 10. Git Workflow
 
-> **Two-implementation model:** This repo keeps two long-lived implementation branches — `impl/vite` and `impl/nextjs` — against one shared spec on `main`. *Implementation* work happens on the `impl/*` branch (this is `impl/nextjs`); *spec/contract* changes are authored on `main` and merged down. See `specs/BRANCHING_STRATEGY.md` (canonical on `main`) before any branch operation.
+> **Two-implementation model.** Two long-lived branches — `impl/vite` and `impl/nextjs` —
+> against one shared spec on `main`. Implementation happens on the `impl/*` branch (this is
+> `impl/nextjs`); spec/contract changes are authored on `main` and merged down. Read
+> `specs/BRANCHING_STRATEGY.md` (canonical on `main`) before any branch operation.
 
-- **Spec/contract work:** branch short-lived `feat/`, `fix/`, `docs/` branches off `main`, merge back to `main`; both impls inherit on next sync.
-- **Implementation work:** commit on the long-lived `impl/*` branch directly (or `claude/<description>-<id>` branches off it that merge back to `impl/*`, not `main`).
-- **Commit format:** Conventional Commits — `feat: add expiry-aware meal suggestions`
-- **Before pushing:** `npm run lint && npm test` must pass
-- **PRs require:** all tests green, zero lint warnings
+- **Spec/contract work:** short-lived `feat/`/`fix/`/`docs/` off `main` → back to `main`.
+- **Implementation work:** on `impl/nextjs`, or `claude/<description>-<id>` branches off it
+  that merge back to **`impl/*`, never `main`**.
+- **`origin/main` has disjoint history and contains no `packages/`** — base implementation
+  worktrees on impl HEAD, never on `origin/main`.
+- Conventional Commits. `npm run lint && npm test` must pass before pushing. PRs need all
+  tests green and zero lint warnings.
+- Shared files (`spec.md`, `checklists/*`, `ROADMAP_PROGRESS.md`, `scripts/smoke-test.sh`,
+  `constitution.md`) stay **byte-identical across branches and are edited only on `main`**.
+  Per-branch files (`plan.md`, `tasks.md`, `CLAUDE.md`, `docs/*`, code) never exist on `main`.
 
 ---
 
 ## 11. Feature Specification Workflow
 
-New features follow a **spec-first** process. Templates live in `.specify/templates/`; the workflow is driven by Claude Code slash commands in `.claude/commands/`.
+Spec-first. Templates in `.specify/templates/`, driven by slash commands in `.claude/commands/`.
 
-### Steps
-1. **Scaffold:** Run `.specify/scripts/bash/create-new-feature.sh` with the feature name. This creates a numbered directory under `specs/` from the templates in `.specify/templates/`.
-2. **Write `spec.md`:** Run `/speckit.specify` — Claude will clarify requirements and write the spec. Each user story must be independently testable.
-3. **Write `plan.md`:** Run `/speckit.plan` — Claude produces architecture decisions, component design, API changes, and phase breakdown.
-4. **Write `tasks.md`:** Run `/speckit.tasks` — Claude derives an implementation checklist from the spec and plan.
-5. **Analyse:** Run `/speckit.analyze` — cross-checks spec, plan, and tasks for gaps, ambiguities, and constitution conflicts before coding starts.
-6. **Implement:** Run `/speckit.implement` or work through `tasks.md` manually. Branch naming follows section 10.
+1. **Scaffold** `.specify/scripts/bash/create-new-feature.sh <name>` → numbered dir under `specs/`
+2. **`/speckit.specify`** → `spec.md` (each user story independently testable)
+3. **`/speckit.plan`** → `plan.md` (architecture, component design, API changes, phases)
+4. **`/speckit.tasks`** → `tasks.md` (implementation checklist)
+5. **`/speckit.analyze`** → cross-checks spec/plan/tasks for gaps before coding
+6. **`/speckit.implement`** or work `tasks.md` manually
 
-### Additional Commands
-| Command | Purpose |
-|---------|---------|
-| `/speckit.clarify` | Ask targeted clarifying questions about requirements |
-| `/speckit.checklist` | Generate a domain-specific requirements quality checklist (e.g., UX, security, API) |
-| `/speckit.constitution` | View or update the project constitution |
-| `/speckit.taskstoissues` | Convert `tasks.md` items into GitHub issues |
+Also: `/speckit.clarify`, `/speckit.checklist`, `/speckit.constitution`, `/speckit.taskstoissues`.
 
-### Reference
-| Path | Purpose |
-|------|---------|
-| `.claude/commands/` | All speckit slash commands |
-| `.specify/templates/` | Markdown templates: spec, plan, tasks, checklist, constitution, agent-file |
-| `.specify/scripts/bash/create-new-feature.sh` | Scaffold a new feature spec directory (main entry point) |
-| `.specify/memory/constitution.md` | Stored project constitution |
-| `specs/001-meal-planner/` | Working example (spec.md, plan.md, checklists/) |
+### Bug fix vs spec tweak — decide first
+- *"The code is wrong for what we originally intended"* → **bug fix: code only.**
+  Locate the violated `FR-XXX` in `specs/<feature>/spec.md`; write a failing test **citing
+  the FR in its name** (`it('excludes items expiring today (FR-007)', …)`); fix; commit
+  referencing the FR. **If no FR covers it, the spec is incomplete — that's a spec tweak.**
+- *"What we intended has changed"* → **spec tweak: cascade in strict order** —
+  `spec.md` → run `/speckit.analyze` → `plan.md` → `tasks.md` → `checklists/` →
+  `.specify/memory/constitution.md` (amend only on a real conflict; MINOR for new guidance,
+  PATCH for clarifications). Code that no longer satisfies the revised requirement is then a
+  bug — apply the bug-fix workflow.
 
-### Bug Fixes (ensuring spec adherence)
-
-A bug is a **code failure** to meet an existing spec requirement — the spec itself does not change.
-
-1. **Locate the violated requirement** — find the acceptance scenario and `FR-XXX` in `specs/<feature>/spec.md` that the defect contradicts. If no FR covers it, the spec is incomplete → treat as a spec tweak (see below).
-2. **Write a failing test** — cite the FR number in the test name so the traceability is permanent: `it('excludes items expiring today (FR-007)', ...)`.
-3. **Fix the code** — make the test pass without touching spec, plan, or tasks.
-4. **Commit** referencing the FR: `fix: midnight cutoff off-by-one (FR-007)`.
-
-> If you find yourself wanting to change the spec to match what the code does, stop — that is a spec tweak, not a bug fix.
-
-### Spec Tweaks (cascading updates)
-
-When a requirement itself changes, update files in strict cascade order — each layer is the source of truth for the one below it:
-
-| Step | File | What to update |
-|------|------|----------------|
-| 1 | `specs/<feature>/spec.md` | Revise the acceptance scenario, `FR-XXX` statement, or `SC-XXX` metric |
-| 2 | *(run `/speckit.analyze`)* | Surfaces gaps in plan and tasks caused by the spec change |
-| 3 | `specs/<feature>/plan.md` | Update Technical Context, Constitution Check, or phase breakdown if the approach changes |
-| 4 | `specs/<feature>/tasks.md` | Add, remove, or reorder tasks to match the revised plan |
-| 5 | `specs/<feature>/checklists/` | Add or remove checklist items if validation criteria changed |
-| 6 | `.specify/memory/constitution.md` | Amend only if the change conflicts with or requires a new constitutional principle; increment version (`MINOR` for new guidance, `PATCH` for clarifications) |
-
-After updating the spec, any existing code that no longer satisfies the revised requirement becomes a bug — apply the bug-fix workflow above.
-
-**Deciding which workflow applies:**
-- "The code is wrong for what we originally intended" → **Bug fix** (code changes only)
-- "What we intended has changed" → **Spec tweak** (spec → plan → tasks → code)
+> Wanting to change the spec so it matches the code is the tell that you're doing a spec
+> tweak, not a bug fix. Stop and switch workflows.
 
 ---
 
 ## 12. Known Issues & TODOs
 
 | ID | Description | Location |
-|----|-------------|----------|
-| ~~CR-001~~ | ✅ Done (Phase D / spec 002) — `authenticate()` validates OIDC JWTs; `X-User-Id` is the dev-only seam | `packages/client/src/server/auth.ts` |
-| CR-013 | OpenAPI 3.0 spec not yet written — deferred until API shape stabilises post-Phase 2 | `packages/client/app/api/v1/` |
-| — | Drag-and-drop has intermittent bugs noted in commit history | `packages/client/src/views/CalendarPage.tsx` |
-| — | No CI/CD pipeline — GitHub Actions deferred (would run `validate-e2e.sh --no-agent` + Vitest) | repo root |
-| — | Redis-backed cache deferred to Phase 2+ | `REDIS_URL` in `.env.example` |
+|---|---|---|
+| ~~CR-013~~ | ✅ **DONE** — `docs/openapi.yaml`, GENERATED from the route tree by `scripts/generate-openapi.mjs`; `npm -w packages/client run openapi:generate` after adding a route. Paths/methods/auth/errors are derived and guarded by `openapi-contract.test.ts` (both directions). Request/response **body schemas are not yet modelled** — validation lives in controllers, not a per-route schema registry; enrich incrementally, the drift test makes that safe | `docs/openapi.yaml` |
+| — | Drag-and-drop has intermittent bugs noted in commit history | `src/views/CalendarPage.tsx` |
+| — | Redis-backed cache deferred to Phase 2+ | `REDIS_URL` |
 
 ---
 
-## 13. Key Files Quick Reference
+## 13. Things NOT to do
 
-| File | Purpose |
-|------|---------|
-| `constitution.md` | Core principles and governance — source of truth |
-| `packages/client/app/` | Next.js App Router entrypoint — layout, routes, providers, nav |
-| `packages/client/next.config.ts` | Next.js build configuration |
-| `packages/client/src/views/` | Page-level view components (`InventoryPage`, `CalendarPage`, `GroceryListPage`) |
-| `specs/001-meal-planner/spec.md` | Feature requirements |
-| `specs/001-meal-planner/plan.md` | Implementation plan |
-| `agents/meal-recommender/agent.yaml` | Holodeck agent config — model, eval metrics, test cases |
-| `agents/meal-recommender/instructions/system-prompt.md` | Claude system prompt for meal AI |
-| `packages/client/app/api/v1/` | Route Handlers (the backend) — thin adapters over `src/server/controllers/` |
-| `packages/client/src/server/db.ts` | globalThis-cached Mongoose connection |
-| `packages/client/src/server/http.ts` + `route-helpers.ts` | `ControllerResult`/`problem()` + `withRoute()` error wrapper |
-| `packages/client/src/server/lib/expiration.ts` | Expiration status logic (midnight cutoff) |
-| `packages/client/src/server/lib/grocery-list-generator.ts` | Generates grocery list items from a meal plan + inventory |
-| `scripts/smoke-test.sh` + `scripts/validate-e2e.sh` | E2E release gate (see `docs/smoke-test.md`) |
-| `.env.example` | All environment variables documented |
-| `.specify/templates/` | Spec, plan, and tasks templates for new features |
-| `.specify/scripts/bash/create-new-feature.sh` | Scaffold a new feature spec directory |
+**Don't add a vector store or embedding layer to the AI agent.** ChromaDB + Ollama
+embeddings were added and removed (`983ec78`). The recommender receives structured
+inventory JSON directly; semantic search is over-engineering here.
 
----
+**Don't let the meal recommender return prose or markdown.** The prompt was rewritten to
+enforce raw JSON (`4082def`); loosening it breaks the client's parser.
 
-## 14. Things NOT to do
+**For Anthropic agents, don't set `auth_provider: api_key` in `agent.yaml`.** Dormant —
+both agents are `provider: openai` with `api_key:` (no `auth_provider`). If an Anthropic
+agent returns, use `auth_provider: oauth_token`; `ANTHROPIC_API_KEY` is the fallback, not
+the default (`da0f65f`).
 
-**Don't add a vector store or embedding layer to the AI agent.**
-ChromaDB and Ollama embeddings were added then removed (commit `983ec78`). The meal recommender doesn't need semantic search — it receives structured inventory JSON directly. Adding embedding infrastructure is over-engineering for this use case.
+**Don't use `.js` extensions in server-layer imports.** `src/server/` is bundled by Next
+(`moduleResolution: Bundler`) — extensionless imports, `@server/*` alias across trees. This
+is the *opposite* of the retired Express `NodeNext` rule.
 
-**Don't set `auth_provider: api_key` in `agent.yaml`.**
-The agent originally defaulted to API key auth and was corrected to `oauth_token` (commit `da0f65f`). Always use `auth_provider: oauth_token`; `ANTHROPIC_API_KEY` is the fallback, not the default.
+**Don't import `src/server/*` from a Client Component.** It's Node-only (Mongoose, secrets)
+and guarded by `import 'server-only'`, which throws if pulled into the client bundle.
+Browser code reaches the API only through `src/services/*`.
 
-**Don't let the meal recommender return prose or markdown.**
-The original agent returned human-readable text; the system prompt was rewritten to enforce raw JSON only (commit `4082def`). Any prompt change that loosens this constraint will break the client's JSON parser.
+**Don't re-introduce Express or a separate API server.** Phase C-bis retired it into Route
+Handlers on one process; `packages/server` was deleted. Add backend behaviour as a Route
+Handler + controller. (Branch-scoped — `impl/vite` still runs Express.)
 
-**Don't use `.js` extensions in server-layer import paths.**
-`src/server/` is bundled by Next.js (`"moduleResolution": "Bundler"`) — imports are **extensionless** (`import { foo } from './bar'`), and use the `@server/*` alias for cross-tree imports. (This is the opposite of the old Express `NodeNext` rule, which required `.js` — that package is gone.)
+**Don't manually set `expirationStatus` in `findOneAndUpdate`.** A Mongoose
+`pre('findOneAndUpdate')` hook computes it whenever `expiresAt` changes, including the clear
+path (`expiresAt: null` → `$unset` + `none`). Writing it directly yields a stale value or is
+overwritten. **Hot-reload gotcha:** the model is reused across `next dev` reloads via the
+`mongoose.models` guard, so schema/hook edits need a dev-server restart.
 
-**Don't import `src/server/*` from a Client Component.**
-The server layer is Node-only (Mongoose, secrets) and guarded with `import 'server-only'`, which throws if pulled into the client bundle. Browser code reaches the API only through `src/services/*` (`fetch`). Keep models/DB/agent code behind the Route Handlers.
+**Don't add state management libraries (Redux, Zustand, …).** Context + hooks only —
+a third-party store duplicates the pattern and violates `constitution.md`.
 
-**Don't re-introduce Express or a separate API server.**
-Phase C-bis retired Express into Next.js Route Handlers (one process on `:3000`); `packages/server` was deleted. Add backend behaviour as a Route Handler + `src/server/controllers/*`, not a new service. (This is branch-scoped — `impl/vite` still runs Express.)
+**Don't revert this branch to Vite or recreate `vite.config.ts`.** Branch-scoped: the Vite
+implementation lives on `impl/vite` and is kept alive deliberately — don't delete or "fix"
+it from here. On `impl/nextjs` the migration is complete (`08c9e47`): no `vite.config.ts`,
+`vitest.config.ts` is tests-only, dev runs on 3000.
 
-**Don't manually set `expirationStatus` in `findOneAndUpdate` calls.**
-`expirationStatus` is auto-computed by a Mongoose `pre('findOneAndUpdate')` hook in `src/server/models/inventory-item.ts` whenever `expiresAt` changes. Writing it directly in an update will produce a stale value or get overwritten; always let the hook manage it.
-
-**Don't add state management libraries (Redux, Zustand, etc.).**
-All shared state uses React Context + custom hooks. Adding a third-party store would duplicate the existing pattern and violate the architecture constraint in `constitution.md`.
-
-**Don't revert THIS branch (`impl/nextjs`) to Vite or recreate `vite.config.ts` for the client.**
-This rule is **branch-scoped**: the Vite implementation lives on its own long-lived `impl/vite` branch and is kept alive deliberately — do not delete or "fix" it from here. On `impl/nextjs`, the client was fully migrated to Next.js 15 App Router (commit `08c9e47`): `vite.config.ts` is gone; `vitest.config.ts` handles tests only; the dev server runs on port 3000 via `next dev --port 3000`, not Vite's 5173.
-
-**Don't create files under `src/pages/` in the client.**
-Next.js reserves `pages/` for the Pages Router. The App Router lives in `app/`; page-level view components live in `src/views/`. Using `src/pages/` will confuse both the framework and developers.
+**Don't create `src/pages/` in the client.** Next reserves `pages/` for the Pages Router;
+the App Router is `app/` and page-level views are `src/views/`.
 
 ---
 
-## 15. Deployment (staged, Portainer, orchestrated)
+## 14. Deployment (Portainer CE, orchestrated)
 
-Production deploys via a **staged runbook driven by an orchestrator**, so most file work is automated while Portainer/router/host steps prompt the human.
+Staged runbook: stand the stack up **internally first** (Stage 1 — `fridgeplanner.lan`,
+Caddy internal CA), prove it end-to-end, then go public (Stage 2 — real domain, Let's
+Encrypt, router forwarding). **The internal smoke test is a hard gate before any Stage 2 step.**
 
-**Strategy:** stand the stack up **internally first** (Stage 1 — LAN hostname `fridgeplanner.lan`, Caddy internal CA), prove it end-to-end, then **go public** (Stage 2 — real domain, Let's Encrypt, router forwarding). The internal smoke test is a hard gate before any Stage 2 step.
+**Files:** `docker-compose.prod.yml` (only `caddy` publishes ports; everything else internal
+on `fpnet`; `${VAR:?}` fail-fast; `AUTH_JWKS_URI` targets internal `http://keycloak:8080`
+by design while `AUTH_ISSUER` uses the public host) · `deploy/Caddyfile` ·
+`deploy/prod.env.example` (placeholders only) · `deploy/checklist.yaml` (step manifest) ·
+`deploy/state.json` (resumable progress) · `docs/deployment.md` (prose runbook) ·
+`.claude/skills/deploy-runbook/SKILL.md` (orchestrator — `/deploy-runbook`) ·
+`.claude/agents/deploy-file-writer.md` (edits deploy files; never deploys) ·
+`.github/workflows/deploy-nextjs.yml` (digest-pinned build-push; **edit, never regenerate**).
 
-**Files (all already in the repo unless noted):**
-- `docker-compose.prod.yml` (repo root) — the prod stack. Only `caddy` publishes ports; app pulls `${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client}`; `mongodb`/`holodeck`/`keycloak`/`keycloak-db` are internal on `fpnet`; `${VAR:?}` fail-fast. `AUTH_JWKS_URI` targets the **internal** `http://keycloak:8080` by design (server-to-server); only `AUTH_ISSUER` uses the public host. `AUTH_ALLOW_DEV` is intentionally absent (FR-D-008).
-- `deploy/Caddyfile` — Stage 1 `local_certs` + `fridgeplanner.lan`/`auth.fridgeplanner.lan`, 300s timeouts.
-- `deploy/prod.env.example` — the host `.env` template (placeholders): `MONGO_ROOT_USER/PASSWORD`, `OIDC_REALM`, `OIDC_AUDIENCE`, `KC_DB_*`, `KC_ADMIN_*`, `APP_IMAGE`, LLM creds.
-- `deploy/checklist.yaml` — machine-readable step manifest the orchestrator walks.
-- `deploy/state.json` — progress + decisions; lets the orchestrator resume across sessions (seed: `deploy/state.example.json`).
-- `docs/deployment.md` — the prose runbook.
-- `.claude/skills/deploy-runbook/SKILL.md` — the orchestrator. Invoke `/deploy-runbook` (or "continue the deployment"); `/deploy-runbook status` shows progress.
-- `.claude/agents/deploy-file-writer.md` — subagent that verifies/edits the deploy files + CI. Never deploys, never touches Portainer.
-- `.github/workflows/deploy-nextjs.yml` — the **existing** gated CD workflow (digest-pinned build-push, `production` environment gate, OIDC-enforcement smoke, rollback stub). Publishes `…/fridge-planner-client`. The orchestrator **edits** it in Stage 2 (OIDC build-args, deploy-path reconcile) — never regenerates it.
+**Automation boundary:**
+- **Agent may:** verify/edit the deploy files and CI workflow; **roll out an approved
+  release** (below).
+- **Human only (the orchestrator stops and never simulates):** stack creation, stack env
+  vars, registry credentials, container console, trusting the internal CA, router
+  port-forwarding, host firewall, DNS, Keycloak realm/client config.
 
-**The automation boundary:**
-- **agent (automated in repo):** verify/edit `docker-compose.prod.yml`, `deploy/Caddyfile`, `.github/workflows/deploy-nextjs.yml`. Most are verify-only (files already exist and are correct).
-- **manual (human, prompted):** Portainer stack deploy/redeploy, stack env vars, container console, trusting the internal CA, router port-forwarding, host firewall, DNS, Keycloak realm/client. The orchestrator **stops** at these and never simulates them.
+**Releasing — the pin bump IS the deploy.** Every image in `docker-compose.prod.yml` is
+pinned to an explicit version in git. Portainer's GitOps poll sees the new commit and the
+resolved tag isn't in the local cache, forcing a pull.
 
-**Rules (in addition to §7/§14):**
-- Secrets never enter the repo — only `deploy/prod.env.example` (placeholders) is committed. Real values go in Portainer stack env (Path A) or a host `.env` next to the compose (Path B).
-- `AUTH_ALLOW_DEV` must never appear in any committed file or production env.
-- App image is `ghcr.io/emtabiraobarias/fridge-planner-client`; `…/fridge-planner` (no suffix) is the Holodeck image.
-- CD is **edition-aware**: Portainer **CE** can't use stack webhooks (Business-only). On CE, keep the self-hosted-runner compose rollout (an admin installs the runner once) or stop at build-push and do Portainer **Pull and redeploy** by hand; **BE** could POST a redeploy webhook behind the gate.
-- The prod stack deploys **through Portainer**; the dev `docker compose` commands in §2 are for local development only.
+> **Order is load-bearing: merge → tag → wait for CI green (image on GHCR) → bump the pin →
+> `scripts/verify-rollout.sh <version>`.** Never bump before the image exists or the poll
+> pulls a missing tag. Rollback = revert the bump commit. Preconditions: tagged, CI green,
+> and **release approved by the user** — automation covers the rollout, not the decision to
+> ship. (`scripts/deploy-release.sh <version>` forces an immediate redeploy but needs an API
+> token nobody is required to provide.)
 
+> **Always cut the tag with `scripts/cut-release.sh <version>` — never bare `git tag`.** It
+> resolves the target from `origin/impl/nextjs` **after fetching**, so the tag cannot land on
+> whatever an unrelated worktree has checked out, and it refuses a version that doesn't
+> contain the previous release. This exists because 4.14.0 was a *lightweight* tag on a commit
+> **139 behind** the branch: CI built that tree, published it as `:4.14.0`, and Portainer
+> deployed it faithfully — prod served two-month-old code while `/api/health` returned 200.
+> A second near-miss the same day (4.14.1, cut on a 4-commit-stale HEAD) silently dropped a
+> merged PR's admin panels. **The pin can be perfectly correct and the image still wrong.**
+> The `guard` job in `deploy-nextjs.yml` is the backstop — it rejects lightweight tags, tags
+> off `impl/nextjs`, and tags that don't contain the prior release, before any image is built.
+> It would have caught 4.14.0; only the script catches the 4.14.1 stale-HEAD case.
 
-## Active Technologies
-- TypeScript 5.x strict, Node 20, Next.js 15 (App Router Route Handlers), React 18, Mongoose 8, Zod, jose, Tailwind
-- MongoDB — spec 012 evolves the existing `pipeline_items` collection in place rather than adding one
+**Rules:**
+- **Secrets never enter the repo** — only `deploy/prod.env.example` placeholders are
+  committed. Real values go in Portainer stack env or a host `.env`.
+- **`AUTH_ALLOW_DEV` must never appear in any committed file or production env**, and never
+  set `AUTH_DEV_*` in production.
+- App image is `ghcr.io/emtabiraobarias/fridge-planner-client`; `…/fridge-planner` (no
+  suffix) is the Holodeck image.
+- Prod deploys **through Portainer**; the `docker compose` commands in §2 are local-dev only.
+- **Never conclude a release landed from `/api/health` returning 200** — a stale container
+  returns that too. `/api/health` reports the `version` baked in at build time from the git
+  tag; `scripts/verify-rollout.sh <version>` is the check. 4.9.0 and earlier report no
+  `version` field. This exact trap hid a stalled rollout for a day.
 
-## Recent Changes
-- **012 Feedback Lifecycle** (`012-implement`): plan + research + data model + contracts authored.
-  Adds no dependency and no collection. Two notes worth carrying:
-  - Erasure must **detach, not delete** the lifecycle item (D15) — `lib/account-purge.ts` currently
-    deletes it, so CLAUDE.md §5's single "user-keyed collections" list becomes two lists with
-    different semantics.
-  - `GITHUB_REPO` is the first outbound third-party dependency (read-only release list, D17). It
-    must degrade rather than block: closure can never be gated on it.
+---
+
+## 15. Orchestration workflow
+
+You are the orchestrator: plan, decompose, synthesize. Reasoning-heavy phases go to
+**deep-reasoner**; mechanical work to **fast-worker**. For high-stakes decisions run
+deep-reasoner twice with slightly different framings and synthesize. Keep your own context
+lean — delegate rather than doing mechanical work yourself.

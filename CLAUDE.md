@@ -65,7 +65,7 @@ packages/client/                  # the whole app — UI + API
 │   │                             #   landscape rail / desktop collapsible sidebar (250↔76px)
 │   └── api/v1/                   # ROUTE HANDLERS (the backend) — thin; call src/server/controllers
 │                                 #   inventory/ meal-plans/ grocery-lists/ recommendations/
-│                                 #   quick-add/ feedback/ pipeline/ admin/ me/
+│                                 #   quick-add/ feedback/ admin/ me/
 ├── src/
 │   ├── components/               # account/ admin/ calendar/ feedback/ grocery/ home/ inventory/
 │   │                             #   recommendations/ shell/ (AppShell) shared/ (Overlay, Toast)
@@ -103,7 +103,7 @@ owning `specs/NNN-*/spec.md`; this table is the map, not the specification.
 
 **Rate limits:** recommendations 10/min · verify-links 30/min · quick-add parse 20/min ·
 feedback chat 10/min (`feedback-chat:${userId}`, shared across both chat endpoints) ·
-promote + pipeline 100/min · everything else 100/min.
+everything else 100/min.
 
 ### Inventory
 | Method | Path | Notes |
@@ -149,12 +149,12 @@ promote + pipeline 100/min · everything else 100/min.
 | DELETE | `…/items/:itemId` | remove |
 | POST | `/grocery-lists/:weekStart/complete` | checkout: skip receipted rows, apply purchase rules to receipt-less rows, store receipts, mark purchased |
 
-### Feedback & Development Pipeline (spec 003)
+### Feedback (spec 003 — the lifecycle that follows is spec 012, below)
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/feedback` · `/feedback/:id/messages` | start / continue a conversation; 409 once `complete` |
 | GET | `/feedback[?status]` · `/feedback/:id` · `/feedback/:id/export` | own records; export is spec-template markdown, 409 while `draft` |
-| DELETE | `/feedback/:id` | **409 `Pipeline Active`** if a non-`parked` PipelineItem references it; a `parked` item cascades; else 204/404 |
+| DELETE | `/feedback/:id` | **409** if a non-`parked` LifecycleItem references it (FR-FL-006); the refusal names park as the unblock. A `parked` item cascades; else 204/404 |
 
 > `shipped` is reachable **only** via an explicit `approve-release`, never derived from
 > record content, and **no transition ever commits, merges, tags, or deploys**
@@ -199,7 +199,7 @@ refresh-retry trigger, so 401 would loop. Role comes from a **verified token cla
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/me` | **not** admin-only — `{userId, isAdmin}`; the UI hides on this |
-| GET | `/admin/feedback` · `/admin/feedback/:id` | cross-user triage `?status=&userId=`, pipeline stage joined |
+| GET | `/admin/feedback` · `/admin/feedback/:id` | cross-user records `?status=&userId=`, lifecycle stage joined; a title-less draft carries `excerpt` (its first transcript line) so it is identifiable |
 | GET | `/admin/users/:userId/data` | read-only support view — **GET is the only verb** (FR-AD-015) |
 | GET | `/admin/users/:userId/export` | everything held, all six collections |
 | POST | `/admin/users/:userId/erase` · `/restore` · `/admin/users/purge` | two-phase soft delete (immediately inaccessible, purge after 30d) · undo inside the window, **410** after · explicit purge trigger (no scheduler exists) |
@@ -571,7 +571,7 @@ Also: `/speckit.clarify`, `/speckit.checklist`, `/speckit.constitution`, `/speck
 
 | ID | Description | Location |
 |---|---|---|
-| CR-013 | OpenAPI 3.0 spec not written — deferred until the API shape stabilises post-Phase 2 | `app/api/v1/` |
+| ~~CR-013~~ | ✅ **DONE** — `docs/openapi.yaml`, GENERATED from the route tree by `scripts/generate-openapi.mjs`; `npm -w packages/client run openapi:generate` after adding a route. Paths/methods/auth/errors are derived and guarded by `openapi-contract.test.ts` (both directions). Request/response **body schemas are not yet modelled** — validation lives in controllers, not a per-route schema registry; enrich incrementally, the drift test makes that safe | `docs/openapi.yaml` |
 | — | Drag-and-drop has intermittent bugs noted in commit history | `src/views/CalendarPage.tsx` |
 | — | Redis-backed cache deferred to Phase 2+ | `REDIS_URL` |
 
