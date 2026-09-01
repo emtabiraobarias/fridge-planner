@@ -76,7 +76,7 @@ services:
     #   guard, which wrongly read every annotated tag as lightweight (fixed in ae2e09a).
     #   The tag was left in place rather than re-pointed: re-pointing a published tag is the
     #   thing this whole pinning scheme exists to prevent.
-    image: ${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client:4.15.1}
+    image: ${APP_IMAGE:-ghcr.io/emtabiraobarias/fridge-planner-client:4.15.2}
     restart: unless-stopped
     environment:
       NODE_ENV: production
