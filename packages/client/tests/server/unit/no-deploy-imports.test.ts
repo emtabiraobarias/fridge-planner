@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// FR-F-017 / SC-F-008 architecture invariant: the pipeline layer must be STRUCTURALLY
+// FR-FL-057 / SC-FL-007 architecture invariant: the lifecycle layer must be STRUCTURALLY
 // incapable of a merge / tag / deploy side effect. We assert the source text of the
 // controller and the pure state machine reference no process-spawning, git, or deploy
 // module — so `approve-release` can only ever flip a DB field, never ship anything.
@@ -17,8 +17,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const clientRoot = path.resolve(here, '../../..');
 
 const GUARDED_FILES = [
-  'src/server/controllers/pipeline.ts',
-  'src/server/lib/pipeline-transitions.ts',
+  'src/server/controllers/lifecycle.ts',
+  'src/server/lib/lifecycle-stages.ts',
 ];
 
 // Tokens that would indicate an ability to run a subprocess, drive git, or deploy.
@@ -39,7 +39,7 @@ const FORBIDDEN: Array<{ label: string; pattern: RegExp }> = [
   { label: 'shell/deploy', pattern: /\b(?:shelljs|dockerode|kubernetes-client)\b/ },
 ];
 
-describe('FR-F-017 — pipeline layer is structurally incapable of merge/tag/deploy (T018)', () => {
+describe('FR-FL-057 — the lifecycle layer is structurally incapable of merge/tag/deploy', () => {
   for (const rel of GUARDED_FILES) {
     it(`${rel} references no process/git/deploy-capable module`, () => {
       const source = readFileSync(path.join(clientRoot, rel), 'utf8');

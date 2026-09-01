@@ -121,13 +121,18 @@ Gains a fourth dependency (`FR-FL-047`), alongside `mongodb`, the two agents and
 Never `down` — an unreachable release list does not make the app unready, because nothing
 user-facing blocks on it.
 
-### `/api/v1/pipeline/**` — deprecated, kept
-Reads proxy to the new controller; writes refuse once the maintainer surface lands. Removed in a
-follow-up once no client calls it (see plan → Migration).
+### `/api/v1/pipeline/**` — REMOVED 2026-09-01
+The deprecation window closed: no client called it. Reads had proxied to the new controller and
+writes returned 410. Use `/api/v1/admin/lifecycle`.
 
-### `POST /feedback/:id/promote` — superseded
-Replaced by `PATCH /admin/lifecycle/:id {action:'accept'}`. Kept returning its idempotent response
-during the deprecation window.
+### `POST /feedback/:id/promote` — REMOVED 2026-09-01
+Replaced by `PATCH /admin/lifecycle/:id {action:'accept'}`. It had become unreachable in practice
+long before removal: since `FR-FL-001` a lifecycle item exists from the moment a record completes,
+so promote always took its idempotent branch and never moved a stage. The last caller was a button
+on the reporter's own feedback list, removed in 4.15.2.
+
+`PipelineItem` (the model) and `types/pipeline.ts` deliberately REMAIN: `LifecycleItem` shares the
+`pipelineitems` collection with it, and a test asserts that parity rather than a literal name.
 
 ---
 

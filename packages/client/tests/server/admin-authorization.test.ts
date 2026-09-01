@@ -47,9 +47,7 @@ process.env['MONGODB_URI'] = mongod.getUri();
 const adminFeedback = await import('../../app/api/v1/admin/feedback/route');
 const adminFeedbackId = await import('../../app/api/v1/admin/feedback/[id]/route');
 const adminAudit = await import('../../app/api/v1/admin/audit/route');
-const promote = await import('../../app/api/v1/feedback/[id]/promote/route');
 const exportRoute = await import('../../app/api/v1/feedback/[id]/export/route');
-const pipelineId = await import('../../app/api/v1/pipeline/[id]/route');
 const adminUserData = await import('../../app/api/v1/admin/users/[userId]/data/route');
 const adminSettings = await import('../../app/api/v1/admin/settings/route');
 const adminUsage = await import('../../app/api/v1/admin/usage/route');
@@ -111,20 +109,13 @@ const ROWS: Row[] = [
   },
   { name: 'POST /api/v1/admin/users/purge', method: 'POST', invoke: (r) => adminPurge.POST(r) },
   // ─── shipped maintainer actions that spec 011 put behind the guard ───────
-  {
-    name: 'POST /api/v1/feedback/:id/promote',
-    method: 'POST',
-    invoke: (r) => promote.POST(r, idCtx),
-  },
+  // `POST /feedback/:id/promote` and `PATCH /pipeline/:id` were rows here until their routes
+  // were removed (2026-09-01, deprecation window closed). Their guard coverage moves with the
+  // capability: acceptance is now `PATCH /admin/lifecycle/:id`, covered above.
   {
     name: 'GET /api/v1/feedback/:id/export',
     method: 'GET',
     invoke: (r) => exportRoute.GET(r, idCtx),
-  },
-  {
-    name: 'PATCH /api/v1/pipeline/:id',
-    method: 'PATCH',
-    invoke: (r) => pipelineId.PATCH(r, idCtx),
   },
 ];
 
@@ -155,7 +146,12 @@ describe('refusal matrix — every admin-only route (SC-AD-001)', () => {
   it('enumerates at least every admin route the app exposes', () => {
     // A guard on the guard: if this drops to zero the matrix has silently stopped
     // testing anything.
-    expect(ROWS.length).toBeGreaterThanOrEqual(17);
+      //
+      // 17 → 15 on 2026-09-01, when `POST /feedback/:id/promote` and `PATCH /pipeline/:id`
+      // were REMOVED (deprecation window closed; no client called them). Lower this only for
+      // a route that genuinely no longer exists — never to turn a red test green, which is
+      // precisely what this floor exists to catch.
+      expect(ROWS.length).toBeGreaterThanOrEqual(15);
   });
 
   it.each(ROWS.map((r) => [r.name, r] as const))(

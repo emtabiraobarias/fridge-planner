@@ -155,10 +155,6 @@ promote + pipeline 100/min · everything else 100/min.
 | POST | `/feedback` · `/feedback/:id/messages` | start / continue a conversation; 409 once `complete` |
 | GET | `/feedback[?status]` · `/feedback/:id` · `/feedback/:id/export` | own records; export is spec-template markdown, 409 while `draft` |
 | DELETE | `/feedback/:id` | **409 `Pipeline Active`** if a non-`parked` PipelineItem references it; a `parked` item cascades; else 204/404 |
-| POST | `/feedback/:id/promote` | promote a `complete` record to stage `approved` — 201 first, idempotent 200 on repeat, 409 `Not Promotable` on a draft, 404 cross-user. Sets source `status:'reviewed'` |
-| GET | `/pipeline[?stage=]` · `/pipeline/:id` | **deprecated reads** — kept for the migration window; the same collection is served by `/lifecycle` and `/admin/lifecycle` |
-| PATCH | `/pipeline/:id` | ⚠️ **RETIRED — 410 Gone.** Transitions moved to `PATCH /admin/lifecycle/:id` (spec 012). It cannot forward: the old action set assumed `approved→in-spec→in-review→shipped`, and 012 inserts `briefed` and `in-progress`, so the same action name means a different destination. The admin guard still runs first, so a non-admin gets 403 |
-| POST | `/feedback/:id/promote` | **superseded** by `PATCH /admin/lifecycle/:id {action:'accept'}`. An item now exists from `complete` (FR-FL-001), so promotion never creates one — it returns its idempotent existing-item 200 and does **not** move the stage |
 
 > `shipped` is reachable **only** via an explicit `approve-release`, never derived from
 > record content, and **no transition ever commits, merges, tags, or deploys**

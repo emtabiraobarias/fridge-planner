@@ -24,7 +24,8 @@ mkdirSync(SHOTS, { recursive: true });
  * They now drive `/api/v1/admin/lifecycle` and the `/admin` Delivery surface, since the reporter
  * surface no longer carries acting controls (FR-FL-052/053).
  *
- * `POST /feedback/:id/promote` is deprecated: a lifecycle item now exists from the moment a
+ * `POST /feedback/:id/promote` and `/api/v1/pipeline/**` are GONE (removed once no client
+ * called them). A lifecycle item now exists from the moment a
  * record reaches `complete` (FR-FL-001), so promotion is never the call that creates one. It
  * returns its idempotent existing-item response and does NOT move the stage — acceptance is
  * `PATCH /admin/lifecycle/:id {action:'accept'}`. Its refusal tests still run unchanged.
@@ -71,30 +72,23 @@ async function seedCompleteFeedback(page: Page, title: string): Promise<SeededFe
   return seeded;
 }
 
-async function promoteRecord(page: Page, feedbackId: string): Promise<SeededPipelineItem> {
-  const res = await page.request.post(`/api/v1/feedback/${feedbackId}/promote`);
-  const data = (await res.json().catch(() => ({}))) as {
-    pipelineItem?: { _id: string; stage: string };
+/**
+ * The item for a completed record. It exists from the moment the record completes
+ * (FR-FL-001), so there is nothing to "promote" — this looks it up rather than creating it.
+ */
+async function itemFor(page: Page, feedbackId: string): Promise<SeededPipelineItem> {
+  const res = await page.request.get('/api/v1/admin/lifecycle');
+  const { items } = (await res.json()) as {
+    items: { _id: string; stage: string; feedbackRecordId: string }[];
   };
-  return {
-    id: data.pipelineItem?._id ?? '',
-    stage: data.pipelineItem?.stage ?? '',
-    status: res.status(),
-  };
-}
-
-function patchPipeline(
-  page: Page,
-  id: string,
-  body: Record<string, unknown>,
-): Promise<APIResponse> {
-  return page.request.patch(`/api/v1/pipeline/${id}`, { data: body });
+  const found = items.find((i) => i.feedbackRecordId === feedbackId);
+  return { id: found?._id ?? '', stage: found?.stage ?? '', status: res.status() };
 }
 
 async function pipelineStage(page: Page, id: string): Promise<string> {
-  const res = await page.request.get(`/api/v1/pipeline/${id}`);
-  const data = (await res.json()) as { pipelineItem: { stage: string } };
-  return data.pipelineItem.stage;
+  const res = await page.request.get(`/api/v1/admin/lifecycle/${id}`);
+  const data = (await res.json()) as { stage: string };
+  return data.stage;
 }
 
 function pipelineSection(page: Page) {
@@ -214,8 +208,12 @@ test('promoting a draft record is refused (409, FR-F-013)', async ({ page }) => 
   );
   expect(seeded.status).toBe('draft');
 
-  const res = await page.request.post(`/api/v1/feedback/${seeded.id}/promote`);
-  expect(res.status()).toBe(409);
+  // `POST /feedback/:id/promote` is gone: FR-F-013 was superseded in full by 012, and a
+  // lifecycle item is created when a record COMPLETES (FR-FL-001). The rule that test was
+  // really protecting survives — a draft never reaches the triage queue at all.
+  const queue = await page.request.get('/api/v1/admin/lifecycle');
+  const { items } = (await queue.json()) as { items: { feedbackRecordId: string }[] };
+  expect(items.some((i) => i.feedbackRecordId === seeded.id)).toBe(false);
 });
 
 test('advance attempted past a gate is refused and the stage never changes (409, FR-FL-003/015)', async ({
@@ -301,23 +299,19 @@ test('an end user cannot promote, and cannot walk an item to shipped (FR-AD-010/
     page,
     `Refusal ${randomUUID().slice(0, 8)}`,
   );
-  const promoted = await promoteRecord(page, feedbackId);
-  // 200 since spec 012 — the item already exists from `complete`, so promote is never the
-  // creating call. It still performs gate-1 acceptance; see the banner at the top of this file.
-  expect([200, 201]).toContain(promoted.status);
+  const promoted = await itemFor(page, feedbackId);
+  expect(promoted.id).not.toBe('');
 
-  // Promotion of a fresh record, as an end user → refused.
-  const other = await seedCompleteFeedback(page, `Refusal2 ${randomUUID().slice(0, 8)}`);
-  const promoteAsUser = await page.request.post(`/api/v1/feedback/${other.id}/promote`, {
-    headers: AS_END_USER,
-  });
-  expect(promoteAsUser.status()).toBe(403);
+  // Reading the queue at all, as an end user → refused. 403 and never 401: the client treats
+  // 401 as its FR-D-010 refresh trigger, so 401 here would loop.
+  const listAsUser = await page.request.get('/api/v1/admin/lifecycle', { headers: AS_END_USER });
+  expect(listAsUser.status()).toBe(403);
 
   const stageBefore = await pipelineStage(page, promoted.id);
 
   // Every rung of the ladder to `shipped`, as an end user → refused.
-  for (const action of ['advance', 'approve-spec', 'approve-release']) {
-    const res = await page.request.patch(`/api/v1/pipeline/${promoted.id}`, {
+  for (const action of ['accept', 'advance', 'approve-spec', 'approve-release']) {
+    const res = await page.request.patch(`/api/v1/admin/lifecycle/${promoted.id}`, {
       data: { action },
       headers: AS_END_USER,
     });
