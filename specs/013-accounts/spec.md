@@ -15,6 +15,16 @@ to self-register. Keycloak was chosen for MVP convenience and may be replaced by
 > (`FR-AD-016..021`); this spec gives the account holder the equivalent over their own, reusing the same
 > machinery rather than a second implementation. `001` `FR-036` per-user isolation is unchanged throughout.
 
+## Clarifications
+
+### Session 2026-09-03
+
+- Q: Password reset — does the app trigger the provider's flow, or complete it in-app? → A: The app triggers; the provider completes. The app never handles password material or reset tokens.
+- Q: The stored email is what a new issuer matches against — what keeps it from going stale? → A: Both: refresh it from the verified claim on sign-in, AND lock the attribute at the provider so users cannot change it. The lock is defence-in-depth; the refresh is what the app itself guarantees.
+- Q: Does the migration rewrite records that merely REFERENCE a user (audit entries, erasure state), or only user-owned data? → A: Owned data only. Audit entries keep the subject as recorded and resolve through the identity table when displayed, preserving `011` FR-AD-022's append-only guarantee.
+- Q: A deleted user can still authenticate at the provider and receive a fresh valid token — what stops them re-entering a broken app? → A: Suspend the provider account for the recovery window and delete it at purge; restore resumes it. The app also refuses every request via the existing erasure check.
+- Q: `FR-AC-018` requires rate limiting but names no target, which is untestable — what are the limits and what are they keyed on? → A: Per source address, separate buckets: registration 5/min, password reset 10/min.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Someone signs themselves up (Priority: P1)
@@ -124,7 +134,8 @@ address, confirm the internal identity is reused and all prior data resolves.
   system shall resolve it to the corresponding internal identifier.
 - **FR-AC-005**: The system shall store the account's email address and display name against the internal
   identifier.
-- **FR-AC-006**: The system shall migrate existing user-owned documents to internal identifiers as a one-off task.
+- **FR-AC-006**: The system shall migrate documents in the user-keyed stores to internal identifiers as a
+  one-off task.
 - **FR-AC-007**: The system shall not perform that migration on startup.
   > A startup migration that fails is invisible; the same rule `012` applied to its stage migration.
 
@@ -152,7 +163,13 @@ address, confirm the internal identity is reused and all prior data resolves.
 - **FR-AC-016**: If an address is already registered, then the system shall refuse without disclosing
   whether that address exists.
 - **FR-AC-017**: When the provider rejects a password, the system shall present the provider's stated reason.
-- **FR-AC-018**: The system shall rate-limit registration and password-reset requests.
+- **FR-AC-018**: The system shall limit registration requests to **5 per minute** per source address.
+- **FR-AC-044**: The system shall limit password-reset requests to **10 per minute** per source address.
+  > Clarified 2026-09-03. Keyed on source address because both endpoints are reachable while signed out, so
+  > there is no user to key a bucket on — unlike every existing limiter in the app. Separate buckets because
+  > the abuse shapes differ: registration creates provider-side state and sends mail, while reset is an
+  > email-enumeration probe. An unquantified "shall be rate-limited" is not testable, which is why the
+  > numbers are named here rather than deferred to the plan.
 - **FR-AC-019**: The system shall reach the identity provider through a single internal interface.
 - **FR-AC-020**: The system shall not permit any other module to call the provider's administrative API directly.
   > The provider is expected to change. Confining it to one adapter makes that a replacement of one module rather than of the feature.
@@ -160,7 +177,25 @@ address, confirm the internal identity is reused and all prior data resolves.
 #### Self-service management
 
 - **FR-AC-021**: The system shall allow a signed-in user to change their display name.
-- **FR-AC-022**: The system shall allow a user to initiate a password reset for their address.
+- **FR-AC-022**: When a user requests a password reset, the system shall ask the identity provider to send
+  its own reset message to that address.
+- **FR-AC-033**: The system shall not handle password material or password-reset tokens.
+  > Clarified 2026-09-03. Completing a reset in-app would mean owning token generation, expiry, single-use
+  > enforcement and replay protection — the security work the provider is there to do — and would thicken
+  > the one adapter `FR-AC-019` keeps thin.
+- **FR-AC-034**: When a request presents a token carrying a verified email that differs from the address
+  stored for that identity, the system shall replace the stored address with it.
+  > Clarified 2026-09-03. The stored email is the key `FR-AC-009` matches on when a new issuer appears, so a
+  > stale value is a hijack risk, not a freshness annoyance: if the real user moves to a new address and
+  > someone else later registers and verifies the old one, matching would hand them the original account.
+  > Refreshing on sign-in closes that window using only what the app already receives.
+- **FR-AC-035**: The system shall not treat provider-side restriction of email changes as a precondition
+  for correctness.
+  > The account holder's email is ALSO locked at the provider (Keycloak: declarative user profile, email
+  > admin-editable only) — recorded in the deployment runbook as a manual step, alongside the
+  > `post_logout_redirect_uri` registration `002` already requires. That lock is defence-in-depth: the app
+  > cannot verify it is in force, it does not survive a provider change by itself, and no test can observe
+  > it. `FR-AC-034` is what the app guarantees on its own terms.
 - **FR-AC-023**: The system shall return an identical response to a password-reset request whether or not
   the address is registered.
 - **FR-AC-024**: The system shall allow a signed-in user to export all data held about them, covering every
@@ -194,6 +229,45 @@ address, confirm the internal identity is reused and all prior data resolves.
   lists — see the "adding a seventh" rule in the repository guide.
 - **Identity link**: one `(issuer, subject)` pair resolving to an Account. Several may exist per Account,
   which is what makes a provider change survivable.
+
+#### Deletion reaches the provider *(clarified 2026-09-03)*
+
+- **FR-AC-039**: When a user's account is erased, the system shall suspend the corresponding
+  identity-provider account.
+  > Without this, deletion is app-only: the provider knows nothing about erasure, so the user can
+  > authenticate successfully, receive a brand-new valid token, and meet a `401` on every request — signed
+  > in at the identity provider and comprehensively broken in the app, with nothing explaining why. Worse,
+  > `002` `FR-D-010` treats `401` as its refresh-and-retry trigger, so the attempt costs a token refresh to
+  > reach the same failure. Suspending fails them at the login page instead, with the provider's own
+  > message.
+- **FR-AC-040**: When an erased account is restored inside the recovery window, the system shall resume the
+  corresponding identity-provider account.
+- **FR-AC-041**: When an erasure is purged, the system shall delete the corresponding identity-provider
+  account.
+- **FR-AC-042**: The system shall express provider suspension, resumption and deletion in its own
+  vocabulary at the adapter boundary.
+  > `suspend` / `resume` / `delete`, not the provider's spelling of them — Keycloak's `enabled:false`,
+  > Auth0's `blocked:true`, Okta's `lifecycle/suspend` and Entra's `accountEnabled:false` are all the same
+  > intent. Keeping the provider's vocabulary inside the adapter is what `FR-AC-019` is for. These add no
+  > new dependency: the adapter already needs administrative write access for `FR-AC-013`/`FR-AC-014`.
+- **FR-AC-043**: While an account is erased, the system shall refuse every request authenticated as it.
+  > Already true — the erasure check runs at the auth seam on every authenticated request, and the smoke
+  > gate asserts it. Stated so that `FR-AC-039` is understood as defence in depth rather than the only
+  > barrier: a token issued before suspension stays cryptographically valid until it expires.
+
+#### Migration scope *(clarified 2026-09-03)*
+
+- **FR-AC-036**: The system shall not rewrite administrative audit entries when migrating to internal
+  identifiers.
+  > `011` `FR-AD-022` makes the audit log append-only, and `lib/audit.ts` exports only `record` and `list`
+  > precisely so no update path exists. A migration that rewrote history would have to add one.
+- **FR-AC-037**: When presenting an audit entry whose recorded subject is a provider subject, the system
+  shall resolve it through the identity links to the internal identifier.
+- **FR-AC-038**: The system shall key erasure state by internal identifier.
+  > Not cosmetic. The erasure refusal runs on every authenticated request, and after a provider link one
+  > account has several `(issuer, subject)` pairs. Keyed by provider subject, an erasure recorded against
+  > the old subject would not refuse a request arriving under the new one — the account would come back to
+  > life on migration day. Erasure state is operational, not history, so unlike the audit log it moves.
 
 ## Out of Scope *(recorded, not addressed here)*
 
