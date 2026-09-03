@@ -195,6 +195,15 @@ address, confirm the internal identity is reused and all prior data resolves.
 - **Identity link**: one `(issuer, subject)` pair resolving to an Account. Several may exist per Account,
   which is what makes a provider change survivable.
 
+## Out of Scope *(recorded, not addressed here)*
+
+- **OIDC endpoint discovery.** `AuthContext` constructs the authorize / token / end-session URLs from
+  `NEXT_PUBLIC_OIDC_ISSUER` *"using Keycloak's realm paths"* rather than reading
+  `/.well-known/openid-configuration`. Every provider lays those paths out differently, so this is a real
+  coupling — but it is client-side, independent of everything specified here, and cheap to fix on its own.
+  It does not bite while Keycloak remains the provider. **Tracked as tech debt; not a prerequisite for this
+  spec.** Fixing it is what would make `SC-AC-008` true for the browser as well as the server.
+
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
