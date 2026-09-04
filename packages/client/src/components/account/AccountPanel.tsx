@@ -1,5 +1,6 @@
 'use client';
-import { LogOut, LogIn } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, LogIn, UserPlus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useMe } from '../../hooks/useMe';
 import type { Me } from '../../services/admin';
@@ -78,8 +79,18 @@ export function AccountPanel({ variant = 'row' }: AccountPanelProps): React.JSX.
   // FR-D-013: a signed-out user gets a sign-in action WITHOUT having to provoke a
   // failed request first. AuthBanner's post-401 prompt (FR-D-009) is unchanged; it is
   // simply no longer the only route in.
+  //
+  // Spec 013 FR-AC-029 extends the same reasoning to registration: this panel is mounted on
+  // Home and in the sidebar footer, so it is the ONLY place a person with no account can be
+  // handed one. Without the second link, `/account` would exist and be unreachable by
+  // exactly the people it is for.
   return (
-    <div className={variant === 'compact' ? 'px-3 py-2' : ROW_CLASS} data-testid="account-panel">
+    <div
+      className={
+        variant === 'compact' ? 'flex flex-col gap-2 px-3 py-2' : `${ROW_CLASS} gap-2`
+      }
+      data-testid="account-panel"
+    >
       <button
         type="button"
         onClick={login}
@@ -88,6 +99,14 @@ export function AccountPanel({ variant = 'row' }: AccountPanelProps): React.JSX.
         <LogIn aria-hidden className="h-4 w-4" />
         Sign in
       </button>
+      <Link
+        href="/account"
+        data-testid="account-register-link"
+        className="flex items-center gap-2 rounded-full bg-accent-100 px-4 py-2 text-[13px] font-semibold text-accent-800 hover:bg-accent-200"
+      >
+        <UserPlus aria-hidden className="h-4 w-4" />
+        Create account
+      </Link>
     </div>
   );
 }
