@@ -261,6 +261,31 @@ async function refreshEmail(
   }
 }
 
+/**
+ * Repair the placeholder display name the migration had to leave behind.
+ *
+ * `migrate-account-identities.mjs` can only name a user by their provider subject — the old
+ * data contains no name anywhere. Without this, every migrated user would look at a raw
+ * subject in the account panel until they edited it by hand.
+ *
+ * Bounded deliberately: it fires ONLY while the stored value is still exactly the subject,
+ * so it can never overwrite a name the user has chosen. That also makes it self-limiting —
+ * once healed, the condition is false forever.
+ */
+async function healMigratedDisplayName(
+  accountId: string,
+  stored: string,
+  subject: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (stored !== subject) return;
+  const offered = claim(payload, 'name') ?? claim(payload, 'preferred_username');
+  if (!offered || offered === subject) return;
+
+  const { Account } = await import('./models/account');
+  await Account.updateOne({ _id: accountId, displayName: subject }, { $set: { displayName: offered } });
+}
+
 async function resolveInternalId(
   issuer: string,
   subject: string,
@@ -277,11 +302,13 @@ async function resolveInternalId(
 
   const { Account } = await import('./models/account');
   const existing = await Account.findOne({ identities: { $elemMatch: { issuer, subject } } })
-    .select({ _id: 1, email: 1 })
+    .select({ _id: 1, email: 1, displayName: 1 })
     .lean();
   if (existing) {
-    await refreshEmail(existing._id.toString(), existing.email, payload);
-    return existing._id.toString();
+    const id = existing._id.toString();
+    await refreshEmail(id, existing.email, payload);
+    await healMigratedDisplayName(id, existing.displayName, subject, payload);
+    return id;
   }
 
   // T041 inserts verified-email linking (FR-AC-008/009) here, ahead of creation.

@@ -225,3 +225,28 @@ describe('authenticate — email refresh (FR-AC-034)', () => {
   });
 });
 
+describe('authenticate — display name left behind by the migration', () => {
+  it('replaces a display name that is still the raw subject once the token offers a real one', async () => {
+    // The migration knows only a subject: the old data has no name in it anywhere. Rather
+    // than leave people looking at `f47ac10b-58cc-…` in the account panel forever, the first
+    // sign-in that carries a name claim heals it. Bounded on purpose — it fires only while
+    // the stored value is still exactly the subject, so it can never overwrite a name the
+    // user has since chosen.
+    const a = await Account.create({
+      displayName: 'sub-1',
+      identities: [{ issuer: ISS, subject: 'sub-1', linkedAt: new Date() }],
+    });
+    await authFor({ sub: 'sub-1', name: 'Ada Lovelace' });
+    expect((await Account.findById(a._id))?.displayName).toBe('Ada Lovelace');
+  });
+
+  it('does not touch a display name the user has already set', async () => {
+    const a = await Account.create({
+      displayName: 'Ada',
+      identities: [{ issuer: ISS, subject: 'sub-1', linkedAt: new Date() }],
+    });
+    await authFor({ sub: 'sub-1', name: 'Something Else' });
+    expect((await Account.findById(a._id))?.displayName).toBe('Ada');
+  });
+});
+
