@@ -286,6 +286,46 @@ async function healMigratedDisplayName(
   await Account.updateOne({ _id: accountId, displayName: subject }, { $set: { displayName: offered } });
 }
 
+/**
+ * FR-AC-014/015: an account whose address is not yet verified cannot hold a session.
+ *
+ * The provider gates its own login too, but the app must not depend on a setting it does not
+ * own — a provider misconfiguration should not become an authentication bypass here.
+ *
+ * `pendingVerification` is ABSENT on every account that did not register through us, so
+ * accounts predating spec 013 are not gated. That is the difference between shipping this and
+ * locking out every existing user on deploy day.
+ *
+ * The message names the outstanding step (FR-AC-015) because a bare "unauthorized" sends
+ * someone off to reset a password that is perfectly fine.
+ */
+function refuseIfUnverified(
+  pending: boolean | undefined,
+  payload: Record<string, unknown>,
+): void {
+  if (pending !== true) return;
+  if (payload['email_verified'] === true) return;
+  throw new AuthError(
+    'Your email address is not verified yet. Check your inbox for the verification link we sent.',
+  );
+}
+
+/**
+ * Clear the gate once the provider says the address is verified.
+ *
+ * Guarded on the flag still being set, so this is one comparison per request in the steady
+ * state rather than a write.
+ */
+async function clearPendingVerification(
+  accountId: string,
+  pending: boolean | undefined,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (pending !== true || payload['email_verified'] !== true) return;
+  const { Account } = await import('./models/account');
+  await Account.updateOne({ _id: accountId }, { $unset: { pendingVerification: '' } });
+}
+
 async function resolveInternalId(
   issuer: string,
   subject: string,
@@ -302,10 +342,12 @@ async function resolveInternalId(
 
   const { Account } = await import('./models/account');
   const existing = await Account.findOne({ identities: { $elemMatch: { issuer, subject } } })
-    .select({ _id: 1, email: 1, displayName: 1 })
+    .select({ _id: 1, email: 1, displayName: 1, pendingVerification: 1 })
     .lean();
   if (existing) {
     const id = existing._id.toString();
+    refuseIfUnverified(existing.pendingVerification, payload);
+    await clearPendingVerification(id, existing.pendingVerification, payload);
     await refreshEmail(id, existing.email, payload);
     await healMigratedDisplayName(id, existing.displayName, subject, payload);
     return id;

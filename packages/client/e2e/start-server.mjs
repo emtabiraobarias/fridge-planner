@@ -117,12 +117,83 @@ function startMockFeedbackAgent() {
   return server;
 }
 
+/**
+ * A minimal stand-in for the identity provider's ADMIN API (spec 013,
+ * src/server/services/identity-provider.ts).
+ *
+ * Registration is the first journey in this app that writes THROUGH the app to a third
+ * party, so without this the only e2e possible would assert the degraded path — that
+ * registration fails when no provider is configured, which needs no UI at all and is exactly
+ * the shape of coverage `011` shipped three unbuilt panels behind.
+ *
+ * Deliberately stateful about one thing only: which addresses it has seen. That is what makes
+ * the duplicate-registration refusal (FR-AC-016) testable end to end.
+ *
+ * A password containing WEAK_PASSWORD_MARKER is refused with a stated reason, so the
+ * FR-AC-017 path can be driven through the real form rather than a mocked fetch.
+ */
+const WEAK_PASSWORD_MARKER = 'weak';
+
+function startMockIdp() {
+  const known = new Set();
+  let nextId = 0;
+
+  const server = createServer((req, res) => {
+    const url = req.url ?? '';
+    let raw = '';
+    req.on('data', (chunk) => {
+      raw += chunk;
+    });
+    req.on('end', () => {
+      if (url.includes('/protocol/openid-connect/token')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ access_token: 'e2e-admin-token', expires_in: 60 }));
+        return;
+      }
+
+      if (req.method === 'POST' && url.endsWith('/users')) {
+        let body = {};
+        try {
+          body = JSON.parse(raw);
+        } catch {
+          body = {};
+        }
+        const password = body.credentials?.[0]?.value ?? '';
+        if (password.includes(WEAK_PASSWORD_MARKER)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ errorMessage: 'Invalid password: minimum length 12.' }));
+          return;
+        }
+        const email = String(body.email ?? '').toLowerCase();
+        if (known.has(email)) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ errorMessage: 'User exists with same email' }));
+          return;
+        }
+        known.add(email);
+        nextId += 1;
+        res.writeHead(201, { Location: `/admin/realms/e2e/users/e2e-sub-${nextId}` });
+        res.end();
+        return;
+      }
+
+      // execute-actions-email (verification, password reset) and user updates.
+      res.writeHead(204).end();
+    });
+  });
+  return server;
+}
+
 const mongo = await MongoMemoryServer.create();
 const uri = mongo.getUri('fridge-planner-e2e');
 
 const mockFeedbackAgent = startMockFeedbackAgent();
 await new Promise((resolve) => mockFeedbackAgent.listen(0, '127.0.0.1', resolve));
 const mockFeedbackAgentPort = mockFeedbackAgent.address().port;
+
+const mockIdp = startMockIdp();
+await new Promise((resolve) => mockIdp.listen(0, '127.0.0.1', resolve));
+const mockIdpBase = `http://127.0.0.1:${mockIdp.address().port}`;
 
 const child = spawn('npx', ['next', 'start', '-p', PORT], {
   stdio: 'inherit',
@@ -148,12 +219,21 @@ const child = spawn('npx', ['next', 'start', '-p', PORT], {
     // exactly as unset does.
     AUTH_DEV_ROLES: '',
     FEEDBACK_AGENT_URL: `http://127.0.0.1:${mockFeedbackAgentPort}`,
+    // Spec 013. AUTH_MODE stays `dev`, so this does NOT switch the app to OIDC verification —
+    // these are read by the registration route (which needs an issuer to record the identity
+    // pair against) and by the provider adapter (which derives the admin endpoint from the
+    // JWKS URI rather than a variable that could disagree with it).
+    AUTH_ISSUER: `${mockIdpBase}/realms/e2e`,
+    AUTH_JWKS_URI: `${mockIdpBase}/realms/e2e/protocol/openid-connect/certs`,
+    IDP_ADMIN_CLIENT_ID: 'e2e-admin',
+    IDP_ADMIN_CLIENT_SECRET: 'e2e-secret',
   },
 });
 
 async function shutdown(signal) {
   child.kill(signal);
   await new Promise((resolve) => mockFeedbackAgent.close(resolve));
+  await new Promise((resolve) => mockIdp.close(resolve));
   await mongo.stop();
   process.exit(0);
 }
@@ -161,5 +241,6 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
 child.on('exit', (code) => {
   mockFeedbackAgent.close();
+  mockIdp.close();
   void mongo.stop().finally(() => process.exit(code ?? 0));
 });

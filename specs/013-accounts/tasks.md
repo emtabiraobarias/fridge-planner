@@ -71,15 +71,15 @@ resurrect deleted accounts, and every later phase adds more data erasure must re
 **Independent test**: register a new address end to end; confirm sign-in is refused before
 verification; then sign in and reach the Kitchen.
 
-- [ ] T020 [P] [US1] Write failing contract tests in `packages/client/tests/server/accounts-register.test.ts`: 201 on success; 409 without disclosing existence (FR-AC-016); 400 carrying the provider's password reason (FR-AC-017); 429 past 5/min (FR-AC-018)
-- [ ] T021 [US1] Write a failing test in `packages/client/tests/server/accounts-register.test.ts` asserting an unverified account cannot hold a session (FR-AC-014), and that the refusal states verification is outstanding (FR-AC-015)
-- [ ] T022 [US1] Create `packages/client/src/server/controllers/accounts.ts` with `register` — creates the provider user, creates the `accounts` document, requests verification (FR-AC-013/014)
-- [ ] T023 [US1] Create `packages/client/app/api/v1/accounts/register/route.ts` — thin handler, `withRoute`, `rateLimit('register:'+ip, 5, 60_000)` (research R7)
-- [ ] T024 [US1] Enforce the unverified-session refusal in `packages/client/src/server/auth.ts` (FR-AC-014/015)
-- [ ] T025 [US1] Write a failing test in `packages/client/tests/views/AccountPage.test.tsx` asserting a SIGNED-OUT visitor can reach registration and password reset without first provoking a failed request (FR-AC-029)
+- [x] T020 [P] [US1] Write failing contract tests in `packages/client/tests/server/accounts-register.test.ts`: 201 on success; 409 without disclosing existence (FR-AC-016); 400 carrying the provider's password reason (FR-AC-017); 429 past 5/min (FR-AC-018)
+- [x] T021 [US1] Write a failing test in `packages/client/tests/server/accounts-register.test.ts` asserting an unverified account cannot hold a session (FR-AC-014), and that the refusal states verification is outstanding (FR-AC-015)
+- [x] T022 [US1] Create `packages/client/src/server/controllers/accounts.ts` with `register` — creates the provider user, creates the `accounts` document, requests verification (FR-AC-013/014)
+- [x] T023 [US1] Create `packages/client/app/api/v1/accounts/register/route.ts` — thin handler, `withRoute`, `rateLimit('register:'+ip, 5, 60_000)` (research R7)
+- [x] T024 [US1] Enforce the unverified-session refusal in `packages/client/src/server/auth.ts` (FR-AC-014/015)
+- [x] T025 [US1] Write a failing test in `packages/client/tests/views/AccountPage.test.tsx` asserting a SIGNED-OUT visitor can reach registration and password reset without first provoking a failed request (FR-AC-029)
   > Mirrors `002` `FR-D-013`, and it is the kind of requirement that silently does not happen: every other route in the app assumes a session, so a signed-out entry point is easy to build behind one by accident.
-- [ ] T026 [P] [US1] Build the registration form in `packages/client/src/components/account/RegisterForm.tsx` — email, password, display name; field-level provider errors
-- [ ] T027 [US1] Add `packages/client/src/views/AccountPage.tsx` and the `/account` route, reached from Home and the desktop sidebar footer — NOT a navigation destination (FR-AC-028)
+- [x] T026 [P] [US1] Build the registration form in `packages/client/src/components/account/RegisterForm.tsx` — email, password, display name; field-level provider errors
+- [x] T027 [US1] Add `packages/client/src/views/AccountPage.tsx` and the `/account` route, reached from Home and the desktop sidebar footer — NOT a navigation destination (FR-AC-028)
 
 **Checkpoint**: US1 is independently demonstrable.
 
