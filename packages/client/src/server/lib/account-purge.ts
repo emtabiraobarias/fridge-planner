@@ -1,5 +1,6 @@
 import 'server-only';
-import type { Model } from 'mongoose';
+import mongoose, { type Model } from 'mongoose';
+import { Account } from '../models/account';
 import { InventoryItem } from '../models/inventory-item';
 import { MealPlan } from '../models/meal-plan';
 import { GroceryList } from '../models/grocery-list';
@@ -19,14 +20,24 @@ import { ERASED_REPORTER } from '../types/lifecycle';
  * Audit entries are deliberately NOT in this list: `admin_audit_logs.subjectUserId` is
  * evidence *about an administrative action*, retained on its own 90-day TTL
  * (FR-AD-023), not the user's own data.
+ *
+ * `key` names the field holding the user identifier, and exists for exactly one entry.
+ * Spec 013's `accounts` IS the user — it is keyed by `_id`, not by a `userId` field — so
+ * listing it without saying so would produce a delete that matches nothing and a purge that
+ * silently leaves the person's identity and email address behind after deleting everything
+ * else about them. Defaulted rather than required so the other six read as before.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous models, keyed identically
-export const USER_KEYED_MODELS: ReadonlyArray<{ name: string; model: Model<any> }> = [
+export const USER_KEYED_MODELS: ReadonlyArray<{ name: string; model: Model<any>; key?: string }> = [
   { name: 'inventory-item', model: InventoryItem },
   { name: 'meal-plan', model: MealPlan },
   { name: 'grocery-list', model: GroceryList },
   { name: 'ingredient-alias', model: IngredientAlias },
   { name: 'feedback-record', model: FeedbackRecord },
+  // The SEVENTH store (spec 013). Last on purpose: it is the identity the other six hang
+  // off, so deleting it first would leave nothing to scope their deletes by if a later step
+  // failed halfway.
+  { name: 'account', model: Account, key: '_id' },
 ];
 
 /**
@@ -45,9 +56,23 @@ export const USER_KEYED_MODELS: ReadonlyArray<{ name: string; model: Model<any> 
  * re-identifies the same person across collections.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous models, keyed identically
-export const USER_DETACHED_MODELS: ReadonlyArray<{ name: string; model: Model<any> }> = [
-  { name: 'lifecycle-item', model: LifecycleItem },
-];
+export const USER_DETACHED_MODELS: ReadonlyArray<{ name: string; model: Model<any>; key?: string }> =
+  [{ name: 'lifecycle-item', model: LifecycleItem }];
+
+/**
+ * The filter that selects one user's documents in a given store, or `null` when the store
+ * cannot hold anything for this user at all.
+ *
+ * The null case is the `_id`-keyed `accounts` entry meeting an identifier that is not an
+ * ObjectId — a pre-migration provider subject, or a dev-seam id like `demo-admin`. Mongoose
+ * THROWS a CastError on those rather than matching nothing, and an exception here would
+ * abort the purge partway through, after some collections had already been emptied. Skipping
+ * is correct as well as safe: an id that cannot be an `accounts._id` names no account.
+ */
+function scope(userId: string, key: string | undefined): Record<string, string> | null {
+  if ((key ?? 'userId') !== '_id') return { [key ?? 'userId']: userId };
+  return mongoose.isValidObjectId(userId) ? { _id: userId } : null;
+}
 
 /**
  * Every collection holding something about a user, whichever way erasure treats it.
@@ -69,8 +94,13 @@ export type PurgeCounts = Record<string, number>;
 export async function purgeUserData(userId: string): Promise<PurgeCounts> {
   const counts: PurgeCounts = {};
 
-  for (const { name, model } of USER_KEYED_MODELS) {
-    const res = await model.deleteMany({ userId });
+  for (const { name, model, key } of USER_KEYED_MODELS) {
+    const filter = scope(userId, key);
+    if (!filter) {
+      counts[name] = 0;
+      continue;
+    }
+    const res = await model.deleteMany(filter);
     counts[name] = res.deletedCount ?? 0;
   }
 
@@ -102,8 +132,9 @@ export async function purgeUserData(userId: string): Promise<PurgeCounts> {
  */
 export async function collectUserData(userId: string): Promise<Record<string, unknown[]>> {
   const out: Record<string, unknown[]> = {};
-  for (const { name, model } of ALL_USER_DATA_MODELS) {
-    out[name] = await model.find({ userId }).lean();
+  for (const { name, model, key } of ALL_USER_DATA_MODELS) {
+    const filter = scope(userId, key);
+    out[name] = filter ? await model.find(filter).lean() : [];
   }
   return out;
 }

@@ -1,5 +1,7 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 import { generateKeyPair, exportJWK, SignJWT, createLocalJWKSet, type JWK } from 'jose';
 
 const ISS = 'https://issuer.test';
@@ -8,6 +10,7 @@ const AUD = 'fridge-planner';
 let authenticate: typeof import('@server/auth').authenticate;
 let AuthError: typeof import('@server/auth-errors').AuthError;
 let privateKey: CryptoKey;
+let mongod: MongoMemoryServer;
 
 function req(headers: Record<string, string> = {}): Request {
   return new Request('http://localhost/api/v1/inventory', { headers });
@@ -27,6 +30,15 @@ async function sign(
 }
 
 beforeAll(async () => {
+  // Spec 013 gave this file a database. `authenticate()` no longer answers from the token
+  // alone — it resolves the provider's (issuer, sub) pair to an internal identifier, and
+  // fails closed when it cannot (FR-AC-002). The rejection cases below never reach that
+  // point, but the happy path does.
+  mongod = await MongoMemoryServer.create();
+  // db.ts reads MONGODB_URI at MODULE SCOPE — import after this line (CLAUDE.md §8).
+  process.env['MONGODB_URI'] = mongod.getUri();
+  const db = await import('@server/db');
+  await db.connectDb();
   ({ authenticate } = await import('@server/auth'));
   ({ AuthError } = await import('@server/auth-errors'));
   const kp = await generateKeyPair('RS256');
@@ -43,6 +55,11 @@ beforeEach(() => {
   process.env['AUTH_ISSUER'] = ISS;
   process.env['AUTH_AUDIENCE'] = AUD;
 });
+afterAll(async () => {
+  await mongoose.disconnect();
+  await mongod.stop();
+});
+
 afterEach(() => {
   delete process.env['AUTH_MODE'];
   delete process.env['AUTH_ISSUER'];
@@ -50,9 +67,16 @@ afterEach(() => {
 });
 
 describe('authenticate — oidc mode (FR-D-002/003)', () => {
-  it('returns the sub claim for a valid token', async () => {
+  it('resolves a valid token to an internal identifier, never the sub (FR-AC-002)', async () => {
+    // Until spec 013 this asserted `toBe('user-1')` — the sub itself. That was the shape the
+    // account work had to change: a provider subject is not ours, is unique only within one
+    // provider, and cannot be carried to another. Resolution is covered in depth by
+    // tests/server/account-resolution.test.ts; what matters here is that the seam every
+    // request passes through no longer hands back the raw claim.
     const t = await sign({ sub: 'user-1' });
-    expect(await authenticate(req({ authorization: `Bearer ${t}` }))).toBe('user-1');
+    const userId = await authenticate(req({ authorization: `Bearer ${t}` }));
+    expect(userId).not.toBe('user-1');
+    expect(mongoose.isValidObjectId(userId)).toBe(true);
   });
   it('rejects a missing token', async () => {
     await expect(authenticate(req())).rejects.toBeInstanceOf(AuthError);

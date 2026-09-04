@@ -22,7 +22,7 @@
 | Index | Why |
 |---|---|
 | `{ 'identities.issuer': 1, 'identities.subject': 1 }` **unique** | The per-request resolution path, and the database-level guarantee that one subject resolves to at most one account. Application intent is not enough — this is the same reasoning `012` used for `{userId, feedbackRecordId}`. |
-| `{ email: 1 }` **unique** | `FR-AC-009` matches on it; uniqueness is what makes "matches an existing account" unambiguous. |
+| `{ email: 1 }` **unique** | `FR-AC-008` matches on it; uniqueness is what makes "matches an existing account" unambiguous. |
 
 > **`accounts` is the seventh user-keyed store.** CLAUDE.md §5's "adding a seventh means adding a
 > line there" rule applies: it must be added to `lib/account-purge.ts`'s delete list and to the
@@ -62,7 +62,7 @@ one. Reads resolve an old subject through `identities` when displaying (**FR-AC-
                                                                   └──purge──▶ (gone)
 ```
 
-- **unverified**: exists at the provider and in `accounts`; cannot hold a session (`FR-AC-016`).
+- **unverified**: exists at the provider and in `accounts`; cannot hold a session (`FR-AC-014`).
 - **erased**: `account_erasures` row present, provider account suspended (`FR-AC-039`). Every
   request authenticated as it is refused (`FR-AC-043`).
 - **purge**: after the retention window, app data is deleted and the provider account with it

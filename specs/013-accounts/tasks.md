@@ -15,9 +15,9 @@ must fail first. `[P]` marks tasks touching different files with no incomplete d
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `IDP_ADMIN_CLIENT_ID` / `IDP_ADMIN_CLIENT_SECRET` to `.env.example` with a comment saying they are the app's FIRST machine credential against the IdP and must never be set in a committed file
-- [ ] T002 [P] Add `migrate:account-identities` script entry to `packages/client/package.json`
-- [ ] T003 [P] Document the two manual realm steps in `docs/deployment.md`: the `manage-users` service account, and making `email` admin-editable only (FR-AC-035) — human-only per §14, alongside the existing `post_logout_redirect_uri` step
+- [x] T001 Add `IDP_ADMIN_CLIENT_ID` / `IDP_ADMIN_CLIENT_SECRET` to `.env.example` with a comment saying they are the app's FIRST machine credential against the IdP and must never be set in a committed file
+- [x] T002 [P] Add `migrate:account-identities` script entry to `packages/client/package.json`
+- [x] T003 [P] Document the two manual realm steps in `docs/deployment.md`: the `manage-users` service account, and making `email` admin-editable only (FR-AC-035) — human-only per §14, alongside the existing `post_logout_redirect_uri` step
 
 ---
 
@@ -25,14 +25,14 @@ must fail first. `[P]` marks tasks touching different files with no incomplete d
 
 **Phase A of the plan.** Nothing below can start until `userId` means an internal identifier.
 
-- [ ] T004 Write failing tests in `packages/client/tests/server/unit/account-model.test.ts`: the unique index on `(identities.issuer, identities.subject)` rejects a duplicate pair, and the unique index on `email` rejects a duplicate address
-- [ ] T005 Create `packages/client/src/server/models/account.ts` per `data-model.md` — `_id`, `email`, `displayName`, embedded `identities[{issuer,subject,linkedAt}]` as `_id:false` subdocs, both unique indexes, `timestamps: true`
-- [ ] T006 Write failing tests in `packages/client/tests/server/account-resolution.test.ts`: a token whose `(issuer, sub)` is recorded resolves to the internal identifier (FR-AC-004); an unrecorded pair with no email match creates a new account (FR-AC-011)
-- [ ] T007 Resolve identity inside `authenticate()` in `packages/client/src/server/auth.ts` — per request, NO process-local cache (research R3; a cache lets two instances disagree after an erasure)
-- [ ] T008 Write a failing test asserting `authenticate()` replaces a stored email when the token carries a DIFFERENT verified email (FR-AC-034), and leaves it alone when the claim is unverified
-- [ ] T009 Implement the conditional email refresh in `authenticate()` — compare first, write only on change (research R6)
-- [ ] T010 Write failing tests in `packages/client/tests/server/unit/migrate-account-identities.test.ts`: one account per distinct `sub`; running twice changes nothing the second time; `--check` writes nothing
-- [ ] T011 Create `packages/client/scripts/migrate-account-identities.mjs` — idempotent, `--check` mode, rewrites `userId` across `USER_KEYED_MODELS` + `lifecycle-item`, NEVER on startup (FR-AC-007, constitution XII)
+- [x] T004 Write failing tests in `packages/client/tests/server/unit/account-model.test.ts`: the unique index on `(identities.issuer, identities.subject)` rejects a duplicate pair, and the unique index on `email` rejects a duplicate address
+- [x] T005 Create `packages/client/src/server/models/account.ts` per `data-model.md` — `_id`, `email`, `displayName`, embedded `identities[{issuer,subject,linkedAt}]` as `_id:false` subdocs, both unique indexes, `timestamps: true`
+- [x] T006 Write failing tests in `packages/client/tests/server/account-resolution.test.ts`: a token whose `(issuer, sub)` is recorded resolves to the internal identifier (FR-AC-004); an unrecorded pair with no email match creates a new account (FR-AC-010)
+- [x] T007 Resolve identity inside `authenticate()` in `packages/client/src/server/auth.ts` — per request, NO process-local cache (research R3; a cache lets two instances disagree after an erasure)
+- [x] T008 Write a failing test asserting `authenticate()` replaces a stored email when the token carries a DIFFERENT verified email (FR-AC-034), and leaves it alone when the claim is unverified
+- [x] T009 Implement the conditional email refresh in `authenticate()` — compare first, write only on change (research R6)
+- [x] T010 Write failing tests in `packages/client/tests/server/unit/migrate-account-identities.test.ts`: one account per distinct `sub`; running twice changes nothing the second time; `--check` writes nothing
+- [x] T011 Create `packages/client/scripts/migrate-account-identities.mjs` — idempotent, `--check` mode, rewrites `userId` across `USER_KEYED_MODELS` + `lifecycle-item`, NEVER on startup (FR-AC-007, constitution XII)
 
 **Checkpoint**: identity resolves internally; the migration is reversible-by-inspection via `--check`.
 
@@ -43,10 +43,10 @@ must fail first. `[P]` marks tasks touching different files with no incomplete d
 **Phase B of the plan.** Sequenced here deliberately: it corrects behaviour that would otherwise
 resurrect deleted accounts, and every later phase adds more data erasure must reach.
 
-- [ ] T012 Write a failing test in `packages/client/tests/server/account-erasure-keying.test.ts`: an account erased under one `(issuer, subject)` pair is STILL refused when a request arrives under a second linked pair (FR-AC-038)
-- [ ] T013 Re-key `account_erasures` to the internal identifier in `packages/client/src/server/models/account-erasure.ts` and `lib/account-purge.ts`, and extend the migration (T011) to rewrite existing rows
-- [ ] T014 Write a failing test asserting `accounts` is in the erasure delete-list — the SEVENTH user-keyed store (CLAUDE.md §5; missing this line is how `012` deleted lifecycle items that D15 said must survive)
-- [ ] T015 Add `account` to `USER_KEYED_MODELS` in `packages/client/src/server/lib/account-purge.ts` and to the admin export manifest
+- [x] T012 Write a failing test in `packages/client/tests/server/account-erasure-keying.test.ts`: an account erased under one `(issuer, subject)` pair is STILL refused when a request arrives under a second linked pair (FR-AC-038)
+- [x] T013 Re-key `account_erasures` to the internal identifier in `packages/client/src/server/models/account-erasure.ts` and `lib/account-purge.ts`, and extend the migration (T011) to rewrite existing rows
+- [x] T014 Write a failing test asserting `accounts` is in the erasure delete-list — the SEVENTH user-keyed store (CLAUDE.md §5; missing this line is how `012` deleted lifecycle items that D15 said must survive)
+- [x] T015 Add `account` to `USER_KEYED_MODELS` in `packages/client/src/server/lib/account-purge.ts` and to the admin export manifest
 
 **Checkpoint**: erasure reaches every store and survives provider linking.
 
@@ -56,10 +56,10 @@ resurrect deleted accounts, and every later phase adds more data erasure must re
 
 **Phase C of the plan.** Required by US1–US3; isolated so a provider change replaces one file.
 
-- [ ] T016 Write a failing architecture test in `packages/client/tests/server/unit/idp-adapter-boundary.test.ts`: no module outside `services/identity-provider.ts` references the provider's admin API — modelled on `no-deploy-imports.test.ts`
-- [ ] T017 Create `packages/client/src/server/services/identity-provider.ts` exporting `createUser`, `sendVerification`, `initiatePasswordReset`, `suspend`, `resume`, `deleteUser` — named in the APP's vocabulary, not the provider's (FR-AC-042)
-- [ ] T018 Implement the Keycloak adapter behind that interface — `enabled:false` for `suspend`, etc. — reading credentials from environment only (FR-AC-030/031)
-- [ ] T019 [P] Write a failing test asserting the adapter surfaces provider failure as a stated reason rather than a generic 500 (FR-AC-017), and that a provider outage never breaks read paths
+- [x] T016 Write a failing architecture test in `packages/client/tests/server/unit/idp-adapter-boundary.test.ts`: no module outside `services/identity-provider.ts` references the provider's admin API — modelled on `no-deploy-imports.test.ts`
+- [x] T017 Create `packages/client/src/server/services/identity-provider.ts` exporting `createUser`, `sendVerification`, `initiatePasswordReset`, `suspend`, `resume`, `deleteUser` — named in the APP's vocabulary, not the provider's (FR-AC-042)
+- [x] T018 Implement the Keycloak adapter behind that interface — `enabled:false` for `suspend`, etc. — reading credentials from environment only (FR-AC-030/031)
+- [x] T019 [P] Write a failing test asserting the adapter surfaces provider failure as a stated reason rather than a generic 500 (FR-AC-017), and that a provider outage never breaks read paths
 
 **Checkpoint**: the provider is reachable through exactly one seam, proven by test.
 
@@ -123,7 +123,7 @@ confirm the internal identity is reused and prior data resolves.
 
 - [ ] T040 [US4] Write failing tests in `packages/client/tests/server/account-linking.test.ts`: a verified email matching a stored address links the new pair to the EXISTING account (FR-AC-008); an unverified email links NOTHING and an absent email claim links nothing (FR-AC-009); an unmatched pair creates a NEW account (FR-AC-010)
 - [ ] T041 [US4] Implement verified-email linking in `packages/client/src/server/auth.ts` (FR-AC-008/009/010) — the refusal is the load-bearing half: matching on an unverified address lets a stranger inherit someone's data
-- [ ] T042 [US4] Record every link in the audit log (FR-AC-012)
+- [ ] T042 [US4] Record every link in the audit log (FR-AC-011)
 - [ ] T043 [P] [US4] Write a failing test asserting an audit entry recorded against an old provider subject still resolves to the right account when displayed (FR-AC-037), and that the migration did NOT rewrite audit history (FR-AC-036)
 
 ---
