@@ -54,15 +54,24 @@ function run(opts: { check?: boolean } = {}): ReturnType<typeof migrate> {
 }
 
 describe('migrate-account-identities', () => {
-  it('covers exactly the collections the app keys by userId', async () => {
+  it('covers every collection the app keys by a userId FIELD', async () => {
     // Asserted against the SHIPPED model list, never a literal. CLAUDE.md §5: adding a
-    // seventh user-keyed collection means adding a line, and the way that rule gets broken
-    // is a migration script whose hardcoded list quietly falls behind the models. A literal
-    // here would be self-satisfying and would not notice.
-    const fromModels = ALL_USER_DATA_MODELS.map((m) => m.model.collection.name);
+    // user-keyed collection means adding a line, and the way that rule gets broken is a
+    // migration script whose hardcoded list quietly falls behind the models. A literal here
+    // would be self-satisfying and would not notice.
+    //
+    // The `_id`-keyed entry is excluded on purpose, and this test earned that clause the
+    // hard way: adding `accounts` as the seventh store turned it red, correctly. An account
+    // is not migrated BY the migration — it is what the migration migrates everything TO,
+    // and its `_id` was internal from the moment it was written.
+    const fromModels = ALL_USER_DATA_MODELS.filter((m) => m.key !== '_id').map(
+      (m) => m.model.collection.name,
+    );
+    expect(fromModels.length).toBeGreaterThan(0);
     for (const name of fromModels) {
       expect(MIGRATED_COLLECTIONS).toContain(name);
     }
+    expect(MIGRATED_COLLECTIONS).not.toContain('accounts');
   });
 
   it('creates one account per distinct subject (FR-AC-006)', async () => {

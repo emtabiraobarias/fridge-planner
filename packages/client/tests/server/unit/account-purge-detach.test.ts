@@ -74,6 +74,8 @@ describe('account purge — delete vs detach', () => {
       'grocery-list',
       'ingredient-alias',
       'feedback-record',
+      // Spec 013's `accounts` — the seventh store, and the only one keyed by `_id`.
+      'account',
     ]);
     expect(detached).toEqual(['lifecycle-item']);
     // The lifecycle collection must NOT be in the delete list — that was the defect.

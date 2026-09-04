@@ -43,10 +43,10 @@ must fail first. `[P]` marks tasks touching different files with no incomplete d
 **Phase B of the plan.** Sequenced here deliberately: it corrects behaviour that would otherwise
 resurrect deleted accounts, and every later phase adds more data erasure must reach.
 
-- [ ] T012 Write a failing test in `packages/client/tests/server/account-erasure-keying.test.ts`: an account erased under one `(issuer, subject)` pair is STILL refused when a request arrives under a second linked pair (FR-AC-038)
-- [ ] T013 Re-key `account_erasures` to the internal identifier in `packages/client/src/server/models/account-erasure.ts` and `lib/account-purge.ts`, and extend the migration (T011) to rewrite existing rows
-- [ ] T014 Write a failing test asserting `accounts` is in the erasure delete-list — the SEVENTH user-keyed store (CLAUDE.md §5; missing this line is how `012` deleted lifecycle items that D15 said must survive)
-- [ ] T015 Add `account` to `USER_KEYED_MODELS` in `packages/client/src/server/lib/account-purge.ts` and to the admin export manifest
+- [x] T012 Write a failing test in `packages/client/tests/server/account-erasure-keying.test.ts`: an account erased under one `(issuer, subject)` pair is STILL refused when a request arrives under a second linked pair (FR-AC-038)
+- [x] T013 Re-key `account_erasures` to the internal identifier in `packages/client/src/server/models/account-erasure.ts` and `lib/account-purge.ts`, and extend the migration (T011) to rewrite existing rows
+- [x] T014 Write a failing test asserting `accounts` is in the erasure delete-list — the SEVENTH user-keyed store (CLAUDE.md §5; missing this line is how `012` deleted lifecycle items that D15 said must survive)
+- [x] T015 Add `account` to `USER_KEYED_MODELS` in `packages/client/src/server/lib/account-purge.ts` and to the admin export manifest
 
 **Checkpoint**: erasure reaches every store and survives provider linking.
 
