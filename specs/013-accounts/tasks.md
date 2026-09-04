@@ -71,13 +71,15 @@ resurrect deleted accounts, and every later phase adds more data erasure must re
 **Independent test**: register a new address end to end; confirm sign-in is refused before
 verification; then sign in and reach the Kitchen.
 
-- [ ] T020 [P] [US1] Write failing contract tests in `packages/client/tests/server/accounts-register.test.ts`: 201 on success; 409 without disclosing existence (FR-AC-015); 400 carrying the provider's password reason (FR-AC-017); 429 past 5/min (FR-AC-018)
-- [ ] T021 [US1] Write a failing test asserting an unverified account cannot hold a session (FR-AC-016)
+- [ ] T020 [P] [US1] Write failing contract tests in `packages/client/tests/server/accounts-register.test.ts`: 201 on success; 409 without disclosing existence (FR-AC-016); 400 carrying the provider's password reason (FR-AC-017); 429 past 5/min (FR-AC-018)
+- [ ] T021 [US1] Write a failing test in `packages/client/tests/server/accounts-register.test.ts` asserting an unverified account cannot hold a session (FR-AC-014), and that the refusal states verification is outstanding (FR-AC-015)
 - [ ] T022 [US1] Create `packages/client/src/server/controllers/accounts.ts` with `register` — creates the provider user, creates the `accounts` document, requests verification (FR-AC-013/014)
 - [ ] T023 [US1] Create `packages/client/app/api/v1/accounts/register/route.ts` — thin handler, `withRoute`, `rateLimit('register:'+ip, 5, 60_000)` (research R7)
-- [ ] T024 [US1] Enforce the unverified-session refusal in `authenticate()`
-- [ ] T025 [P] [US1] Build the registration form in `packages/client/src/components/account/RegisterForm.tsx` — email, password, display name; field-level provider errors
-- [ ] T026 [US1] Add `packages/client/src/views/AccountPage.tsx` and the `/account` route, reached from Home and the desktop sidebar footer — NOT a navigation destination (FR-AC-028)
+- [ ] T024 [US1] Enforce the unverified-session refusal in `packages/client/src/server/auth.ts` (FR-AC-014/015)
+- [ ] T025 [US1] Write a failing test in `packages/client/tests/views/AccountPage.test.tsx` asserting a SIGNED-OUT visitor can reach registration and password reset without first provoking a failed request (FR-AC-029)
+  > Mirrors `002` `FR-D-013`, and it is the kind of requirement that silently does not happen: every other route in the app assumes a session, so a signed-out entry point is easy to build behind one by accident.
+- [ ] T026 [P] [US1] Build the registration form in `packages/client/src/components/account/RegisterForm.tsx` — email, password, display name; field-level provider errors
+- [ ] T027 [US1] Add `packages/client/src/views/AccountPage.tsx` and the `/account` route, reached from Home and the desktop sidebar footer — NOT a navigation destination (FR-AC-028)
 
 **Checkpoint**: US1 is independently demonstrable.
 
@@ -89,12 +91,12 @@ verification; then sign in and reach the Kitchen.
 **Independent test**: change the display name and confirm it survives a reload and a fresh sign-in;
 complete a password reset and sign in with the new password.
 
-- [ ] T027 [P] [US2] Write failing tests in `packages/client/tests/server/accounts-profile.test.ts`: display name persists (FR-AC-021); reset returns an IDENTICAL response for registered and unregistered addresses (FR-AC-023); 429 past 10/min (FR-AC-044)
-- [ ] T028 [US2] Add `getMe` / `updateDisplayName` / `requestPasswordReset` to `controllers/accounts.ts`
-- [ ] T029 [P] [US2] Create `packages/client/app/api/v1/accounts/me/route.ts` (GET, PATCH)
-- [ ] T030 [P] [US2] Create `packages/client/app/api/v1/accounts/password-reset/route.ts` — always 202, rate-limited
-- [ ] T031 [US2] Build the profile panel in `packages/client/src/components/account/ProfilePanel.tsx`
-- [ ] T032 [US2] Write a failing test asserting NO route accepts a password or a reset token (FR-AC-033) — the app initiates, the provider completes
+- [ ] T028 [P] [US2] Write failing tests in `packages/client/tests/server/accounts-profile.test.ts`: display name persists (FR-AC-021); reset returns an IDENTICAL response for registered and unregistered addresses (FR-AC-023); 429 past 10/min (FR-AC-044)
+- [ ] T029 [US2] Add `getMe` / `updateDisplayName` / `requestPasswordReset` to `controllers/accounts.ts`
+- [ ] T030 [P] [US2] Create `packages/client/app/api/v1/accounts/me/route.ts` (GET, PATCH)
+- [ ] T031 [P] [US2] Create `packages/client/app/api/v1/accounts/password-reset/route.ts` — always 202, rate-limited
+- [ ] T032 [US2] Build the profile panel in `packages/client/src/components/account/ProfilePanel.tsx`
+- [ ] T033 [US2] Write a failing test asserting NO route accepts a password or a reset token (FR-AC-033) — the app initiates, the provider completes
 
 ---
 
@@ -104,12 +106,12 @@ complete a password reset and sign in with the new password.
 **Independent test**: export and confirm every user-keyed store appears; delete, confirm access
 stops immediately, restore inside the window, confirm the data returns.
 
-- [ ] T033 [P] [US3] Write failing tests in `packages/client/tests/server/accounts-selfservice.test.ts`: export covers every user-keyed store (FR-AC-024); delete is two-phase and restorable (FR-AC-025); 409 when it would leave no administrator (FR-AC-026); both are audited (FR-AC-027)
-- [ ] T034 [US3] Write a failing test asserting erasure SUSPENDS the provider account, restore RESUMES it, and purge DELETES it (FR-AC-039/040/041)
-- [ ] T035 [US3] Add `exportOwn` / `deleteOwn` to `controllers/accounts.ts`, reusing `011`'s two-phase erasure rather than a second implementation
-- [ ] T036 [P] [US3] Create `packages/client/app/api/v1/accounts/me/export/route.ts` and the DELETE verb on `me/route.ts`
-- [ ] T037 [US3] Wire provider suspend/resume/delete into the erasure, restore and purge paths
-- [ ] T038 [US3] Build the export + delete controls with an explicit confirmation on delete
+- [ ] T034 [P] [US3] Write failing tests in `packages/client/tests/server/accounts-selfservice.test.ts`: export covers every user-keyed store (FR-AC-024); delete is two-phase and restorable (FR-AC-025); 409 when it would leave no administrator (FR-AC-026); both are audited (FR-AC-027)
+- [ ] T035 [US3] Write a failing test asserting erasure SUSPENDS the provider account, restore RESUMES it, and purge DELETES it (FR-AC-039/040/041)
+- [ ] T036 [US3] Add `exportOwn` / `deleteOwn` to `controllers/accounts.ts`, reusing `011`'s two-phase erasure rather than a second implementation
+- [ ] T037 [P] [US3] Create `packages/client/app/api/v1/accounts/me/export/route.ts` and the DELETE verb on `me/route.ts`
+- [ ] T038 [US3] Wire provider suspend/resume/delete into the erasure, restore and purge paths
+- [ ] T039 [US3] Build the export + delete controls with an explicit confirmation on delete
 
 ---
 
@@ -119,23 +121,23 @@ stops immediately, restore inside the window, confirm the data returns.
 **Independent test**: point the app at a second issuer, sign in with the same verified address,
 confirm the internal identity is reused and prior data resolves.
 
-- [ ] T039 [US4] Write failing tests in `packages/client/tests/server/account-linking.test.ts`: a verified email matching a stored address links the new pair to the EXISTING account (FR-AC-009); an unverified email links NOTHING (FR-AC-010); an absent email claim links nothing
-- [ ] T040 [US4] Implement verified-email linking in `authenticate()` — the refusal is the load-bearing half: matching on an unverified address lets a stranger inherit someone's data
-- [ ] T041 [US4] Record every link in the audit log (FR-AC-012)
-- [ ] T042 [P] [US4] Write a failing test asserting an audit entry recorded against an old provider subject still resolves to the right account when displayed (FR-AC-037), and that the migration did NOT rewrite audit history (FR-AC-036)
+- [ ] T040 [US4] Write failing tests in `packages/client/tests/server/account-linking.test.ts`: a verified email matching a stored address links the new pair to the EXISTING account (FR-AC-008); an unverified email links NOTHING and an absent email claim links nothing (FR-AC-009); an unmatched pair creates a NEW account (FR-AC-010)
+- [ ] T041 [US4] Implement verified-email linking in `packages/client/src/server/auth.ts` (FR-AC-008/009/010) — the refusal is the load-bearing half: matching on an unverified address lets a stranger inherit someone's data
+- [ ] T042 [US4] Record every link in the audit log (FR-AC-012)
+- [ ] T043 [P] [US4] Write a failing test asserting an audit entry recorded against an old provider subject still resolves to the right account when displayed (FR-AC-037), and that the migration did NOT rewrite audit history (FR-AC-036)
 
 ---
 
 ## Phase 9: Polish & cross-cutting
 
-- [ ] T043 [P] Playwright: registration → verification-blocked sign-in → verified sign-in, in `packages/client/e2e/accounts.e2e.ts`. Drive the REAL controls — an e2e that only calls the API proves the server works, never that anyone can reach it (§8)
-- [ ] T044 [P] Playwright: display-name change survives reload and re-sign-in
-- [ ] T045 [P] Playwright: self-delete refuses subsequent requests, and restore returns the data
-- [ ] T046 Extend `scripts/smoke-test.sh` — SHARED FILE, so author it on `main` and sync down (§10) — asserting the account routes refuse an unauthenticated caller
-- [ ] T047 Regenerate `docs/openapi.yaml` (`npm -w packages/client run openapi:generate`); the contract test fails otherwise, in both directions
-- [ ] T048 Update CLAUDE.md §4 (new endpoints), §5 (`accounts` as the seventh store), §6 (the two new env vars) — then copy to AGENTS.md; the drift guard requires them byte-identical
-- [ ] T049 Run the full gates: lint, unit, Playwright, `validate-e2e.sh --no-agent`
-- [ ] T050 ⏸ Release — tag, image, pin bump — **awaiting operator approval**. Automation covers the rollout, not the decision to ship (§14). The migration (T011) must be run against prod BEFORE the pin moves
+- [ ] T044 [P] Playwright: registration → verification-blocked sign-in → verified sign-in, in `packages/client/e2e/accounts.e2e.ts`. Drive the REAL controls — an e2e that only calls the API proves the server works, never that anyone can reach it (§8)
+- [ ] T045 [P] Playwright: display-name change survives reload and re-sign-in
+- [ ] T046 [P] Playwright: self-delete refuses subsequent requests, and restore returns the data
+- [ ] T047 Extend `scripts/smoke-test.sh` — SHARED FILE, so author it on `main` and sync down (§10) — asserting the account routes refuse an unauthenticated caller
+- [ ] T048 Regenerate `docs/openapi.yaml` (`npm -w packages/client run openapi:generate`); the contract test fails otherwise, in both directions
+- [ ] T049 Update CLAUDE.md §4 (new endpoints), §5 (`accounts` as the seventh store), §6 (the two new env vars) — then copy to AGENTS.md; the drift guard requires them byte-identical
+- [ ] T050 Run the full gates: lint, unit, Playwright, `validate-e2e.sh --no-agent`
+- [ ] T051 ⏸ Release — tag, image, pin bump — **awaiting operator approval**. Automation covers the rollout, not the decision to ship (§14). The migration (T011) must be run against prod BEFORE the pin moves
 
 ---
 
@@ -146,11 +148,11 @@ Setup (T001–T003)
    └─▶ Phase 2 identity model (T004–T011)      ← BLOCKS EVERYTHING
           └─▶ Phase 3 erasure re-key (T012–T015)
                  └─▶ Phase 4 adapter (T016–T019)
-                        ├─▶ US1 (T020–T026)  🎯 MVP
-                        ├─▶ US2 (T027–T032)   ┐ independent of each other
-                        ├─▶ US3 (T033–T038)   ┘
-                        └─▶ US4 (T039–T042)  ← needs only Phase 2's model
-                               └─▶ Polish (T043–T050)
+                        ├─▶ US1 (T020–T027)  🎯 MVP
+                        ├─▶ US2 (T028–T033)   ┐ independent of each other
+                        ├─▶ US3 (T034–T039)   ┘
+                        └─▶ US4 (T040–T043)  ← needs only Phase 2's model
+                               └─▶ Polish (T044–T051)
 ```
 
 US2, US3 and US4 do not depend on one another and can proceed in any order once Phase 4 lands.
@@ -158,9 +160,9 @@ US2, US3 and US4 do not depend on one another and can proceed in any order once 
 ## Parallel opportunities
 
 - **Setup**: T002, T003 together.
-- **US1**: T020 and T025 (server contract tests vs the form) together.
-- **US2**: T029 and T030 (different route files) together.
-- **Polish**: T043, T044, T045 are separate spec files.
+- **US1**: T020 and T026 (server contract tests vs the form) together.
+- **US2**: T030 and T031 (different route files) together.
+- **Polish**: T044, T045, T046 are separate spec files.
 
 ## Implementation strategy
 
