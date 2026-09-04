@@ -25,6 +25,7 @@ export interface IAccount {
   email?: string;
   displayName: string;
   identities: IAccountIdentity[];
+  pendingVerification?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +47,13 @@ const accountSchema = new Schema<IAccount>(
     email: { type: String, lowercase: true, trim: true },
     displayName: { type: String, required: true, trim: true },
     identities: { type: [accountIdentitySchema], default: [] },
+    // FR-AC-014: set at registration, cleared by the first token carrying a verified email.
+    //
+    // ABSENT, not `false`, for every account that did not register through us. Accounts
+    // predating spec 013 have no verification history at all, so a schema default of `false`
+    // would be indistinguishable from "verified" — and a default of `true` would lock every
+    // existing user out on deploy day. The same reasoning `006` used for its absent `status`.
+    pendingVerification: { type: Boolean },
   },
   { timestamps: true },
 );

@@ -10,7 +10,7 @@ controller, per CLAUDE.md §7.
 
 - **5/min per source address** (`FR-AC-018`); exceeded → **429**.
 - Already registered → **409** with a message that does not confirm the address exists
-  (`FR-AC-015`).
+  (`FR-AC-016`).
 - Provider rejects the password → **400** carrying the provider's stated reason (`FR-AC-017`).
 - Creates the provider user and the `accounts` document, and requests the verification message
   (`FR-AC-013`/`FR-AC-014`).
