@@ -148,8 +148,80 @@ describe('authenticate — identity resolution (spec 013 Phase A)', () => {
     try {
       await expect(authFor({ sub: 'sub-1' })).rejects.toBeInstanceOf(AuthError);
     } finally {
-      const db = await import('@server/db');
-      await db.connectDb();
+      // Reconnect directly, NOT via connectDb(): it memoises its promise on globalThis, so
+      // after a disconnect it hands back the dead one and every later test in the file dies
+      // with "Client must be connected". Found exactly that way.
+      await mongoose.connect(mongod.getUri());
     }
   });
 });
+
+describe('authenticate — email refresh (FR-AC-034)', () => {
+  async function accountWith(email: string, subject = 'sub-1'): Promise<string> {
+    const a = await Account.create({
+      email,
+      displayName: 'Ada',
+      identities: [{ issuer: ISS, subject, linkedAt: new Date() }],
+    });
+    return a._id.toString();
+  }
+
+  it('replaces the stored address when the token carries a DIFFERENT verified email', async () => {
+    // Not a freshness nicety. The stored address is what FR-AC-008 matches on when a new
+    // issuer appears, so a stale one is a hijack route: if the real user moves on and someone
+    // else later registers and verifies the abandoned address, matching hands them the account.
+    const id = await accountWith('old@example.com');
+    await authFor({ sub: 'sub-1', email: 'new@example.com', email_verified: true });
+    expect((await Account.findById(id))?.email).toBe('new@example.com');
+  });
+
+  it('leaves the stored address alone when the claim is present but UNVERIFIED', async () => {
+    // The whole guarantee rests on `email_verified`. Accepting an unverified claim would let
+    // a signed-in user re-point their account at any address they like, which is precisely
+    // the move FR-AC-009 refuses on the linking side.
+    const id = await accountWith('old@example.com');
+    await authFor({ sub: 'sub-1', email: 'attacker@example.com', email_verified: false });
+    expect((await Account.findById(id))?.email).toBe('old@example.com');
+  });
+
+  it('leaves the stored address alone when the token carries no email claim', async () => {
+    const id = await accountWith('old@example.com');
+    await authFor({ sub: 'sub-1' });
+    expect((await Account.findById(id))?.email).toBe('old@example.com');
+  });
+
+  it('does not write when the verified email already matches (research R6)', async () => {
+    // Conditional by design: this runs on EVERY authenticated request, so an unconditional
+    // write would put one database write in front of every read the app performs.
+    const id = await accountWith('ada@example.com');
+    const before = (await Account.findById(id))?.updatedAt;
+    await new Promise((r) => setTimeout(r, 10));
+    await authFor({ sub: 'sub-1', email: 'ada@example.com', email_verified: true });
+    expect((await Account.findById(id))?.updatedAt).toEqual(before);
+  });
+
+  it('compares case-insensitively so a re-spelled address is not a change', async () => {
+    const id = await accountWith('ada@example.com');
+    const before = (await Account.findById(id))?.updatedAt;
+    await new Promise((r) => setTimeout(r, 10));
+    await authFor({ sub: 'sub-1', email: 'Ada@Example.COM', email_verified: true });
+    expect((await Account.findById(id))?.updatedAt).toEqual(before);
+  });
+
+  it('keeps the request working when the new address already belongs to another account', async () => {
+    // The unique index makes this write fail. Surfacing it as a 401 would lock a legitimate
+    // user out of the app over a provider-side data conflict they cannot see or fix; the
+    // stale address grants nothing by itself, since the account that owns it owns it already.
+    const id = await accountWith('old@example.com');
+    await Account.create({
+      email: 'taken@example.com',
+      displayName: 'Grace',
+      identities: [{ issuer: ISS, subject: 'sub-2', linkedAt: new Date() }],
+    });
+    await expect(
+      authFor({ sub: 'sub-1', email: 'taken@example.com', email_verified: true }),
+    ).resolves.toBe(id);
+    expect((await Account.findById(id))?.email).toBe('old@example.com');
+  });
+});
+

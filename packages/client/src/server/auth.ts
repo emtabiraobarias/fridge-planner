@@ -225,6 +225,42 @@ async function createAccountFor(
   }
 }
 
+/**
+ * FR-AC-034: keep the stored address in step with the provider's VERIFIED claim.
+ *
+ * Not a freshness nicety. The stored address is the key FR-AC-008 matches on when a new
+ * issuer appears, so a stale one is a hijack route: if the real user moves on and someone
+ * else later registers and verifies the abandoned address, matching would hand them the
+ * original account.
+ *
+ * Here rather than at sign-in because the app never observes sign-in — only requests
+ * carrying tokens (R6). Conditional, so the steady-state cost of running on every
+ * authenticated request is a comparison rather than a write.
+ */
+async function refreshEmail(
+  accountId: string,
+  stored: string | undefined,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  // `email_verified` is the entire guarantee. Without it a signed-in user could re-point
+  // their account at any address, which is the move FR-AC-009 refuses on the linking side.
+  if (payload['email_verified'] !== true) return;
+  const claimed = claim(payload, 'email')?.toLowerCase();
+  if (!claimed || claimed === stored?.toLowerCase()) return;
+
+  const { Account } = await import('./models/account');
+  try {
+    await Account.updateOne({ _id: accountId }, { $set: { email: claimed } });
+  } catch (err) {
+    if ((err as { code?: number }).code !== 11000) throw err;
+    // Another account already holds the address. Surfacing this as a 401 would lock a
+    // legitimate user out over a provider-side conflict they can neither see nor fix, and
+    // the stale value grants nothing on its own — the account that owns the address owns it
+    // already. Keep the old value and leave a trail for the operator.
+    console.warn('[auth] email refresh skipped: address already in use', { accountId });
+  }
+}
+
 async function resolveInternalId(
   issuer: string,
   subject: string,
@@ -241,9 +277,12 @@ async function resolveInternalId(
 
   const { Account } = await import('./models/account');
   const existing = await Account.findOne({ identities: { $elemMatch: { issuer, subject } } })
-    .select({ _id: 1 })
+    .select({ _id: 1, email: 1 })
     .lean();
-  if (existing) return existing._id.toString();
+  if (existing) {
+    await refreshEmail(existing._id.toString(), existing.email, payload);
+    return existing._id.toString();
+  }
 
   // T041 inserts verified-email linking (FR-AC-008/009) here, ahead of creation.
   return createAccountFor(issuer, subject, payload);

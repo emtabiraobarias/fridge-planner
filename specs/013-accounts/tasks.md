@@ -29,8 +29,8 @@ must fail first. `[P]` marks tasks touching different files with no incomplete d
 - [x] T005 Create `packages/client/src/server/models/account.ts` per `data-model.md` — `_id`, `email`, `displayName`, embedded `identities[{issuer,subject,linkedAt}]` as `_id:false` subdocs, both unique indexes, `timestamps: true`
 - [x] T006 Write failing tests in `packages/client/tests/server/account-resolution.test.ts`: a token whose `(issuer, sub)` is recorded resolves to the internal identifier (FR-AC-004); an unrecorded pair with no email match creates a new account (FR-AC-010)
 - [x] T007 Resolve identity inside `authenticate()` in `packages/client/src/server/auth.ts` — per request, NO process-local cache (research R3; a cache lets two instances disagree after an erasure)
-- [ ] T008 Write a failing test asserting `authenticate()` replaces a stored email when the token carries a DIFFERENT verified email (FR-AC-034), and leaves it alone when the claim is unverified
-- [ ] T009 Implement the conditional email refresh in `authenticate()` — compare first, write only on change (research R6)
+- [x] T008 Write a failing test asserting `authenticate()` replaces a stored email when the token carries a DIFFERENT verified email (FR-AC-034), and leaves it alone when the claim is unverified
+- [x] T009 Implement the conditional email refresh in `authenticate()` — compare first, write only on change (research R6)
 - [ ] T010 Write failing tests in `packages/client/tests/server/unit/migrate-account-identities.test.ts`: one account per distinct `sub`; running twice changes nothing the second time; `--check` writes nothing
 - [ ] T011 Create `packages/client/scripts/migrate-account-identities.mjs` — idempotent, `--check` mode, rewrites `userId` across `USER_KEYED_MODELS` + `lifecycle-item`, NEVER on startup (FR-AC-007, constitution XII)
 
