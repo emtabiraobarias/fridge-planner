@@ -12,6 +12,7 @@
     "test:e2e": "NEXT_DIST_DIR=.next-e2e next build && playwright test",
     "test:e2e:run": "playwright test",
     "migrate:lifecycle-stages": "node scripts/migrate-lifecycle-stages.mjs",
+    "migrate:account-identities": "node scripts/migrate-account-identities.mjs",
     "openapi:generate": "node scripts/generate-openapi.mjs",
     "openapi:check": "node scripts/generate-openapi.mjs --check"
   },

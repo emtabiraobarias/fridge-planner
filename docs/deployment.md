@@ -211,6 +211,32 @@ stack on one host reachable only over the LAN. Artifacts committed for this:
   > ships **without** the role assigned, **nobody** can — including the operator. End users are
   > unaffected (FR-AD-006) and assigning the role fixes it, but do the role first.
 
+- **Keycloak service account for account management (spec `013`, MANUAL — realm admin).**
+  Self-registration, verification mail, password reset and account suspension are performed by the
+  app *against* Keycloak, which needs a machine credential — the app's first. Realm
+  `fridge-planner` → **Clients → Create client** → client ID `fridge-planner-admin`, **Client
+  authentication ON**, all standard flows **off**, **Service accounts roles ON** → Save. Then
+  **Service accounts roles → Assign role** → filter *by clients* → `realm-management` → tick
+  **`manage-users`** only (`FR-AC-032` — narrowest privilege that registration and reset require;
+  `manage-realm` is not needed and must not be granted). Copy the secret from **Credentials** into
+  the stack env as `IDP_ADMIN_CLIENT_ID` / `IDP_ADMIN_CLIENT_SECRET`.
+
+  > Never commit the secret — `.env.example` carries the empty keys only, like every other
+  > credential here. Until both are set, registration and password reset return a stated provider
+  > error; **sign-in and every existing read path are unaffected**, so a missing credential
+  > degrades the new surface rather than the running app.
+
+- **Keycloak email as admin-editable only (spec `013`, MANUAL — realm admin).** Realm
+  `fridge-planner` → **Realm settings → User profile → Attributes →** `email` → **Permissions** →
+  under *Who can edit?* untick **user**, leave **admin** ticked → Save. This stops a signed-in user
+  changing their own registered address in the account console, which would silently re-point the
+  identity the app matches on when linking a second provider (`FR-AC-008`).
+
+  > `FR-AC-035` deliberately makes this **defence in depth, not a precondition** — the app stores
+  > the address from the verified claim and refreshes it on sign-in (`FR-AC-034`), so it stays
+  > correct whether or not this step is done. Do it anyway; it closes the window between a change
+  > at the provider and the next sign-in.
+
 ### E4 — Secrets & prod env
 Load the prod env (checklist) into the secret manager + GH `production` Environment secrets. For the
 single-node variant, the runtime secrets live in the host `.env` (see `deploy/prod.env.example`); GH

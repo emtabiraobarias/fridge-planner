@@ -15,9 +15,9 @@ must fail first. `[P]` marks tasks touching different files with no incomplete d
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `IDP_ADMIN_CLIENT_ID` / `IDP_ADMIN_CLIENT_SECRET` to `.env.example` with a comment saying they are the app's FIRST machine credential against the IdP and must never be set in a committed file
-- [ ] T002 [P] Add `migrate:account-identities` script entry to `packages/client/package.json`
-- [ ] T003 [P] Document the two manual realm steps in `docs/deployment.md`: the `manage-users` service account, and making `email` admin-editable only (FR-AC-035) — human-only per §14, alongside the existing `post_logout_redirect_uri` step
+- [x] T001 Add `IDP_ADMIN_CLIENT_ID` / `IDP_ADMIN_CLIENT_SECRET` to `.env.example` with a comment saying they are the app's FIRST machine credential against the IdP and must never be set in a committed file
+- [x] T002 [P] Add `migrate:account-identities` script entry to `packages/client/package.json`
+- [x] T003 [P] Document the two manual realm steps in `docs/deployment.md`: the `manage-users` service account, and making `email` admin-editable only (FR-AC-035) — human-only per §14, alongside the existing `post_logout_redirect_uri` step
 
 ---
 
