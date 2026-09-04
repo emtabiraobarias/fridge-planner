@@ -56,10 +56,10 @@ resurrect deleted accounts, and every later phase adds more data erasure must re
 
 **Phase C of the plan.** Required by US1–US3; isolated so a provider change replaces one file.
 
-- [ ] T016 Write a failing architecture test in `packages/client/tests/server/unit/idp-adapter-boundary.test.ts`: no module outside `services/identity-provider.ts` references the provider's admin API — modelled on `no-deploy-imports.test.ts`
-- [ ] T017 Create `packages/client/src/server/services/identity-provider.ts` exporting `createUser`, `sendVerification`, `initiatePasswordReset`, `suspend`, `resume`, `deleteUser` — named in the APP's vocabulary, not the provider's (FR-AC-042)
-- [ ] T018 Implement the Keycloak adapter behind that interface — `enabled:false` for `suspend`, etc. — reading credentials from environment only (FR-AC-030/031)
-- [ ] T019 [P] Write a failing test asserting the adapter surfaces provider failure as a stated reason rather than a generic 500 (FR-AC-017), and that a provider outage never breaks read paths
+- [x] T016 Write a failing architecture test in `packages/client/tests/server/unit/idp-adapter-boundary.test.ts`: no module outside `services/identity-provider.ts` references the provider's admin API — modelled on `no-deploy-imports.test.ts`
+- [x] T017 Create `packages/client/src/server/services/identity-provider.ts` exporting `createUser`, `sendVerification`, `initiatePasswordReset`, `suspend`, `resume`, `deleteUser` — named in the APP's vocabulary, not the provider's (FR-AC-042)
+- [x] T018 Implement the Keycloak adapter behind that interface — `enabled:false` for `suspend`, etc. — reading credentials from environment only (FR-AC-030/031)
+- [x] T019 [P] Write a failing test asserting the adapter surfaces provider failure as a stated reason rather than a generic 500 (FR-AC-017), and that a provider outage never breaks read paths
 
 **Checkpoint**: the provider is reachable through exactly one seam, proven by test.
 
