@@ -154,6 +154,101 @@ async function refuseIfErased(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Spec 013 (FR-AC-001/002/004/010): translate the provider's `(issuer, subject)` pair into
+ * THE internal identifier — `accounts._id` — which is what every user-keyed document is
+ * keyed by. Before this existed, `userId` *was* the provider's `sub`: a value we neither
+ * own nor control, unique only within one provider, and impossible to carry to another.
+ *
+ * Per request, with no process-local cache (research R3). A cache would let two instances
+ * disagree after an erasure or an email refresh, which is exactly the state the erasure
+ * check exists to prevent (constitution VI).
+ */
+
+/** Read a string claim, treating a non-string as absent rather than coercing it. */
+function claim(payload: Record<string, unknown>, key: string): string | undefined {
+  const value = payload[key];
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+}
+
+/**
+ * A readable name for a brand-new account. The claims are the only thing we know about the
+ * person at this point; the local part of the address beats showing them a raw subject.
+ */
+function displayNameFrom(payload: Record<string, unknown>, email: string | undefined): string {
+  return (
+    claim(payload, 'name') ??
+    claim(payload, 'preferred_username') ??
+    claim(payload, 'given_name') ??
+    email?.split('@')[0] ??
+    'Account'
+  );
+}
+
+async function createAccountFor(
+  issuer: string,
+  subject: string,
+  payload: Record<string, unknown>,
+): Promise<string> {
+  const { Account } = await import('./models/account');
+  const email = claim(payload, 'email')?.toLowerCase();
+  const doc: Record<string, unknown> = {
+    displayName: displayNameFrom(payload, email),
+    identities: [{ issuer, subject, linkedAt: new Date() }],
+  };
+  // Omitted rather than set to undefined: the email index is sparse, and a stored null
+  // would put every email-less account on the same key.
+  if (email) doc['email'] = email;
+
+  try {
+    const created = await Account.create(doc);
+    return created._id.toString();
+  } catch (err) {
+    if ((err as { code?: number }).code !== 11000) throw err;
+
+    // Two requests for the same brand-new user raced and both saw "no match". The loser
+    // reads the winner's row — this is the case the unique index exists to force.
+    const existing = await Account.findOne({
+      identities: { $elemMatch: { issuer, subject } },
+    })
+      .select({ _id: 1 })
+      .lean();
+    if (existing) return existing._id.toString();
+
+    // Not the pair, then: the ADDRESS collided. An unrecorded pair arriving with an address
+    // that already belongs to an account is the provider-linking case (FR-AC-008), and
+    // linking it here would do so without checking `email_verified` — letting anyone who
+    // registers with someone else's address inherit their data. Refuse until T041 lands the
+    // verified check. Fail closed: the cost is a signed-in stranger seeing an error, the
+    // alternative is them seeing another person's kitchen.
+    throw new AuthError('This email address is already linked to another account');
+  }
+}
+
+async function resolveInternalId(
+  issuer: string,
+  subject: string,
+  payload: Record<string, unknown>,
+): Promise<string> {
+  // Fail CLOSED, deliberately unlike `refuseIfErased` below. That one fails open because the
+  // worst case is a brief window where an erased account still reads. Here the fallback would
+  // be returning the provider subject as a userId — writing documents under a key FR-AC-002
+  // forbids, which no later migration can reliably untangle. Every route calls connectDb()
+  // before authenticating, so a request arriving here without a connection was already lost.
+  if (mongoose.connection.readyState !== 1) {
+    throw new AuthError('Identity store is unavailable');
+  }
+
+  const { Account } = await import('./models/account');
+  const existing = await Account.findOne({ identities: { $elemMatch: { issuer, subject } } })
+    .select({ _id: 1 })
+    .lean();
+  if (existing) return existing._id.toString();
+
+  // T041 inserts verified-email linking (FR-AC-008/009) here, ahead of creation.
+  return createAccountFor(issuer, subject, payload);
+}
+
 export async function authenticatePrincipal(request: Request): Promise<Principal> {
   if (resolveMode() === 'dev') {
     const devP = devPrincipal(request);
@@ -173,15 +268,24 @@ export async function authenticatePrincipal(request: Request): Promise<Principal
   if (issuer) options.issuer = issuer;
   if (audience) options.audience = audience;
 
+  let payload: Record<string, unknown> & { sub?: string; iss?: string };
   try {
-    const { payload } = await jwtVerify(token, jwks(), options);
-    if (!payload.sub) throw new AuthError('Token has no subject');
-    await refuseIfErased(payload.sub);
-    return principal(payload.sub, rolesFromPayload(payload));
+    ({ payload } = await jwtVerify(token, jwks(), options));
   } catch (err) {
     if (err instanceof AuthError) throw err;
     throw new AuthError('Invalid or expired token');
   }
+
+  // Outside the try above on purpose: everything below is our own logic, and wrapping it
+  // would relabel a resolution failure as "Invalid or expired token" — sending the user to
+  // re-authenticate against a perfectly good token, forever.
+  if (!payload.sub) throw new AuthError('Token has no subject');
+  const tokenIssuer = payload.iss ?? issuer;
+  if (!tokenIssuer) throw new AuthError('Token has no issuer');
+
+  const userId = await resolveInternalId(tokenIssuer, payload.sub, payload);
+  await refuseIfErased(userId);
+  return principal(userId, rolesFromPayload(payload));
 }
 
 /**

@@ -25,10 +25,10 @@ must fail first. `[P]` marks tasks touching different files with no incomplete d
 
 **Phase A of the plan.** Nothing below can start until `userId` means an internal identifier.
 
-- [ ] T004 Write failing tests in `packages/client/tests/server/unit/account-model.test.ts`: the unique index on `(identities.issuer, identities.subject)` rejects a duplicate pair, and the unique index on `email` rejects a duplicate address
-- [ ] T005 Create `packages/client/src/server/models/account.ts` per `data-model.md` — `_id`, `email`, `displayName`, embedded `identities[{issuer,subject,linkedAt}]` as `_id:false` subdocs, both unique indexes, `timestamps: true`
-- [ ] T006 Write failing tests in `packages/client/tests/server/account-resolution.test.ts`: a token whose `(issuer, sub)` is recorded resolves to the internal identifier (FR-AC-004); an unrecorded pair with no email match creates a new account (FR-AC-011)
-- [ ] T007 Resolve identity inside `authenticate()` in `packages/client/src/server/auth.ts` — per request, NO process-local cache (research R3; a cache lets two instances disagree after an erasure)
+- [x] T004 Write failing tests in `packages/client/tests/server/unit/account-model.test.ts`: the unique index on `(identities.issuer, identities.subject)` rejects a duplicate pair, and the unique index on `email` rejects a duplicate address
+- [x] T005 Create `packages/client/src/server/models/account.ts` per `data-model.md` — `_id`, `email`, `displayName`, embedded `identities[{issuer,subject,linkedAt}]` as `_id:false` subdocs, both unique indexes, `timestamps: true`
+- [x] T006 Write failing tests in `packages/client/tests/server/account-resolution.test.ts`: a token whose `(issuer, sub)` is recorded resolves to the internal identifier (FR-AC-004); an unrecorded pair with no email match creates a new account (FR-AC-010)
+- [x] T007 Resolve identity inside `authenticate()` in `packages/client/src/server/auth.ts` — per request, NO process-local cache (research R3; a cache lets two instances disagree after an erasure)
 - [ ] T008 Write a failing test asserting `authenticate()` replaces a stored email when the token carries a DIFFERENT verified email (FR-AC-034), and leaves it alone when the claim is unverified
 - [ ] T009 Implement the conditional email refresh in `authenticate()` — compare first, write only on change (research R6)
 - [ ] T010 Write failing tests in `packages/client/tests/server/unit/migrate-account-identities.test.ts`: one account per distinct `sub`; running twice changes nothing the second time; `--check` writes nothing
@@ -123,7 +123,7 @@ confirm the internal identity is reused and prior data resolves.
 
 - [ ] T040 [US4] Write failing tests in `packages/client/tests/server/account-linking.test.ts`: a verified email matching a stored address links the new pair to the EXISTING account (FR-AC-008); an unverified email links NOTHING and an absent email claim links nothing (FR-AC-009); an unmatched pair creates a NEW account (FR-AC-010)
 - [ ] T041 [US4] Implement verified-email linking in `packages/client/src/server/auth.ts` (FR-AC-008/009/010) — the refusal is the load-bearing half: matching on an unverified address lets a stranger inherit someone's data
-- [ ] T042 [US4] Record every link in the audit log (FR-AC-012)
+- [ ] T042 [US4] Record every link in the audit log (FR-AC-011)
 - [ ] T043 [P] [US4] Write a failing test asserting an audit entry recorded against an old provider subject still resolves to the right account when displayed (FR-AC-037), and that the migration did NOT rewrite audit history (FR-AC-036)
 
 ---
