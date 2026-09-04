@@ -30,7 +30,7 @@ fails is invisible.
 
 ## Verifying the journey
 
-1. Register at `/account/register`; confirm sign-in is refused before verification (`FR-AC-016`).
+1. Register at `/account/register`; confirm sign-in is refused before verification (`FR-AC-014`).
 2. Verify via the provider's email, sign in, reach the Kitchen.
 3. Change the display name; reload; confirm it survives.
 4. Export; confirm every user-keyed store appears.
@@ -42,5 +42,5 @@ fails is invisible.
 
 Point `AUTH_ISSUER`/`AUTH_JWKS_URI` at a second provider, sign in as an existing user with the same
 verified address, and confirm the new `(issuer, subject)` pair links to the existing account and all
-prior data resolves (`FR-AC-009`, `SC-AC-005`). Then confirm an **unverified** address links nothing
-(`FR-AC-010`) — that refusal is what stops a stranger inheriting someone's data.
+prior data resolves (`FR-AC-008`, `SC-AC-005`). Then confirm an **unverified** address links nothing
+(`FR-AC-009`) — that refusal is what stops a stranger inheriting someone's data.
