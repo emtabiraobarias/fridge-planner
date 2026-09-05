@@ -227,6 +227,41 @@ else
   c=$(code -X POST "${AS_ADMIN[@]}" "$BASE/admin/users/$OTHER_U/restore"); chk "200 OK" 200 "$c"
   chk "restored user has access again" 200 "$(code -H "X-User-Id: $OTHER_U" -H "X-User-Roles;" "$BASE/inventory")"
   chk "admin cannot erase themselves (FR-AD-020)" 409 "$(code -X POST "${AS_ADMIN[@]}" "$BASE/admin/users/$ADMIN_U/erase")"
+
+  echo "19) spec 013 — the account routes (FR-AC-018/023/029/044)"
+  # The SIGNED-OUT pair must be reachable without a session: someone registering has no
+  # account, and someone resetting a password cannot sign in. That is the whole audience,
+  # and FR-AC-029 exists because every other route in this app assumes a session — an entry
+  # point built behind one is the easy accident.
+  #
+  # 401 here would mean unreachable. Anything else means reachable: 400 for a body the gate
+  # deliberately does not supply, 429 if a previous run used the window, 503 where no
+  # identity provider is configured (which is the case on a bare Stage-1 stack).
+  c=$(code -X POST -H "Content-Type: application/json" -d '{}' "$BASE/accounts/register")
+  case "$c" in 401) chk "register is reachable signed out (FR-AC-029)" "not 401" "$c" ;;
+                 *) chk "register is reachable signed out (FR-AC-029)" "ok" "ok" ;; esac
+
+  # Password reset answers 202 whether or not the address is registered (FR-AC-023). A gate
+  # that accepted "any non-401" would miss the disclosure this requirement is entirely about,
+  # so this one pins the exact status for an address that certainly does not exist.
+  chk "password reset is 202 for an unknown address (FR-AC-023)" 202 \
+    "$(code -X POST -H "Content-Type: application/json" \
+       -d '{"email":"definitely-not-registered@example.invalid"}' "$BASE/accounts/password-reset")"
+
+  # …and the SIGNED-IN ones answer for the CALLER, never 500.
+  #
+  # This gate runs under the dev auth seam, where every request is authenticated — so there
+  # is no unauthenticated state here to assert a 401 against. What it CAN pin is the failure
+  # that actually happened three times while spec 013 was built: `Account.findById` THROWS on
+  # an id that is not an ObjectId rather than returning null, and EVERY userId in a live
+  # database is a provider subject until the migration runs. A 500 here on deploy day would
+  # mean the account surface was broken for every existing user at once.
+  chk "own account answers 404, not 500, for an identity with no account row" 404 \
+    "$(code -H "X-User-Id: smoke-no-such-account" "$BASE/accounts/me")"
+  chk "own export answers 404, not 500, for the same (FR-AC-024)" 404 \
+    "$(code -H "X-User-Id: smoke-no-such-account" "$BASE/accounts/me/export")"
+  chk "own deletion answers 404, not 500, for the same (FR-AC-025)" 404 \
+    "$(code -X DELETE -H "X-User-Id: smoke-no-such-account" "$BASE/accounts/me")"
 fi
 
 echo ""
