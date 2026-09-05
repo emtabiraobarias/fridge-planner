@@ -185,7 +185,7 @@ address, confirm the internal identity is reused and all prior data resolves.
   > the one adapter `FR-AC-019` keeps thin.
 - **FR-AC-034**: When a request presents a token carrying a verified email that differs from the address
   stored for that identity, the system shall replace the stored address with it.
-  > Clarified 2026-09-03. The stored email is the key `FR-AC-009` matches on when a new issuer appears, so a
+  > Clarified 2026-09-03. The stored email is the key `FR-AC-008` matches on when a new issuer appears, so a
   > stale value is a hijack risk, not a freshness annoyance: if the real user moves to a new address and
   > someone else later registers and verifies the old one, matching would hand them the original account.
   > Refreshing on sign-in closes that window using only what the app already receives.
@@ -249,7 +249,7 @@ address, confirm the internal identity is reused and all prior data resolves.
   > `suspend` / `resume` / `delete`, not the provider's spelling of them — Keycloak's `enabled:false`,
   > Auth0's `blocked:true`, Okta's `lifecycle/suspend` and Entra's `accountEnabled:false` are all the same
   > intent. Keeping the provider's vocabulary inside the adapter is what `FR-AC-019` is for. These add no
-  > new dependency: the adapter already needs administrative write access for `FR-AC-013`/`FR-AC-014`.
+  > new dependency: the adapter already needs administrative write access for `FR-AC-012`/`FR-AC-013`.
 - **FR-AC-043**: While an account is erased, the system shall refuse every request authenticated as it.
   > Already true — the erasure check runs at the auth seam on every authenticated request, and the smoke
   > gate asserts it. Stated so that `FR-AC-039` is understood as defence in depth rather than the only
