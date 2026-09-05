@@ -121,22 +121,22 @@ stops immediately, restore inside the window, confirm the data returns.
 **Independent test**: point the app at a second issuer, sign in with the same verified address,
 confirm the internal identity is reused and prior data resolves.
 
-- [ ] T040 [US4] Write failing tests in `packages/client/tests/server/account-linking.test.ts`: a verified email matching a stored address links the new pair to the EXISTING account (FR-AC-008); an unverified email links NOTHING and an absent email claim links nothing (FR-AC-009); an unmatched pair creates a NEW account (FR-AC-010)
-- [ ] T041 [US4] Implement verified-email linking in `packages/client/src/server/auth.ts` (FR-AC-008/009/010) — the refusal is the load-bearing half: matching on an unverified address lets a stranger inherit someone's data
-- [ ] T042 [US4] Record every link in the audit log (FR-AC-011)
-- [ ] T043 [P] [US4] Write a failing test asserting an audit entry recorded against an old provider subject still resolves to the right account when displayed (FR-AC-037), and that the migration did NOT rewrite audit history (FR-AC-036)
+- [x] T040 [US4] Write failing tests in `packages/client/tests/server/account-linking.test.ts`: a verified email matching a stored address links the new pair to the EXISTING account (FR-AC-008); an unverified email links NOTHING and an absent email claim links nothing (FR-AC-009); an unmatched pair creates a NEW account (FR-AC-010)
+- [x] T041 [US4] Implement verified-email linking in `packages/client/src/server/auth.ts` (FR-AC-008/009/010) — the refusal is the load-bearing half: matching on an unverified address lets a stranger inherit someone's data
+- [x] T042 [US4] Record every link in the audit log (FR-AC-011)
+- [x] T043 [P] [US4] Write a failing test asserting an audit entry recorded against an old provider subject still resolves to the right account when displayed (FR-AC-037), and that the migration did NOT rewrite audit history (FR-AC-036)
 
 ---
 
 ## Phase 9: Polish & cross-cutting
 
-- [ ] T044 [P] Playwright: registration → verification-blocked sign-in → verified sign-in, in `packages/client/e2e/accounts.e2e.ts`. Drive the REAL controls — an e2e that only calls the API proves the server works, never that anyone can reach it (§8)
-- [ ] T045 [P] Playwright: display-name change survives reload and re-sign-in
-- [ ] T046 [P] Playwright: self-delete refuses subsequent requests, and restore returns the data
-- [ ] T047 Extend `scripts/smoke-test.sh` — SHARED FILE, so author it on `main` and sync down (§10) — asserting the account routes refuse an unauthenticated caller
-- [ ] T048 Regenerate `docs/openapi.yaml` (`npm -w packages/client run openapi:generate`); the contract test fails otherwise, in both directions
-- [ ] T049 Update CLAUDE.md §4 (new endpoints), §5 (`accounts` as the seventh store), §6 (the two new env vars) — then copy to AGENTS.md; the drift guard requires them byte-identical
-- [ ] T050 Run the full gates: lint, unit, Playwright, `validate-e2e.sh --no-agent`
+- [x] T044 [P] Playwright: registration → verification-blocked sign-in → verified sign-in, in `packages/client/e2e/accounts.e2e.ts`. Drive the REAL controls — an e2e that only calls the API proves the server works, never that anyone can reach it (§8)
+- [x] T045 [P] Playwright: display-name change survives reload and re-sign-in
+- [x] T046 [P] Playwright: self-delete refuses subsequent requests, and restore returns the data
+- [x] T047 Extend `scripts/smoke-test.sh` — SHARED FILE, so author it on `main` and sync down (§10) — asserting the account routes refuse an unauthenticated caller
+- [x] T048 Regenerate `docs/openapi.yaml` (`npm -w packages/client run openapi:generate`); the contract test fails otherwise, in both directions
+- [x] T049 Update CLAUDE.md §4 (new endpoints), §5 (`accounts` as the seventh store), §6 (the two new env vars) — then copy to AGENTS.md; the drift guard requires them byte-identical
+- [x] T050 Run the full gates: lint, unit, Playwright, `validate-e2e.sh --no-agent`
 - [ ] T051 ⏸ Release — tag, image, pin bump — **awaiting operator approval**. Automation covers the rollout, not the decision to ship (§14). The migration (T011) must be run against prod BEFORE the pin moves
 
 ---

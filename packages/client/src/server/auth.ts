@@ -191,9 +191,15 @@ async function createAccountFor(
   payload: Record<string, unknown>,
 ): Promise<string> {
   const { Account } = await import('./models/account');
-  const email = claim(payload, 'email')?.toLowerCase();
+  const claimed = claim(payload, 'email')?.toLowerCase();
+  // Only a VERIFIED address is stored. Two reasons, and the second is the security one:
+  // an unverified address is not evidence of anything, and storing it would put it into the
+  // pool FR-AC-008 matches against — so an attacker could seed someone else's address on
+  // their own account and wait for the real owner to arrive. It also removes the duplicate-key
+  // case entirely, since the address that could collide is exactly the one not stored.
+  const email = payload['email_verified'] === true ? claimed : undefined;
   const doc: Record<string, unknown> = {
-    displayName: displayNameFrom(payload, email),
+    displayName: displayNameFrom(payload, claimed),
     identities: [{ issuer, subject, linkedAt: new Date() }],
   };
   // Omitted rather than set to undefined: the email index is sparse, and a stored null
@@ -215,12 +221,10 @@ async function createAccountFor(
       .lean();
     if (existing) return existing._id.toString();
 
-    // Not the pair, then: the ADDRESS collided. An unrecorded pair arriving with an address
-    // that already belongs to an account is the provider-linking case (FR-AC-008), and
-    // linking it here would do so without checking `email_verified` — letting anyone who
-    // registers with someone else's address inherit their data. Refuse until T041 lands the
-    // verified check. Fail closed: the cost is a signed-in stranger seeing an error, the
-    // alternative is them seeing another person's kitchen.
+    // Not the pair, then: the ADDRESS collided, despite `linkVerifiedEmail` having already
+    // declined to match it. Two requests for the same verified address raced. Fail closed —
+    // the cost is a signed-in stranger seeing an error and retrying, the alternative is them
+    // seeing another person's kitchen.
     throw new AuthError('This email address is already linked to another account');
   }
 }
@@ -326,6 +330,60 @@ async function clearPendingVerification(
   await Account.updateOne({ _id: accountId }, { $unset: { pendingVerification: '' } });
 }
 
+/**
+ * FR-AC-008: an unrecorded `(issuer, subject)` pair carrying a VERIFIED email that matches a
+ * stored address resolves to the EXISTING account. This is what makes a provider change a
+ * configuration change instead of a data migration.
+ *
+ * ⚠️ The refusal is the load-bearing half (FR-AC-009). Matching on an address the new provider
+ * has not verified would let anyone who registers with someone else's email inherit that
+ * person's inventory, meal plans and feedback. `email_verified === true` — strictly, because
+ * providers have spelled it `"true"` before and a loose check turns the barrier into
+ * decoration.
+ *
+ * Returns null when it declines, leaving the caller to create a fresh account (FR-AC-010).
+ */
+async function linkVerifiedEmail(
+  issuer: string,
+  subject: string,
+  payload: Record<string, unknown>,
+): Promise<string | null> {
+  if (payload['email_verified'] !== true) return null;
+  const email = claim(payload, 'email')?.toLowerCase();
+  if (!email) return null;
+
+  const { Account } = await import('./models/account');
+  // Guarded update rather than read-then-write: the filter re-checks that this pair is still
+  // absent, so two concurrent first sign-ins through a new provider cannot both append it.
+  const linkedAt = new Date();
+  const account = await Account.findOneAndUpdate(
+    { email, 'identities.subject': { $ne: subject } },
+    { $push: { identities: { issuer, subject, linkedAt } } },
+    { new: true },
+  )
+    .select({ _id: 1 })
+    .lean();
+
+  if (!account) {
+    // Either no account holds the address, or this pair is already recorded on it — the
+    // latter meaning a concurrent request won the race, which resolution handles on retry.
+    const already = await Account.findOne({ email, 'identities.subject': subject })
+      .select({ _id: 1 })
+      .lean();
+    return already ? already._id.toString() : null;
+  }
+
+  const id = account._id.toString();
+  // FR-AC-011. A link silently re-points one person's whole history at a new provider
+  // identity; if it ever happens wrongly, this entry is the only way anyone finds out.
+  // Recorded ONLY on an actual link — not on a refusal, which would read as though the
+  // attacker had succeeded, and not on ordinary sign-ins, which run on every request and
+  // would bury the real links.
+  const { record: auditRecord } = await import('./lib/audit');
+  await auditRecord(id, 'account.identity-link', { userId: id, type: 'account' });
+  return id;
+}
+
 async function resolveInternalId(
   issuer: string,
   subject: string,
@@ -353,7 +411,9 @@ async function resolveInternalId(
     return id;
   }
 
-  // T041 inserts verified-email linking (FR-AC-008/009) here, ahead of creation.
+  const linked = await linkVerifiedEmail(issuer, subject, payload);
+  if (linked) return linked;
+
   return createAccountFor(issuer, subject, payload);
 }
 

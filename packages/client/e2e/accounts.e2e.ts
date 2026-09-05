@@ -1,7 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Spec 013 US1 — self-registration in a real browser.
+ * Spec 013 — the account journeys in a real browser (US1, US2, US3).
+ *
+ * US4 is deliberately absent: provider linking has no user-facing control, lives entirely
+ * inside `authenticate()`, and only happens on the OIDC path this dev-seam gate does not
+ * exercise. `tests/server/account-linking.test.ts` is its coverage. research R8 names the
+ * three journeys that DO need driving, and they are the three below.
+ *
+ * US1 — self-registration.
  *
  * §8: an e2e that only calls `page.request` proves the server works, never that anyone can
  * REACH it. `011` shipped in 4.12.0 with three panels unbuilt, every server test passing and
