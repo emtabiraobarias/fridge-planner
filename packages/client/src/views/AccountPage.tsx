@@ -1,6 +1,7 @@
 'use client';
 import { LogIn } from 'lucide-react';
 import { AccountPanel } from '../components/account/AccountPanel';
+import { ProfilePanel } from '../components/account/ProfilePanel';
 import { RegisterForm } from '../components/account/RegisterForm';
 import { useAuth } from '../context/AuthContext';
 import { useMe } from '../hooks/useMe';
@@ -67,7 +68,14 @@ export function AccountPage(): React.JSX.Element {
       {/* Signed-in state comes from the SERVER's answer in preference to the client's token,
           for the reason AccountPanel documents: under the dev seam the browser holds no OIDC
           token at all, yet the server knows exactly who the caller is. */}
-      {me ? <AccountPanel variant="row" /> : isAuthenticated ? null : <SignedOutAccount />}
+      {me ? (
+        <>
+          <AccountPanel variant="row" />
+          <ProfilePanel />
+        </>
+      ) : isAuthenticated ? null : (
+        <SignedOutAccount />
+      )}
     </div>
   );
 }

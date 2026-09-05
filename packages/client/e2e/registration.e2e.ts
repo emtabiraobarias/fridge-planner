@@ -18,11 +18,29 @@ import { test, expect, type Page } from '@playwright/test';
 /** Make the browser look like a visitor who has no account. */
 async function asSignedOutVisitor(page: Page): Promise<void> {
   await page.route('**/api/v1/me', (route) => route.fulfill({ status: 401, body: '{}' }));
+  await fromOwnSourceAddress(page);
 }
 
 /** Unique per run: the mock IdP and the accounts collection both persist across a suite. */
 function freshEmail(tag: string): string {
   return `${tag}-${Date.now()}-${Math.floor(Math.random() * 10_000)}@example.com`;
+}
+
+/**
+ * A distinct source address per test.
+ *
+ * Registration is limited to 5/min per source (FR-AC-018) and every request in this suite
+ * arrives from the same loopback address, so without this the sixth registration in the file
+ * gets a 429 and the test reads it as a broken form. Found exactly that way — the failure
+ * surfaced as "no profile panel", one test after the real cause.
+ *
+ * This is not a workaround around the limit: it drives the SAME keying production uses,
+ * which is the forwarded header Caddy sets as the only ingress (see `request-source.ts`).
+ */
+let sourceCounter = 0;
+async function fromOwnSourceAddress(page: Page): Promise<void> {
+  sourceCounter += 1;
+  await page.setExtraHTTPHeaders({ 'x-forwarded-for': `198.51.100.${sourceCounter % 250}` });
 }
 
 async function fillRegistration(
@@ -118,4 +136,96 @@ test('the account surface did not become a fifth navigation destination (FR-AC-0
   await page.goto('/home');
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
   await expect(nav.getByRole('link', { name: /^account$/i })).toHaveCount(0);
+});
+
+/**
+ * Spec 013 US2 — managing your own account, in a real browser.
+ *
+ * Seeding is the awkward part and worth stating. The e2e gate runs the DEV auth seam, which
+ * takes the caller's identity straight from `x-user-id` — so under it `userId` IS the internal
+ * identifier, with no token to resolve. A test therefore registers through the real form,
+ * takes the `accountId` the server returns, and opens a context that identifies as it. That is
+ * the same identity the app would resolve from a real token, arrived at the short way.
+ *
+ * Every assertion below is still on the SERVER's answer: the rename is checked after a
+ * reload, because a purely local state update would satisfy any check made before one.
+ */
+test.describe('US2 — manage your own account', () => {
+  /**
+   * Register through the real form and return a context that IS that account.
+   * `page.request` would have been shorter and would have proved nothing about the form.
+   */
+  async function signedInAsNewAccount(browser: Parameters<Parameters<typeof test>[1]>[0]['browser']) {
+    const setupCtx = await browser.newContext();
+    const setupPage = await setupCtx.newPage();
+    await asSignedOutVisitor(setupPage);
+
+    const created = setupPage.waitForResponse(
+      (r) => r.url().includes('/api/v1/accounts/register') && r.status() === 201,
+    );
+    await setupPage.goto('/account');
+    await fillRegistration(setupPage, freshEmail('us2'));
+    const { accountId } = (await (await created).json()) as { accountId: string };
+    await expect(setupPage.getByTestId('register-verify-notice')).toBeVisible();
+    await setupCtx.close();
+
+    const ctx = await browser.newContext({ extraHTTPHeaders: { 'x-user-id': accountId } });
+    return { ctx, page: await ctx.newPage() };
+  }
+
+  test('a signed-in user sees their profile and can rename themselves (FR-AC-021)', async ({
+    browser,
+  }) => {
+    const { ctx, page } = await signedInAsNewAccount(browser);
+    await page.goto('/account');
+
+    const panel = page.getByTestId('profile-panel');
+    await expect(panel).toBeVisible();
+
+    await panel.getByLabel(/display name/i).fill('Ada Lovelace');
+    await panel.getByRole('button', { name: /save display name/i }).click();
+    await expect(panel.getByRole('button', { name: /saved/i })).toBeVisible();
+
+    // The assertion that matters: it survives a reload, so the SERVER holds it. Checking the
+    // button text alone would pass on a purely local state change.
+    await page.reload();
+    await expect(page.getByTestId('profile-panel').getByLabel(/display name/i)).toHaveValue(
+      'Ada Lovelace',
+    );
+    await ctx.close();
+  });
+
+  test('the profile offers no way to change the email address (FR-AC-034/035)', async ({
+    browser,
+  }) => {
+    // The absence IS the requirement: the stored address is what FR-AC-008 matches on when a
+    // new provider appears, so a self-service edit would let someone re-point their identity
+    // at an address they have not proved they own.
+    const { ctx, page } = await signedInAsNewAccount(browser);
+    await page.goto('/account');
+    const panel = page.getByTestId('profile-panel');
+    await expect(panel.getByTestId('profile-email')).toBeVisible();
+    await expect(panel.getByRole('textbox', { name: /email/i })).toHaveCount(0);
+    await ctx.close();
+  });
+
+  test('a password reset is started without the app ever taking a password (FR-AC-033)', async ({
+    browser,
+  }) => {
+    const { ctx, page } = await signedInAsNewAccount(browser);
+    await page.goto('/account');
+
+    const panel = page.getByTestId('profile-panel');
+    const reset = page.waitForResponse(
+      (r) => r.url().includes('/api/v1/accounts/password-reset') && r.request().method() === 'POST',
+    );
+    await panel.getByTestId('profile-reset-button').click();
+
+    // 202 from the real route — the provider mails and hosts the form from here.
+    expect((await reset).status()).toBe(202);
+    await expect(panel.getByTestId('profile-reset-sent')).toBeVisible();
+    // Nothing on this surface ever asked for one.
+    await expect(page.getByLabel(/password/i)).toHaveCount(0);
+    await ctx.close();
+  });
 });

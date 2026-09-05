@@ -91,12 +91,12 @@ verification; then sign in and reach the Kitchen.
 **Independent test**: change the display name and confirm it survives a reload and a fresh sign-in;
 complete a password reset and sign in with the new password.
 
-- [ ] T028 [P] [US2] Write failing tests in `packages/client/tests/server/accounts-profile.test.ts`: display name persists (FR-AC-021); reset returns an IDENTICAL response for registered and unregistered addresses (FR-AC-023); 429 past 10/min (FR-AC-044)
-- [ ] T029 [US2] Add `getMe` / `updateDisplayName` / `requestPasswordReset` to `controllers/accounts.ts`
-- [ ] T030 [P] [US2] Create `packages/client/app/api/v1/accounts/me/route.ts` (GET, PATCH)
-- [ ] T031 [P] [US2] Create `packages/client/app/api/v1/accounts/password-reset/route.ts` — always 202, rate-limited
-- [ ] T032 [US2] Build the profile panel in `packages/client/src/components/account/ProfilePanel.tsx`
-- [ ] T033 [US2] Write a failing test asserting NO route accepts a password or a reset token (FR-AC-033) — the app initiates, the provider completes
+- [x] T028 [P] [US2] Write failing tests in `packages/client/tests/server/accounts-profile.test.ts`: display name persists (FR-AC-021); reset returns an IDENTICAL response for registered and unregistered addresses (FR-AC-023); 429 past 10/min (FR-AC-044)
+- [x] T029 [US2] Add `getMe` / `updateDisplayName` / `requestPasswordReset` to `controllers/accounts.ts`
+- [x] T030 [P] [US2] Create `packages/client/app/api/v1/accounts/me/route.ts` (GET, PATCH)
+- [x] T031 [P] [US2] Create `packages/client/app/api/v1/accounts/password-reset/route.ts` — always 202, rate-limited
+- [x] T032 [US2] Build the profile panel in `packages/client/src/components/account/ProfilePanel.tsx`
+- [x] T033 [US2] Write a failing test asserting NO route accepts a password or a reset token (FR-AC-033) — the app initiates, the provider completes
 
 ---
 

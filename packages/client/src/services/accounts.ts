@@ -1,12 +1,20 @@
+import { apiFetch, ensureOk } from './http';
+
 /**
- * Browser calls for the signed-out account surface (spec 013 US1).
+ * Browser calls for the account surface (spec 013).
  *
- * Deliberately does NOT use `apiFetch`/`ensureOk` like every other service module. Those
- * exist for authenticated calls: `apiFetch` retries a 401 through the refresh grant, and
- * `ensureOk` broadcasts a 401 to `AuthBanner` as "your session expired". Neither is true
- * here — the caller has no session and is not supposed to. Routing registration through
- * them would pop a re-authentication prompt at someone in the middle of creating their
- * first account.
+ * ⚠️ This module is split down the middle, and the split is deliberate.
+ *
+ * The SIGNED-OUT calls — registration and password reset — use plain `fetch`. Every other
+ * service module in this app uses `apiFetch`/`ensureOk`, which exist for authenticated
+ * callers: one retries a 401 through the refresh grant, the other broadcasts it to
+ * `AuthBanner` as "your session expired". Neither is true for someone with no session, and
+ * routing these through them pops a re-authentication prompt at a person in the middle of
+ * creating their first account — or at someone requesting a reset precisely BECAUSE they
+ * cannot sign in.
+ *
+ * The SIGNED-IN calls — the profile read and display-name write — use `apiFetch`/`ensureOk`
+ * like everything else, because there a 401 genuinely does mean the session expired.
  */
 
 export interface RegisterInput {
@@ -53,3 +61,47 @@ export async function registerAccount(input: RegisterInput): Promise<{ accountId
   }
   return (await res.json()) as { accountId: string };
 }
+
+// ——— US2: the signed-in half ———
+//
+// These DO go through `apiFetch`: the caller has a session, so a 401 genuinely means it
+// expired and the refresh-and-retry (FR-D-010) is exactly the right behaviour.
+
+export interface AccountProfile {
+  accountId: string;
+  email: string | null;
+  displayName: string;
+  isAdmin: boolean;
+}
+
+export async function fetchAccountProfile(): Promise<AccountProfile> {
+  const res = await apiFetch('/api/v1/accounts/me');
+  return (await ensureOk(res, 'load your account').json()) as AccountProfile;
+}
+
+export async function updateDisplayName(displayName: string): Promise<void> {
+  const res = await apiFetch('/api/v1/accounts/me', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ displayName }),
+  });
+  ensureOk(res, 'update your display name');
+}
+
+/**
+ * FR-AC-023: the server answers 202 whether or not the address is registered, so there is
+ * nothing here to branch on — and nothing this function could tell a caller that would not
+ * re-create the enumeration oracle the endpoint exists to avoid.
+ *
+ * Signed-out reachable, so plain `fetch` like `registerAccount` above: routing it through
+ * `apiFetch`/`ensureOk` would pop a re-authentication prompt at someone who cannot sign in,
+ * which is the entire audience for a password reset.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await fetch('/api/v1/accounts/password-reset', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+}
+

@@ -68,6 +68,47 @@
           "$ref": "#/components/responses/Ok"
         "500":
           "$ref": "#/components/responses/Problem"
+  "/api/v1/accounts/me":
+    "get":
+      "summary": "GET /api/v1/accounts/me"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Ok"
+        "401":
+          "$ref": "#/components/responses/Problem"
+        "500":
+          "$ref": "#/components/responses/Problem"
+    "patch":
+      "summary": "PATCH /api/v1/accounts/me"
+      "requestBody":
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Ok"
+        "401":
+          "$ref": "#/components/responses/Problem"
+        "500":
+          "$ref": "#/components/responses/Problem"
+  "/api/v1/accounts/password-reset":
+    "post":
+      "summary": "POST /api/v1/accounts/password-reset"
+      "requestBody":
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+      "responses":
+        "200":
+          "$ref": "#/components/responses/Ok"
+        "401":
+          "$ref": "#/components/responses/Problem"
+        "429":
+          "$ref": "#/components/responses/Problem"
+        "500":
+          "$ref": "#/components/responses/Problem"
   "/api/v1/accounts/register":
     "post":
       "summary": "POST /api/v1/accounts/register"
