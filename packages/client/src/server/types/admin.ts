@@ -41,6 +41,9 @@ export const ADMIN_AUDIT_ACTIONS = [
   // action names would make the trail read as though an administrator had done it.
   'account.self-export',
   'account.self-delete',
+  // FR-AC-011. Written by `authenticate()` rather than by an administrator — the actor is the
+  // account itself, because a link happens when a person signs in through a new provider.
+  'account.identity-link',
 ] as const;
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number];
