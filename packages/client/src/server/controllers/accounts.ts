@@ -1,10 +1,10 @@
 import 'server-only';
-import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Account } from '../models/account';
 import { identityProvider, IdentityProviderError } from '../services/identity-provider';
 import { problem, type ControllerResult } from '../http';
 import type { Principal } from '../auth';
+import { asAccountId } from '../lib/account-id';
 
 /**
  * Self-service account operations (spec 013 US1).
@@ -101,16 +101,13 @@ const displayNameSchema = z.object({ displayName: z.string().trim().min(1).max(1
 /**
  * No account exists for this identity — and a 404 rather than a throw.
  *
- * `findById` does not return null for a non-ObjectId, it THROWS a CastError, which
- * `withRoute` would turn into a 500. Identities that are not ObjectIds are ordinary here: the
- * dev seam issues `anonymous` and whatever `x-user-id` a test sends, and every identity is a
- * provider subject until the migration runs. Same trap as `account-purge.ts`'s `scope()`,
- * found the same way — by an e2e, not by reasoning about it.
+ * See `lib/account-id.ts` for why the narrowing exists at all: `findById` THROWS on a
+ * non-ObjectId rather than returning null, and non-ObjectId identities are ordinary here.
  */
 const NO_ACCOUNT = problem(404, 'Not Found', 'No account record exists for this identity.');
 
 function accountIdOf(principal: Principal): string | null {
-  return mongoose.isValidObjectId(principal.userId) ? principal.userId : null;
+  return asAccountId(principal.userId);
 }
 
 export async function getMe(principal: Principal): Promise<ControllerResult> {
@@ -199,3 +196,81 @@ function extractEmail(body: unknown): string | undefined {
   const parsed = z.object({ email: z.string().trim().email().max(254) }).safeParse(body);
   return parsed.success ? parsed.data.email.toLowerCase() : undefined;
 }
+
+// ——— US3: export and delete your own data ———
+
+/**
+ * FR-AC-024. The SAME shape `011`'s administrator export produces, not a second format:
+ * one export means one thing to keep correct when a collection is added.
+ */
+export async function exportOwn(principal: Principal): Promise<ControllerResult> {
+  const id = accountIdOf(principal);
+  if (!id) return NO_ACCOUNT;
+
+  const { collectUserData, ALL_USER_DATA_MODELS } = await import('../lib/account-purge');
+  const { record: auditRecord } = await import('../lib/audit');
+
+  const data = await collectUserData(id);
+  // FR-AC-027. Actor and subject are the same person here — that is what makes it a
+  // SELF-export, and why the action name says so rather than reusing `user.export`.
+  await auditRecord(id, 'account.self-export', { userId: id, type: 'account' });
+
+  return {
+    status: 200,
+    body: {
+      userId: id,
+      exportedAt: new Date().toISOString(),
+      // Derived from the model list, so the manifest cannot disagree with the contents.
+      collections: ALL_USER_DATA_MODELS.map((m) => m.name),
+      data,
+    },
+  };
+}
+
+/**
+ * FR-AC-025: delete your own account, through `011`'s two-phase erasure.
+ *
+ * Deliberately NOT a second deletion mechanism. A parallel path would mean two things to
+ * reconcile at purge, two recovery windows, and two places to get the access refusal wrong.
+ * The account becomes inaccessible immediately — enforced in `authenticate()`, so no
+ * controller can forget it — and the data is purged only after the window.
+ */
+export async function deleteOwn(principal: Principal): Promise<ControllerResult> {
+  const id = accountIdOf(principal);
+  if (!id) return NO_ACCOUNT;
+
+  // FR-AC-026. Roles live in the identity provider, so the app cannot enumerate
+  // administrators and cannot literally know whether one would be left. The check it CAN make
+  // correctly is the one `011` FR-AD-020 already makes for the administrator path: an
+  // administrator may not delete themselves. Refusing is the safe side of an unknowable
+  // question — an administrator who genuinely wants to leave can have another one erase them.
+  if (principal.isAdmin) {
+    return problem(
+      409,
+      'Cannot Delete Administrator',
+      'An administrator cannot delete their own account — it would risk leaving the system unadministrable. Ask another administrator to remove it.',
+    );
+  }
+
+  const { AccountErasure } = await import('../models/account-erasure');
+  const { ERASURE_WINDOW_DAYS } = await import('../types/admin');
+  const { suspendProviderAccount } = await import('../lib/provider-account');
+  const { record: auditRecord } = await import('../lib/audit');
+
+  const erasedAt = new Date();
+  const purgeAfter = new Date(erasedAt.getTime() + ERASURE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  await AccountErasure.findOneAndUpdate(
+    { userId: id },
+    { $set: { erasedAt, purgeAfter, erasedBy: id }, $unset: { restoredAt: '' } },
+    { upsert: true },
+  );
+
+  await suspendProviderAccount(id); // FR-AC-039
+  await auditRecord(id, 'account.self-delete', { userId: id, type: 'account' });
+
+  return {
+    status: 202,
+    body: { userId: id, erasedAt, purgeAfter, recoverableForDays: ERASURE_WINDOW_DAYS },
+  };
+}
+

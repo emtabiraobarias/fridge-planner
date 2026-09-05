@@ -103,4 +103,74 @@ describe('ProfilePanel (spec 013 US2)', () => {
     await userEvent.click(screen.getByRole('button', { name: /save display name/i }));
     expect(await screen.findByTestId('profile-error')).toBeInTheDocument();
   });
+
+  it('does not delete on the first click (FR-AC-025)', async () => {
+    // Two-step, like `003` FR-F-020's record deletion. This is the largest thing a person can
+    // destroy in the app and it is permanent after the recovery window, so a single misplaced
+    // tap must not start it.
+    const fetchMock = mockApi(PROFILE);
+    render(<ProfilePanel />);
+    await userEvent.click(await screen.findByTestId('delete-button'));
+
+    expect(screen.getByTestId('delete-confirm')).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((c) => c[1]?.method === 'DELETE')).toBe(false);
+  });
+
+  it('deletes once confirmed, and says the account is SCHEDULED rather than gone', async () => {
+    // The distinction is the recovery window: telling someone their data is gone when it is
+    // restorable for 30 days would stop them asking for it back.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      if (init?.method === 'DELETE') {
+        return new Response(JSON.stringify({ recoverableForDays: 30, purgeAfter: 'x' }), {
+          status: 202,
+        });
+      }
+      return new Response(JSON.stringify(PROFILE), { status: 200 });
+    });
+    render(<ProfilePanel />);
+    await userEvent.click(await screen.findByTestId('delete-button'));
+    await userEvent.click(screen.getByTestId('delete-confirm-button'));
+
+    const notice = await screen.findByTestId('account-deleted-notice');
+    expect(notice).toHaveTextContent(/scheduled for deletion/i);
+    expect(notice).toHaveTextContent(/30 days/);
+  });
+
+  it('shows the administrator refusal as written (FR-AC-026)', async () => {
+    // Its message explains what to do instead — ask another administrator — so replacing it
+    // with a generic failure would strip the only useful part.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      if (init?.method === 'DELETE') {
+        return new Response(
+          JSON.stringify({
+            title: 'Cannot Delete Administrator',
+            detail: 'An administrator cannot delete their own account — ask another administrator.',
+          }),
+          { status: 409 },
+        );
+      }
+      return new Response(JSON.stringify(PROFILE), { status: 200 });
+    });
+    render(<ProfilePanel />);
+    await userEvent.click(await screen.findByTestId('delete-button'));
+    await userEvent.click(screen.getByTestId('delete-confirm-button'));
+
+    expect(await screen.findByTestId('profile-error')).toHaveTextContent(/another administrator/i);
+  });
+
+  it('offers the export as a download rather than rendering it', async () => {
+    // An export is for taking elsewhere. Rendering it would put every field on screen and
+    // still leave the person with no file.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) =>
+      String(url).includes('/export')
+        ? new Response(JSON.stringify({ data: {} }), { status: 200 })
+        : new Response(JSON.stringify(PROFILE), { status: 200 }),
+    );
+    const createUrl = vi.fn(() => 'blob:fake');
+    vi.stubGlobal('URL', { ...URL, createObjectURL: createUrl, revokeObjectURL: vi.fn() });
+    render(<ProfilePanel />);
+    await userEvent.click(await screen.findByTestId('export-button'));
+    await waitFor(() => expect(createUrl).toHaveBeenCalled());
+    vi.unstubAllGlobals();
+  });
 });

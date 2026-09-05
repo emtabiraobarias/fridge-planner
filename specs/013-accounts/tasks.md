@@ -106,12 +106,12 @@ complete a password reset and sign in with the new password.
 **Independent test**: export and confirm every user-keyed store appears; delete, confirm access
 stops immediately, restore inside the window, confirm the data returns.
 
-- [ ] T034 [P] [US3] Write failing tests in `packages/client/tests/server/accounts-selfservice.test.ts`: export covers every user-keyed store (FR-AC-024); delete is two-phase and restorable (FR-AC-025); 409 when it would leave no administrator (FR-AC-026); both are audited (FR-AC-027)
-- [ ] T035 [US3] Write a failing test asserting erasure SUSPENDS the provider account, restore RESUMES it, and purge DELETES it (FR-AC-039/040/041)
-- [ ] T036 [US3] Add `exportOwn` / `deleteOwn` to `controllers/accounts.ts`, reusing `011`'s two-phase erasure rather than a second implementation
-- [ ] T037 [P] [US3] Create `packages/client/app/api/v1/accounts/me/export/route.ts` and the DELETE verb on `me/route.ts`
-- [ ] T038 [US3] Wire provider suspend/resume/delete into the erasure, restore and purge paths
-- [ ] T039 [US3] Build the export + delete controls with an explicit confirmation on delete
+- [x] T034 [P] [US3] Write failing tests in `packages/client/tests/server/accounts-selfservice.test.ts`: export covers every user-keyed store (FR-AC-024); delete is two-phase and restorable (FR-AC-025); 409 when it would leave no administrator (FR-AC-026); both are audited (FR-AC-027)
+- [x] T035 [US3] Write a failing test asserting erasure SUSPENDS the provider account, restore RESUMES it, and purge DELETES it (FR-AC-039/040/041)
+- [x] T036 [US3] Add `exportOwn` / `deleteOwn` to `controllers/accounts.ts`, reusing `011`'s two-phase erasure rather than a second implementation
+- [x] T037 [P] [US3] Create `packages/client/app/api/v1/accounts/me/export/route.ts` and the DELETE verb on `me/route.ts`
+- [x] T038 [US3] Wire provider suspend/resume/delete into the erasure, restore and purge paths
+- [x] T039 [US3] Build the export + delete controls with an explicit confirmation on delete
 
 ---
 

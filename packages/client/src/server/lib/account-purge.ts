@@ -1,5 +1,6 @@
 import 'server-only';
-import mongoose, { type Model } from 'mongoose';
+import type { Model } from 'mongoose';
+import { asAccountId } from './account-id';
 import { Account } from '../models/account';
 import { InventoryItem } from '../models/inventory-item';
 import { MealPlan } from '../models/meal-plan';
@@ -68,10 +69,13 @@ export const USER_DETACHED_MODELS: ReadonlyArray<{ name: string; model: Model<an
  * THROWS a CastError on those rather than matching nothing, and an exception here would
  * abort the purge partway through, after some collections had already been emptied. Skipping
  * is correct as well as safe: an id that cannot be an `accounts._id` names no account.
+ *
+ * See `account-id.ts` — the same trap was written three times before it got a name.
  */
 function scope(userId: string, key: string | undefined): Record<string, string> | null {
   if ((key ?? 'userId') !== '_id') return { [key ?? 'userId']: userId };
-  return mongoose.isValidObjectId(userId) ? { _id: userId } : null;
+  const id = asAccountId(userId);
+  return id ? { _id: id } : null;
 }
 
 /**

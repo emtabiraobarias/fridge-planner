@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDb } from '@server/db';
 import { authenticatePrincipal } from '@server/auth';
-import { getMe, updateDisplayName } from '@server/controllers/accounts';
+import { getMe, updateDisplayName, deleteOwn } from '@server/controllers/accounts';
 import { withRoute } from '@server/route-helpers';
 
 /**
@@ -26,6 +26,19 @@ export async function PATCH(request: Request): Promise<NextResponse> {
     const principal = await authenticatePrincipal(request);
     const body: unknown = await request.json().catch(() => ({}));
     const result = await updateDisplayName(principal, body);
+    return NextResponse.json(result.body, { status: result.status });
+  });
+}
+
+/**
+ * FR-AC-025. 202, not 204: the account is scheduled for deletion, not deleted — the two-phase
+ * erasure keeps the data for a recovery window, and the body says how long.
+ */
+export async function DELETE(request: Request): Promise<NextResponse> {
+  return withRoute(async () => {
+    await connectDb();
+    const principal = await authenticatePrincipal(request);
+    const result = await deleteOwn(principal);
     return NextResponse.json(result.body, { status: result.status });
   });
 }
