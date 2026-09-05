@@ -190,6 +190,22 @@ Illegal/backward/gate-from-wrong-stage/concurrent → **409 `Illegal Transition`
 > `briefed → in-spec` is refused while any clause is unvetted (FR-FL-028) — that is what makes
 > `briefed` a real stage rather than a label.
 
+### Accounts (spec 013)
+`userId` is **`accounts._id`, never the OIDC `sub`** — see §5. Registration and password reset
+are the only **signed-out** endpoints besides health, so both are rate-limited by **source
+address** rather than by user (the first limiter keys in the app that cannot be `x:${userId}`).
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/accounts/register` | `{email,password,displayName}` → 201 `{accountId}`. **5/min per source.** 409 is deliberately **non-disclosing** — the same sentence whether the address is ours or the provider's, because two differently-worded refusals are still an enumeration oracle. 400 carries the provider's stated password reason (FR-AC-017) |
+| POST | `/accounts/password-reset` | **always 202, empty body**, registered or not (FR-AC-023) — including when the provider *fails*, since a 502 would say "this address exists". **10/min per source**, a bucket separate from registration |
+| GET/PATCH | `/accounts/me` | profile; PATCH writes `displayName` **only** — there is deliberately no way to change your email (§6) |
+| GET | `/accounts/me/export` | every store keyed to the caller; same shape as 011's admin export, not a second format |
+| DELETE | `/accounts/me` | **202** — scheduled, not deleted: reuses 011's two-phase erasure. **409 if the caller is an administrator** (they cannot leave the system unadministrable; ask another admin) |
+
+> **The app never handles a password or a reset token** (FR-AC-033) beyond passing one straight
+> to the provider at registration. `tests/server/unit/no-password-handling.test.ts` enforces it.
+
 ### Administration (spec 011) — admin-only unless noted
 Requires the admin role via `requirePrincipalAdmin`. An authenticated-but-unprivileged
 caller gets **403, deliberately not 401** — the client treats 401 as its FR-D-010
@@ -296,6 +312,33 @@ promotion (a side effect of promotion, not a separate workflow).
 Indexes: `{userId,feedbackRecordId}` unique · `{userId,stage}` · `{userId,updatedAt:-1}` ·
 `{stage,updatedAt:-1}` for the cross-user triage queue, which is deliberately not user-scoped.
 
+### Account (spec 013) — **the internal identity**
+```typescript
+{ _id,                      // THE userId everywhere else. NOT the OIDC `sub`
+  email?, displayName,      // email is sparse-unique; absent when no verified claim was seen
+  identities: [{ issuer, subject, linkedAt }],   // _id:false; UNIQUE on (issuer, subject)
+  pendingVerification?: boolean }                // absent for accounts that predate 013
+```
+- **`userId` stopped being the provider's `sub`.** It was a value we neither own nor control,
+  unique only *within* one provider — which made changing providers a data migration.
+  `scripts/migrate-account-identities.mjs` (one-off, `--check`, **never on startup**) moves
+  existing data; `authenticate()` resolves `(iss, sub)` → `_id` per request, **no cache** (a cache
+  lets two instances disagree after an erasure).
+- **`email` is sparse-unique and stored only from a VERIFIED claim.** Sparse because a token need
+  not carry the claim and that pair must still resolve; verified-only because an unverified
+  address would otherwise enter the pool linking matches against, letting an attacker seed
+  someone else's address and wait for the owner to arrive.
+- **`pendingVerification` is absent, not `false`, for pre-013 accounts** — `false` is
+  indistinguishable from verified, and `true` locks every existing user out on deploy day.
+- **Linking (FR-AC-008) requires `email_verified === true`, strictly.** The refusal is the
+  load-bearing half: matching an unverified address lets a stranger inherit someone's data.
+  Providers have spelled the claim `"true"`; a loose check makes the barrier decoration.
+
+> ⚠️ **`Account.findById(userId)` THROWS on a non-ObjectId** — it does not return null. Dev-seam
+> ids, and every userId in a database where the migration has not run, are exactly that. Route
+> every such lookup through **`lib/account-id.ts`**. This bug was written three times in one spec,
+> and was found by a test every time, never by reading the code.
+
 ### Administration collections (spec 011)
 | Collection | Shape | Note |
 |---|---|---|
@@ -312,8 +355,13 @@ Indexes: `{userId,feedbackRecordId}` unique · `{userId,stage}` · `{userId,upda
 > **TWO lists in `lib/account-purge.ts`, with different semantics — put a new model in the
 > wrong one and you either leak data or destroy it:**
 > - `USER_KEYED_MODELS` (**deleted**): inventory-item, meal-plan, grocery-list, ingredient-alias,
->   feedback-record.
+>   feedback-record, **account**.
 > - `USER_DETACHED_MODELS` (**detached, not deleted**): lifecycle-item.
+>
+> `account` (spec 013) is the odd one: it is keyed by **`_id`**, not by a `userId` field — it *is*
+> the user rather than something belonging to one — so its entry carries `key: '_id'`. Listing it
+> without that produces a delete matching nothing: a purge that leaves the person's identity and
+> email address behind after removing everything else about them.
 >
 > **Adding a model means adding a line to one of them** — omit it and erasure silently orphans
 > it. The split arrived with spec 012 D15: the lifecycle collection used to sit in the delete
@@ -341,6 +389,7 @@ Copy `.env.example` → `.env` at the **repo root** (never inside `packages/`). 
 | `AUTH_ROLES_CLAIM` | `realm_access.roles` | No — dotted path to the role array in the JWT |
 | `AUTH_DEV_USER_ID` / `AUTH_DEV_ROLES` | — | **LOCAL DEV ONLY.** A browser can't send `x-user-id`. Read only on the dev branch of `resolveMode()`. **NEVER set in prod** |
 | `GITHUB_REPO` | `owner/name` — the repo whose published releases fill the closure picker (spec 012 D17). **Read-only, unauthenticated, no credential.** Unset ⇒ picker unavailable and closure falls back to free text; it must never block on a third party | No |
+| `IDP_ADMIN_CLIENT_ID` / `IDP_ADMIN_CLIENT_SECRET` | — | Yes for accounts (spec 013) — the app's **first machine credential** against the IdP: a service account with **`manage-users` only**. Read by `services/identity-provider.ts` and nothing else (an architecture test enforces it). Never in a committed file; missing values degrade registration and reset while leaving every read path working |
 | `NODE_ENV` · `LOG_LEVEL` · `REDIS_URL` | `development` · `info` · — | No (Redis is P2+) |
 
 Single same-origin process ⇒ **no `PORT`/`CORS_ORIGIN`/`BACKEND_URL`**.
@@ -352,6 +401,15 @@ for local dev and tests; `AUTH_MODE=oidc` is required in production, where the d
 refused. Client: `services/http.ts` transparently renews expired access tokens via the
 refresh grant (single-flight + one retry, FR-D-010); the 12h idle window is a Keycloak
 realm setting.
+
+**Accounts (spec 013).** The provider admin endpoint is **derived from `AUTH_JWKS_URI`**, not a
+separate variable: in production that is the *internal* address while `AUTH_ISSUER` is public,
+which is what an admin call should use — and a second variable could disagree with the realm we
+actually verify tokens against, failing silently (tokens verified in one realm, users created in
+another). **There is no route to change your own email**: the stored address is what provider
+linking matches on, so a self-service edit would let someone re-point their identity at an address
+they have not proved they own. It is refreshed from the verified claim on every request instead,
+and locked admin-only at the provider as defence in depth (a manual realm step, `docs/deployment.md`).
 
 **Session (spec 002 US4).** Sign-out is **RP-initiated** — it clears the local session
 *and* redirects to the IdP end-session endpoint, so the next sign-in prompts instead of
