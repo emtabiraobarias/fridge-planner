@@ -35,6 +35,12 @@ export const ADMIN_AUDIT_ACTIONS = [
   'settings.update',
   'cache.flush',
   'limits.reset',
+  // Spec 013 FR-AC-027. Named apart from `user.export`/`user.erase` on purpose: in these two
+  // the actor and the subject are the SAME person, which is the whole difference between "an
+  // administrator acted on someone" and "someone acted on themselves". Reusing the admin
+  // action names would make the trail read as though an administrator had done it.
+  'account.self-export',
+  'account.self-delete',
 ] as const;
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number];

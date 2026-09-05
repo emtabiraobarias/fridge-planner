@@ -229,3 +229,79 @@ test.describe('US2 — manage your own account', () => {
     await ctx.close();
   });
 });
+
+/**
+ * Spec 013 US3 — exporting and deleting your own data, in a real browser.
+ *
+ * The delete assertions are the ones that only a browser can make: the two-step confirmation
+ * is a UI property, and "access stops immediately" is only true if the SERVER refuses the
+ * next request — which is what a reload proves and a mocked fetch never could.
+ */
+test.describe('US3 — export and delete your own data', () => {
+  async function signedInAsNewAccount(browser: Parameters<Parameters<typeof test>[1]>[0]['browser']) {
+    const setupCtx = await browser.newContext();
+    const setupPage = await setupCtx.newPage();
+    await asSignedOutVisitor(setupPage);
+    const created = setupPage.waitForResponse(
+      (r) => r.url().includes('/api/v1/accounts/register') && r.status() === 201,
+    );
+    await setupPage.goto('/account');
+    await fillRegistration(setupPage, freshEmail('us3'));
+    const { accountId } = (await (await created).json()) as { accountId: string };
+    await expect(setupPage.getByTestId('register-verify-notice')).toBeVisible();
+    await setupCtx.close();
+
+    const ctx = await browser.newContext({ extraHTTPHeaders: { 'x-user-id': accountId } });
+    return { ctx, page: await ctx.newPage(), accountId };
+  }
+
+  test('the export covers every store the app keys to the caller (FR-AC-024)', async ({
+    browser,
+  }) => {
+    const { ctx, page, accountId } = await signedInAsNewAccount(browser);
+    await page.goto('/account');
+
+    const exported = page.waitForResponse((r) => r.url().includes('/accounts/me/export'));
+    await page.getByTestId('export-button').click();
+
+    const body = (await (await exported).json()) as {
+      userId: string;
+      collections: string[];
+      data: Record<string, unknown[]>;
+    };
+    expect(body.userId).toBe(accountId);
+    // The manifest and the contents have to agree — an export naming a collection it does not
+    // carry under-reports what is held, which is the opposite of the point.
+    for (const name of body.collections) expect(body.data[name]).toBeDefined();
+    expect(body.collections).toContain('account');
+    await ctx.close();
+  });
+
+  test('deleting takes two steps and then actually stops access (FR-AC-025)', async ({
+    browser,
+  }) => {
+    const { ctx, page } = await signedInAsNewAccount(browser);
+    await page.goto('/account');
+
+    // One click arms it; nothing has been sent yet. A single misplaced tap must not start
+    // the largest destructive action in the app.
+    await page.getByTestId('delete-button').click();
+    await expect(page.getByTestId('delete-confirm')).toBeVisible();
+
+    const deleted = page.waitForResponse(
+      (r) => r.url().endsWith('/api/v1/accounts/me') && r.request().method() === 'DELETE',
+    );
+    await page.getByTestId('delete-confirm-button').click();
+    expect((await deleted).status()).toBe(202);
+
+    // SCHEDULED, not gone — the recovery window is the difference, and telling someone their
+    // data is destroyed when it is restorable would stop them asking for it back.
+    await expect(page.getByTestId('account-deleted-notice')).toContainText(/scheduled/i);
+
+    // The assertion a mocked fetch could never make: the SERVER refuses the very next
+    // request, because the refusal lives in `authenticate()`.
+    const after = await page.request.get('/api/v1/accounts/me');
+    expect(after.status()).toBe(401);
+    await ctx.close();
+  });
+});

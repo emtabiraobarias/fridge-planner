@@ -2,6 +2,12 @@ import 'server-only';
 import { AccountErasure } from '../models/account-erasure';
 import { collectUserData, purgeUserData, ALL_USER_DATA_MODELS } from '../lib/account-purge';
 import { record as auditRecord } from '../lib/audit';
+import {
+  subjectsFor,
+  suspendProviderAccount,
+  resumeProviderAccount,
+  deleteProviderAccount,
+} from '../lib/provider-account';
 import { ERASURE_WINDOW_DAYS } from '../types/admin';
 import { problem, type ControllerResult } from '../http';
 
@@ -78,6 +84,10 @@ export async function adminEraseUser(
     { upsert: true },
   );
 
+  // FR-AC-039. Never throws: see `provider-account.ts` — the app-side refusal is what stops
+  // access, and a provider outage must not leave the user un-erased here as well.
+  await suspendProviderAccount(targetUserId);
+
   await auditRecord(adminUserId, 'user.erase', { userId: targetUserId, type: 'account' });
   return {
     status: 200,
@@ -105,6 +115,7 @@ export async function adminRestoreUser(
 
   doc.restoredAt = new Date();
   await doc.save();
+  await resumeProviderAccount(targetUserId); // FR-AC-040
   await auditRecord(adminUserId, 'user.restore', { userId: targetUserId, type: 'account' });
   return { status: 200, body: { userId: targetUserId, restoredAt: doc.restoredAt } };
 }
@@ -115,7 +126,13 @@ export async function adminPurgeExpired(adminUserId: string): Promise<Controller
 
   const purged: Array<{ userId: string; counts: Record<string, number> }> = [];
   for (const erasure of due) {
+    // BEFORE the purge, deliberately: `purgeUserData` deletes the `accounts` document, which
+    // is the only place the provider subjects are recorded. Read them afterwards and there is
+    // nothing left to delete at the provider — the account would survive there forever.
+    const subjects = await subjectsFor(erasure.userId);
+
     const counts = await purgeUserData(erasure.userId);
+    await deleteProviderAccount(subjects); // FR-AC-041
     await AccountErasure.deleteOne({ _id: erasure._id });
     await auditRecord(adminUserId, 'user.purge', { userId: erasure.userId, type: 'account' });
     purged.push({ userId: erasure.userId, counts });

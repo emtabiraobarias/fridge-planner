@@ -105,3 +105,30 @@ export async function requestPasswordReset(email: string): Promise<void> {
   });
 }
 
+export async function exportOwnData(): Promise<unknown> {
+  const res = await apiFetch('/api/v1/accounts/me/export');
+  return ensureOk(res, 'export your data').json();
+}
+
+/**
+ * FR-AC-025. Resolves on 202 — the account is SCHEDULED for deletion, not deleted, and the
+ * caller gets the recovery window back so the UI can say how long it has.
+ */
+export interface DeletionScheduled {
+  purgeAfter: string;
+  recoverableForDays: number;
+}
+
+export async function deleteOwnAccount(): Promise<DeletionScheduled> {
+  const res = await apiFetch('/api/v1/accounts/me', { method: 'DELETE' });
+  if (res.status === 409) {
+    // The administrator refusal (FR-AC-026). Its `detail` explains what to do instead, so it
+    // is shown verbatim rather than replaced with a generic failure.
+    throw new RegistrationError(
+      await problemDetail(res, 'This account cannot be deleted.'),
+      res.status,
+    );
+  }
+  return (await ensureOk(res, 'delete your account').json()) as DeletionScheduled;
+}
+
